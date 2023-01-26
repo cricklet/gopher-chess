@@ -11,12 +11,12 @@ import (
 type File int
 type Rank int
 
-func (f File) str() string {
+func (f File) string() string {
 	return [8]string{
 		"a", "b", "c", "d", "e", "f", "g", "h",
 	}[f]
 }
-func (r Rank) str() string {
+func (r Rank) string() string {
 	return [8]string{
 		"1", "2", "3", "4", "5", "6", "7", "8",
 	}[r]
@@ -40,7 +40,7 @@ const (
 	BP
 )
 
-func (p Piece) str() string {
+func (p Piece) string() string {
 	return []string{
 		" ",
 		"R",
@@ -72,12 +72,12 @@ func (p Piece) isEmpty() bool {
 
 type BoardArray [64]Piece
 
-func (b BoardArray) str() string {
+func (b BoardArray) string() string {
 	result := ""
 	for r := 0; r < 8; r++ {
 		row := b[r*8 : (r+1)*8]
 		for _, p := range row {
-			result += p.str()
+			result += p.string()
 		}
 		result += "\n"
 	}
@@ -108,7 +108,7 @@ func main() {
 		} else if input == "isready" {
 			fmt.Println("readyok")
 		} else if strings.HasPrefix(input, "go") {
-			fmt.Printf("bestmove %s%s%s%s\n", testFile.str(), testRank.str(), testFile.str(), (testRank + 1).str())
+			fmt.Printf("bestmove %v%v%v%v\n", testFile, testRank, testFile, (testRank + 1))
 			testFile++
 		} else if input == "quit" {
 			done = true

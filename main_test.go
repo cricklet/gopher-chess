@@ -19,7 +19,7 @@ func TestBoardPrint(t *testing.T) {
 		XX, XX, XX, XX, XX, XX, XX, XX,
 	}
 
-	assert.Equal(t, b.str(), strings.Join([]string{
+	assert.Equal(t, b.string(), strings.Join([]string{
 		"        ",
 		"        ",
 		"        ",
