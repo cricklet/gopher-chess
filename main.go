@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 )
 
@@ -20,6 +22,60 @@ func (r Rank) string() string {
 	return [8]string{
 		"1", "2", "3", "4", "5", "6", "7", "8",
 	}[r]
+}
+
+func rankFromChar(c byte) (Rank, error) {
+	rank := int(c - '0')
+	if rank < 0 || rank >= 8 {
+		return 0, errors.New(fmt.Sprintf("rank invalid %v", c))
+	}
+	return Rank(rank), nil
+}
+
+func fileFromChar(c byte) (File, error) {
+	file := int(c - 'a')
+	if file < 0 || file >= 8 {
+		return 0, errors.New(fmt.Sprintf("file invalid %v", c))
+	}
+	return File(file), nil
+}
+
+type Location struct {
+	file File
+	rank Rank
+}
+
+func locationFromString(s string) (Location, error) {
+	if len(s) != 2 {
+		return Location{}, errors.New(fmt.Sprintf("invalid location %v", s))
+	}
+
+	file, fileErr := fileFromChar(s[0])
+	rank, rankErr := rankFromChar(s[1])
+
+	if fileErr != nil || rankErr != nil {
+		return Location{}, errors.New(fmt.Sprintf("invalid location %v with errors %v, %v", s, fileErr, rankErr))
+	}
+
+	return Location{file, rank}, nil
+}
+
+type Player int
+
+const (
+	WHITE Player = iota
+	BLACK
+)
+
+func playerFromString(c string) (Player, error) {
+	switch c {
+	case "b":
+		return BLACK, nil
+	case "w":
+		return WHITE, nil
+	default:
+		return WHITE, errors.New(fmt.Sprintf("invalid player char %v", c))
+	}
 }
 
 type Piece int
@@ -39,6 +95,37 @@ const (
 	BQ
 	BP
 )
+
+func pieceFromString(c rune) (Piece, error) {
+	switch c {
+	case 'R':
+		return WR, nil
+	case 'N':
+		return WN, nil
+	case 'B':
+		return WB, nil
+	case 'K':
+		return WK, nil
+	case 'Q':
+		return WQ, nil
+	case 'P':
+		return WP, nil
+	case 'r':
+		return BR, nil
+	case 'n':
+		return BN, nil
+	case 'b':
+		return BB, nil
+	case 'k':
+		return BK, nil
+	case 'q':
+		return BQ, nil
+	case 'p':
+		return BP, nil
+	default:
+		return XX, errors.New(fmt.Sprintf("invalid piece %v", c))
+	}
+}
 
 func (p Piece) string() string {
 	return []string{
@@ -84,7 +171,86 @@ func (b BoardArray) string() string {
 	return result
 }
 
-type Game struct {
+type GameState struct {
+	board                   BoardArray
+	player                  Player
+	whiteCanCastleKingside  bool
+	whiteCanCastleQueenside bool
+	blackCanCastleKingside  bool
+	blackCanCastleQueenside bool
+	enPassantTarget         *Location
+	halfMoveClock           int
+	fullMoveClock           int
+}
+
+func gamestateFromString(s string) (GameState, error) {
+	ss := strings.Fields(s)
+	if len(ss) != 6 {
+		return GameState{}, errors.New(fmt.Sprintf("wrong num %v of fields in str '%v'", len(ss), s))
+	}
+
+	game := GameState{}
+
+	boardStr, playerString, castlingRightsString, enPassantTargetString, halfMoveClockString, fullMoveClockString := ss[0], ss[1], ss[2], ss[3], ss[4], ss[5]
+
+	boardIndex := 0
+	for _, c := range boardStr {
+		if c == '/' {
+			if boardIndex%8 != 0 {
+				return GameState{}, errors.New(fmt.Sprintf("not enough squares in rank, '%v'", s))
+			}
+		} else if indicesToSkip, err := strconv.ParseInt(string(c), 10, 0); err == nil {
+			boardIndex += int(indicesToSkip)
+		} else if p, err := pieceFromString(c); err == nil {
+			game.board[boardIndex] = p
+			boardIndex++
+		} else {
+			return GameState{}, errors.New(fmt.Sprintf("unknown character '%v' in '%v'", c, s))
+		}
+	}
+
+	if player, err := playerFromString(playerString); err == nil {
+		game.player = player
+	} else {
+		return GameState{}, errors.New(fmt.Sprintf("invalid player '%v' in '%v'", playerString, s))
+	}
+
+	for _, c := range castlingRightsString {
+		switch c {
+		case '-':
+			continue
+		case 'K':
+			game.whiteCanCastleKingside = true
+		case 'Q':
+			game.whiteCanCastleQueenside = true
+		case 'k':
+			game.blackCanCastleKingside = true
+		case 'q':
+			game.blackCanCastleQueenside = true
+		}
+	}
+
+	if enPassantTargetString == "-" {
+		game.enPassantTarget = nil
+	} else if enPassantTarget, err := locationFromString(enPassantTargetString); err == nil {
+		game.enPassantTarget = &enPassantTarget
+	} else {
+		return GameState{}, errors.New(fmt.Sprintf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s))
+	}
+
+	if halfMoveClock, err := strconv.ParseInt(string(halfMoveClockString), 10, 0); err == nil {
+		game.halfMoveClock = int(halfMoveClock)
+	} else {
+		return GameState{}, errors.New(fmt.Sprintf("invalid half move clock '%v' in '%v'", halfMoveClockString, s))
+	}
+
+	if fullMoveClock, err := strconv.ParseInt(string(fullMoveClockString), 10, 0); err == nil {
+		game.fullMoveClock = int(fullMoveClock)
+	} else {
+		return GameState{}, errors.New(fmt.Sprintf("invalid full move clock '%v' in '%v'", fullMoveClockString, s))
+	}
+
+	return game, nil
 }
 
 func main() {
