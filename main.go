@@ -25,11 +25,11 @@ func (r Rank) string() string {
 }
 
 func rankFromChar(c byte) (Rank, error) {
-	rank := int(c - '0')
-	if rank < 0 || rank >= 8 {
+	invertedRank := int(c - '1')
+	if invertedRank < 0 || invertedRank >= 8 {
 		return 0, errors.New(fmt.Sprintf("rank invalid %v", c))
 	}
-	return Rank(rank), nil
+	return Rank(7 - invertedRank), nil
 }
 
 func fileFromChar(c byte) (File, error) {
@@ -40,24 +40,24 @@ func fileFromChar(c byte) (File, error) {
 	return File(file), nil
 }
 
-type Location struct {
+type FileRank struct {
 	file File
 	rank Rank
 }
 
-func locationFromString(s string) (Location, error) {
+func locationFromString(s string) (FileRank, error) {
 	if len(s) != 2 {
-		return Location{}, errors.New(fmt.Sprintf("invalid location %v", s))
+		return FileRank{}, errors.New(fmt.Sprintf("invalid location %v", s))
 	}
 
 	file, fileErr := fileFromChar(s[0])
 	rank, rankErr := rankFromChar(s[1])
 
 	if fileErr != nil || rankErr != nil {
-		return Location{}, errors.New(fmt.Sprintf("invalid location %v with errors %v, %v", s, fileErr, rankErr))
+		return FileRank{}, errors.New(fmt.Sprintf("invalid location %v with errors %v, %v", s, fileErr, rankErr))
 	}
 
-	return Location{file, rank}, nil
+	return FileRank{file, rank}, nil
 }
 
 type Player int
@@ -171,6 +171,10 @@ func (b BoardArray) string() string {
 	return result
 }
 
+func pieceAtFileRank(board BoardArray, location FileRank) Piece {
+	return board[int(location.rank)*8+int(location.file)]
+}
+
 type GameState struct {
 	board                   BoardArray
 	player                  Player
@@ -178,7 +182,7 @@ type GameState struct {
 	whiteCanCastleQueenside bool
 	blackCanCastleKingside  bool
 	blackCanCastleQueenside bool
-	enPassantTarget         *Location
+	enPassantTarget         *FileRank
 	halfMoveClock           int
 	fullMoveClock           int
 }
