@@ -1,4 +1,4 @@
-package main
+package chessgo
 
 import (
 	"bufio"
@@ -25,11 +25,11 @@ func (r Rank) string() string {
 }
 
 func rankFromChar(c byte) (Rank, error) {
-	invertedRank := int(c - '1')
-	if invertedRank < 0 || invertedRank >= 8 {
+	rank := int(c - '1')
+	if rank < 0 || rank >= 8 {
 		return 0, errors.New(fmt.Sprintf("rank invalid %v", c))
 	}
-	return Rank(7 - invertedRank), nil
+	return Rank(rank), nil
 }
 
 func fileFromChar(c byte) (File, error) {
@@ -159,10 +159,24 @@ func (p Piece) isEmpty() bool {
 
 type BoardArray [64]Piece
 
+type NaturalBoardArray [64]Piece
+
+func (n NaturalBoardArray) AsBoardArray() BoardArray {
+	b := BoardArray{}
+
+	for rank := 0; rank < 8; rank++ {
+		index := rank * 8
+		newIndex := (7 - rank) * 8
+		copy(b[index:index+8], n[newIndex:newIndex+8])
+	}
+
+	return b
+}
+
 func (b BoardArray) string() string {
 	result := ""
-	for r := 0; r < 8; r++ {
-		row := b[r*8 : (r+1)*8]
+	for rank := 7; rank >= 0; rank-- {
+		row := b[rank*8 : (rank+1)*8]
 		for _, p := range row {
 			result += p.string()
 		}
@@ -172,7 +186,11 @@ func (b BoardArray) string() string {
 }
 
 func pieceAtFileRank(board BoardArray, location FileRank) Piece {
-	return board[int(location.rank)*8+int(location.file)]
+	return board[boardIndexFromFileRank(location)]
+}
+
+func boardIndexFromFileRank(location FileRank) int {
+	return int(location.rank)*8 + int(location.file)
 }
 
 type GameState struct {
@@ -197,17 +215,21 @@ func gamestateFromString(s string) (GameState, error) {
 
 	boardStr, playerString, castlingRightsString, enPassantTargetString, halfMoveClockString, fullMoveClockString := ss[0], ss[1], ss[2], ss[3], ss[4], ss[5]
 
-	boardIndex := 0
+	var rankIndex Rank = 7
+	var fileIndex File = 0
 	for _, c := range boardStr {
 		if c == '/' {
-			if boardIndex%8 != 0 {
+			if fileIndex != 8 {
 				return GameState{}, errors.New(fmt.Sprintf("not enough squares in rank, '%v'", s))
 			}
+			rankIndex--
+			fileIndex = 0
 		} else if indicesToSkip, err := strconv.ParseInt(string(c), 10, 0); err == nil {
-			boardIndex += int(indicesToSkip)
+			fileIndex += File(indicesToSkip)
 		} else if p, err := pieceFromString(c); err == nil {
-			game.board[boardIndex] = p
-			boardIndex++
+			// note, we insert pieces into the board in inverse order so the 0th index refers to a1
+			game.board[boardIndexFromFileRank(FileRank{fileIndex, rankIndex})] = p
+			fileIndex++
 		} else {
 			return GameState{}, errors.New(fmt.Sprintf("unknown character '%v' in '%v'", c, s))
 		}
