@@ -18,4 +18,24 @@ func TestSingleBoards(t *testing.T) {
 		"00000000",
 		"00000000",
 	}, "\n"))
+	assert.Equal(t, SingleBitboard(0).string(), strings.Join([]string{
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"10000000",
+	}, "\n"))
+	assert.Equal(t, SingleBitboard(7).string(), strings.Join([]string{
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000001",
+	}, "\n"))
 }
