@@ -52,6 +52,22 @@ func TestLocationDecoding(t *testing.T) {
 	assert.Equal(t, location, FileRank{3, 7})
 
 	assert.Equal(t, pieceAtFileRank(game.board, location).string(), BQ.string())
+
+	location, err = locationFromString("a1")
+	assert.Nil(t, err)
+	assert.Equal(t, boardIndexFromFileRank(location), 0)
+
+	location, err = locationFromString("h1")
+	assert.Nil(t, err)
+	assert.Equal(t, boardIndexFromFileRank(location), 7)
+
+	location, err = locationFromString("a8")
+	assert.Nil(t, err)
+	assert.Equal(t, boardIndexFromFileRank(location), 56)
+
+	location, err = locationFromString("h8")
+	assert.Nil(t, err)
+	assert.Equal(t, boardIndexFromFileRank(location), 63)
 }
 
 func TestNotationDecoding(t *testing.T) {
