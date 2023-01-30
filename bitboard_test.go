@@ -8,25 +8,14 @@ import (
 )
 
 func TestSingleBoards(t *testing.T) {
-	b := BoardArray{
-		XX, XX, XX, XX, XX, XX, XX, XX,
-		XX, XX, XX, XX, XX, XX, XX, XX,
-		XX, XX, XX, XX, XX, XX, XX, XX,
-		XX, XX, XX, XX, XX, XX, XX, XX,
-		XX, XX, XX, XX, XX, XX, XX, XX,
-		XX, XX, XX, XX, XX, XX, XX, XX,
-		XX, XX, XX, XX, XX, XX, XX, XX,
-		XX, XX, XX, XX, XX, XX, XX, XX,
-	}
-
-	assert.Equal(t, b.string(), strings.Join([]string{
-		"        ",
-		"        ",
-		"        ",
-		"        ",
-		"        ",
-		"        ",
-		"        ",
-		"        \n",
+	assert.Equal(t, SingleBitboard(63).string(), strings.Join([]string{
+		"00000001",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
 	}, "\n"))
 }
