@@ -2,7 +2,10 @@ package chessgo
 
 import (
 	"fmt"
+	"math/bits"
 	"strings"
+
+	"github.com/tmthrgd/go-popcount"
 )
 
 type Bitboard uint64
@@ -21,7 +24,7 @@ func zerosForRange(fs []int, rs []int) Bitboard {
 
 	result := ALL_ONES
 	for i := 0; i < len(fs); i++ {
-		result &= ^SingleBitboard(boardIndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
+		result &= ^singleBitboard(boardIndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
 	}
 	return result
 }
@@ -136,20 +139,28 @@ var MASKS = [NUM_DIRS]Bitboard{
 	MASK_WW & MASK_S & MASK_W,
 }
 
-func ReverseBits(n uint8) uint8 {
+func reverseBits(n uint8) uint8 {
 	return ReverseBitsCache[n]
 }
 
-func ShiftTowardsIndex0(b Bitboard, n int) Bitboard {
+func shiftTowardsIndex0(b Bitboard, n int) Bitboard {
 	return b >> n
 }
 
-func ShiftTowardsIndex64(b Bitboard, n int) Bitboard {
+func shiftTowardsIndex64(b Bitboard, n int) Bitboard {
 	return b << n
 }
 
-func SingleBitboard(index int) Bitboard {
-	return ShiftTowardsIndex64(1, index)
+func rotateTowardsIndex0(b Bitboard, n int) Bitboard {
+	return Bitboard(bits.RotateLeft64(uint64(b), -n))
+}
+
+func rotateTowardsIndex64(b Bitboard, n int) Bitboard {
+	return Bitboard(bits.RotateLeft64(uint64(b), n))
+}
+
+func singleBitboard(index int) Bitboard {
+	return shiftTowardsIndex64(1, index)
 }
 
 func (b Bitboard) string() string {
@@ -161,34 +172,31 @@ func (b Bitboard) string() string {
 		r := b
 
 		// clip everything above this rank
-		r = ShiftTowardsIndex64(r, bitsAfter)
+		r = shiftTowardsIndex64(r, bitsAfter)
 		// clip everything before this rank
-		r = ShiftTowardsIndex0(r, bitsBefore+bitsAfter)
+		r = shiftTowardsIndex0(r, bitsBefore+bitsAfter)
 
 		// mirror the bits so we're printing in a natural order
 		// (10000000 for the top left / lowest index instead of 00000001)
-		ranks[7-rank] = fmt.Sprintf("%08b", ReverseBits(uint8(r)))
+		ranks[7-rank] = fmt.Sprintf("%08b", reverseBits(uint8(r)))
 	}
 
 	return strings.Join(ranks[0:], "\n")
 }
 
+type PlayerBitboards struct {
+	occupied Bitboard
+	rooks    Bitboard
+	knights  Bitboard
+	bishops  Bitboard
+	queens   Bitboard
+	king     Bitboard
+	pawns    Bitboard
+}
+
 type Bitboards struct {
 	occupied Bitboard
-	white    Bitboard
-	black    Bitboard
-	whiteR   Bitboard
-	whiteN   Bitboard
-	whiteB   Bitboard
-	whiteQ   Bitboard
-	whiteK   Bitboard
-	whiteP   Bitboard
-	blackR   Bitboard
-	blackN   Bitboard
-	blackB   Bitboard
-	blackQ   Bitboard
-	blackK   Bitboard
-	blackP   Bitboard
+	players  [2]PlayerBitboards
 }
 
 func setupBitboards(g GameState) Bitboards {
@@ -196,38 +204,85 @@ func setupBitboards(g GameState) Bitboards {
 	for i, piece := range g.board {
 		switch piece {
 		case WR:
-			result.whiteR |= SingleBitboard(i)
+			result.players[WHITE].rooks |= singleBitboard(i)
 		case WN:
-			result.whiteN |= SingleBitboard(i)
+			result.players[WHITE].knights |= singleBitboard(i)
 		case WB:
-			result.whiteB |= SingleBitboard(i)
+			result.players[WHITE].bishops |= singleBitboard(i)
 		case WK:
-			result.whiteK |= SingleBitboard(i)
+			result.players[WHITE].king |= singleBitboard(i)
 		case WQ:
-			result.whiteQ |= SingleBitboard(i)
+			result.players[WHITE].queens |= singleBitboard(i)
 		case WP:
-			result.whiteP |= SingleBitboard(i)
+			result.players[WHITE].pawns |= singleBitboard(i)
 		case BR:
-			result.blackR |= SingleBitboard(i)
+			result.players[BLACK].rooks |= singleBitboard(i)
 		case BN:
-			result.blackN |= SingleBitboard(i)
+			result.players[BLACK].knights |= singleBitboard(i)
 		case BB:
-			result.blackB |= SingleBitboard(i)
+			result.players[BLACK].bishops |= singleBitboard(i)
 		case BK:
-			result.blackK |= SingleBitboard(i)
+			result.players[BLACK].king |= singleBitboard(i)
 		case BQ:
-			result.blackQ |= SingleBitboard(i)
+			result.players[BLACK].queens |= singleBitboard(i)
 		case BP:
-			result.blackP |= SingleBitboard(i)
+			result.players[BLACK].pawns |= singleBitboard(i)
 		}
 		if piece.isWhite() {
-			result.occupied |= SingleBitboard(i)
-			result.white |= SingleBitboard(i)
+			result.occupied |= singleBitboard(i)
+			result.players[WHITE].occupied |= singleBitboard(i)
 		}
 		if piece.isBlack() {
-			result.occupied |= SingleBitboard(i)
-			result.black |= SingleBitboard(i)
+			result.occupied |= singleBitboard(i)
+			result.players[BLACK].occupied |= singleBitboard(i)
 		}
 	}
 	return result
+}
+
+type Move struct {
+	startIndex int
+	endIndex   int
+}
+
+func (b Bitboard) leastSignificantOne() Bitboard {
+	return b & -b
+}
+
+func (b Bitboard) eachIndexOfOne() []int {
+	result := make([]int, 0, 64)
+
+	temp := b
+	for temp != 0 {
+		ls1 := temp.leastSignificantOne()
+		index := popcount.Count64(uint64(ls1 - 1))
+		result = append(result, int(index))
+		temp = temp ^ ls1
+	}
+
+	return result
+}
+
+func (b Bitboards) generatePseudoMoves(player Player) []Move {
+	moves := make([]Move, 0, 256)
+
+	// generate pawn pushes
+	dir := S
+	if player == WHITE {
+		dir = N
+	}
+	potential := rotateTowardsIndex64(b.players[player].pawns, OFFSETS[dir])
+	successful := potential & ^b.occupied
+	for index := range successful.eachIndexOfOne() {
+		fmt.Println(index)
+		moves = append(moves, Move{index - OFFSETS[dir], index})
+	}
+
+	return moves
+}
+
+func moveFromString(s string) Move {
+	first := s[0:2]
+	second := s[2:4]
+	return Move{boardIndexFromString(first), boardIndexFromString(second)}
 }

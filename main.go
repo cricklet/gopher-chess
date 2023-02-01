@@ -192,6 +192,13 @@ func pieceAtFileRank(board BoardArray, location FileRank) Piece {
 func boardIndexFromFileRank(location FileRank) int {
 	return int(location.rank)*8 + int(location.file)
 }
+func boardIndexFromString(s string) int {
+	location, err := locationFromString(s)
+	if err != nil {
+		panic(err)
+	}
+	return boardIndexFromFileRank(location)
+}
 
 type GameState struct {
 	board                   BoardArray
