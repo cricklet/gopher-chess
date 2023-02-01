@@ -1,11 +1,10 @@
 package chessgo
 
 import (
-	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
-	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -225,17 +224,26 @@ func TestGeneratePseudoMoves(t *testing.T) {
 
 	bitboards := setupBitboards(g)
 
-	moves := mapset.NewSet(bitboards.generatePseudoMoves(g.player)...)
-	assert.Equal(t, moves, mapset.NewSet(
-		moveFromString("a3a4"),
-		moveFromString("b3b4"),
-		moveFromString("c3c4"),
-		moveFromString("d3d4"),
-		// moveFromString("e3e4"), <-- blocked
-		moveFromString("f3f4"),
-		moveFromString("g3g4"),
-		moveFromString("h3h4"),
-	))
+	result := []string{}
+	for _, move := range bitboards.generatePseudoMoves(g.player) {
+		result = append(result, move.string())
+	}
+
+	expected := []string{
+		"a2a3",
+		"b2b3",
+		"c2c3",
+		"d2d3",
+		// "e2e3", <-- blocked
+		"f2f3",
+		"g2g3",
+		"h2h3",
+	}
+
+	sort.Strings(result)
+	sort.Strings(expected)
+
+	assert.Equal(t, result, expected)
 }
 
 func TestEachIndexOfOne(t *testing.T) {
@@ -251,8 +259,32 @@ func TestEachIndexOfOne(t *testing.T) {
 		"00010100",
 	}, "\n"))
 
+	expected := []string{
+		"d1", "f1", "g4", "h8",
+	}
+	result := []string{}
 	for _, index := range board.eachIndexOfOne() {
-		fmt.Println(index)
+		result = append(result, stringFromBoardIndex(index))
 	}
 
+	sort.Strings(result)
+	sort.Strings(expected)
+
+	assert.Equal(t, result, expected)
+}
+
+func TestStringFromBoardIndex(t *testing.T) {
+	for _, str := range []string{"a4", "c2", "h7"} {
+		fileRank, err := fileRankFromString(str)
+		if err != nil {
+			panic(err)
+		}
+
+		assert.Equal(t, fileRank.string(), str)
+
+		i := boardIndexFromString(str)
+		j := boardIndexFromFileRank(fileRank)
+		assert.Equal(t, stringFromBoardIndex(i), str)
+		assert.Equal(t, stringFromBoardIndex(j), str)
+	}
 }

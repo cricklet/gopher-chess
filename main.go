@@ -45,7 +45,11 @@ type FileRank struct {
 	rank Rank
 }
 
-func locationFromString(s string) (FileRank, error) {
+func (v FileRank) string() string {
+	return v.file.string() + v.rank.string()
+}
+
+func fileRankFromString(s string) (FileRank, error) {
 	if len(s) != 2 {
 		return FileRank{}, errors.New(fmt.Sprintf("invalid location %v", s))
 	}
@@ -192,8 +196,15 @@ func pieceAtFileRank(board BoardArray, location FileRank) Piece {
 func boardIndexFromFileRank(location FileRank) int {
 	return int(location.rank)*8 + int(location.file)
 }
+
+func fileRankFromBoardIndex(index int) FileRank {
+	f := File(index & 0b111)
+	r := Rank(index >> 3)
+	return FileRank{f, r}
+}
+
 func boardIndexFromString(s string) int {
-	location, err := locationFromString(s)
+	location, err := fileRankFromString(s)
 	if err != nil {
 		panic(err)
 	}
@@ -265,7 +276,7 @@ func gamestateFromString(s string) (GameState, error) {
 
 	if enPassantTargetString == "-" {
 		game.enPassantTarget = nil
-	} else if enPassantTarget, err := locationFromString(enPassantTargetString); err == nil {
+	} else if enPassantTarget, err := fileRankFromString(enPassantTargetString); err == nil {
 		game.enPassantTarget = &enPassantTarget
 	} else {
 		return GameState{}, errors.New(fmt.Sprintf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s))

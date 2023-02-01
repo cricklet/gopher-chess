@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"math/bits"
 	"strings"
-
-	"github.com/tmthrgd/go-popcount"
 )
 
 type Bitboard uint64
@@ -255,7 +253,7 @@ func (b Bitboard) eachIndexOfOne() []int {
 	temp := b
 	for temp != 0 {
 		ls1 := temp.leastSignificantOne()
-		index := popcount.Count64(uint64(ls1 - 1))
+		index := bits.OnesCount64(uint64(ls1 - 1))
 		result = append(result, int(index))
 		temp = temp ^ ls1
 	}
@@ -273,8 +271,7 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 	}
 	potential := rotateTowardsIndex64(b.players[player].pawns, OFFSETS[dir])
 	successful := potential & ^b.occupied
-	for index := range successful.eachIndexOfOne() {
-		fmt.Println(index)
+	for _, index := range successful.eachIndexOfOne() {
 		moves = append(moves, Move{index - OFFSETS[dir], index})
 	}
 
@@ -285,4 +282,12 @@ func moveFromString(s string) Move {
 	first := s[0:2]
 	second := s[2:4]
 	return Move{boardIndexFromString(first), boardIndexFromString(second)}
+}
+
+func (m Move) string() string {
+	return stringFromBoardIndex(m.startIndex) + stringFromBoardIndex(m.endIndex)
+}
+
+func stringFromBoardIndex(index int) string {
+	return fileRankFromBoardIndex(index).string()
 }

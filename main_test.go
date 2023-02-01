@@ -32,7 +32,7 @@ func TestBoardPrint(t *testing.T) {
 }
 
 func TestLocationDecoding(t *testing.T) {
-	location, err := locationFromString("a1")
+	location, err := fileRankFromString("a1")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{0, 0})
 
@@ -41,31 +41,31 @@ func TestLocationDecoding(t *testing.T) {
 
 	assert.Equal(t, pieceAtFileRank(game.board, location).string(), WR.string())
 
-	location, err = locationFromString("e4")
+	location, err = fileRankFromString("e4")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{4, 3})
 
 	assert.Equal(t, pieceAtFileRank(game.board, location).string(), WP.string())
 
-	location, err = locationFromString("d8")
+	location, err = fileRankFromString("d8")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{3, 7})
 
 	assert.Equal(t, pieceAtFileRank(game.board, location).string(), BQ.string())
 
-	location, err = locationFromString("a1")
+	location, err = fileRankFromString("a1")
 	assert.Nil(t, err)
 	assert.Equal(t, boardIndexFromFileRank(location), 0)
 
-	location, err = locationFromString("h1")
+	location, err = fileRankFromString("h1")
 	assert.Nil(t, err)
 	assert.Equal(t, boardIndexFromFileRank(location), 7)
 
-	location, err = locationFromString("a8")
+	location, err = fileRankFromString("a8")
 	assert.Nil(t, err)
 	assert.Equal(t, boardIndexFromFileRank(location), 56)
 
-	location, err = locationFromString("h8")
+	location, err = fileRankFromString("h8")
 	assert.Nil(t, err)
 	assert.Equal(t, boardIndexFromFileRank(location), 63)
 }
@@ -88,7 +88,7 @@ func TestNotationDecoding(t *testing.T) {
 
 	assert.Equal(t, g.player, BLACK)
 
-	expectedLocation, err := locationFromString("e3")
+	expectedLocation, err := fileRankFromString("e3")
 	assert.Nil(t, err)
 	assert.Equal(t, *g.enPassantTarget, expectedLocation)
 
