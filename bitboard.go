@@ -11,6 +11,21 @@ func SingleUint8(indexFromTheRight int) uint8 {
 	return 1 << indexFromTheRight
 }
 
+var ALL_ZEROS Bitboard = Bitboard(0)
+var ALL_ONES Bitboard = ^ALL_ZEROS
+
+func zerosForRange(fs []int, rs []int) Bitboard {
+	if len(fs) != len(rs) {
+		panic("slices have different length")
+	}
+
+	result := ALL_ONES
+	for i := 0; i < len(fs); i++ {
+		result &= ^SingleBitboard(boardIndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
+	}
+	return result
+}
+
 var ReverseBitsCache = func() [256]uint8 {
 	result := [256]uint8{}
 	for i := uint8(0); ; i++ {
@@ -28,6 +43,98 @@ var ReverseBitsCache = func() [256]uint8 {
 	}
 	return result
 }()
+
+type Dir int
+
+const (
+	N Dir = iota
+	S
+	E
+	W
+
+	NE
+	NW
+	SE
+	SW
+
+	NNE
+	NNW
+	SSE
+	SSW
+	ENE
+	ESE
+	WNW
+	WSW
+
+	NUM_DIRS
+)
+
+const (
+	OFFSET_N int = 8
+	OFFSET_S int = -8
+	OFFSET_E int = 1
+	OFFSET_W int = -1
+)
+
+var OFFSETS = [NUM_DIRS]int{
+	OFFSET_N,
+	OFFSET_S,
+	OFFSET_E,
+	OFFSET_W,
+
+	OFFSET_N + OFFSET_E,
+	OFFSET_N + OFFSET_W,
+	OFFSET_S + OFFSET_E,
+	OFFSET_S + OFFSET_W,
+
+	OFFSET_N + OFFSET_N + OFFSET_E,
+	OFFSET_N + OFFSET_N + OFFSET_W,
+	OFFSET_S + OFFSET_S + OFFSET_E,
+	OFFSET_S + OFFSET_S + OFFSET_W,
+	OFFSET_E + OFFSET_N + OFFSET_E,
+	OFFSET_E + OFFSET_S + OFFSET_E,
+	OFFSET_W + OFFSET_N + OFFSET_W,
+	OFFSET_W + OFFSET_S + OFFSET_W,
+}
+
+var ZEROS = []int{0, 0, 0, 0, 0, 0, 0, 0}
+var ONES = []int{1, 1, 1, 1, 1, 1, 1, 1}
+var SIXES = []int{6, 6, 6, 6, 6, 6, 6, 6}
+var SEVENS = []int{7, 7, 7, 7, 7, 7, 7, 7}
+var ZERO_TO_SEVEN = []int{0, 1, 2, 3, 4, 5, 6, 7}
+
+var (
+	MASK_N Bitboard = zerosForRange(ZERO_TO_SEVEN, SEVENS)
+	MASK_S Bitboard = zerosForRange(ZERO_TO_SEVEN, ZEROS)
+	MASK_E Bitboard = zerosForRange(SEVENS, ZERO_TO_SEVEN)
+	MASK_W Bitboard = zerosForRange(ZEROS, ZERO_TO_SEVEN)
+
+	MASK_NN Bitboard = zerosForRange(ZERO_TO_SEVEN, SIXES)
+	MASK_SS Bitboard = zerosForRange(ZERO_TO_SEVEN, ONES)
+	MASK_EE Bitboard = zerosForRange(SIXES, ZERO_TO_SEVEN)
+	MASK_WW Bitboard = zerosForRange(ONES, ZERO_TO_SEVEN)
+)
+
+var MASKS = [NUM_DIRS]Bitboard{
+	MASK_N,
+	MASK_S,
+	MASK_E,
+	MASK_W,
+
+	MASK_N & MASK_E,
+	MASK_N & MASK_W,
+	MASK_S & MASK_E,
+	MASK_S & MASK_W,
+
+	MASK_NN & MASK_N & MASK_E,
+	MASK_NN & MASK_N & MASK_W,
+	MASK_SS & MASK_S & MASK_E,
+	MASK_SS & MASK_S & MASK_W,
+	MASK_EE & MASK_N & MASK_E,
+	MASK_EE & MASK_S & MASK_E,
+	MASK_WW & MASK_N & MASK_W,
+	MASK_WW & MASK_S & MASK_W,
+}
 
 func ReverseBits(n uint8) uint8 {
 	return ReverseBitsCache[n]
