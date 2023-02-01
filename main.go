@@ -82,6 +82,10 @@ func playerFromString(c string) (Player, error) {
 	}
 }
 
+func (p Player) other() Player {
+	return 1 - p
+}
+
 type Piece int
 
 const (

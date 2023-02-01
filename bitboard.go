@@ -105,6 +105,21 @@ var SEVENS = []int{7, 7, 7, 7, 7, 7, 7, 7}
 var ZERO_TO_SEVEN = []int{0, 1, 2, 3, 4, 5, 6, 7}
 
 var (
+	MASK_WHITE_STARTING_PAWNS = ^zerosForRange(ZERO_TO_SEVEN, ONES)
+	MASK_BLACK_STARTING_PAWNS = ^zerosForRange(ZERO_TO_SEVEN, SIXES)
+)
+
+func maskStartingPawnsForPlayer(player Player) Bitboard {
+	switch player {
+	case WHITE:
+		return MASK_WHITE_STARTING_PAWNS
+	case BLACK:
+		return MASK_BLACK_STARTING_PAWNS
+	}
+	panic(fmt.Sprintf("invalid player %v", player))
+}
+
+var (
 	MASK_N Bitboard = zerosForRange(ZERO_TO_SEVEN, SEVENS)
 	MASK_S Bitboard = zerosForRange(ZERO_TO_SEVEN, ZEROS)
 	MASK_E Bitboard = zerosForRange(SEVENS, ZERO_TO_SEVEN)
@@ -269,10 +284,41 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 	if player == WHITE {
 		dir = N
 	}
-	potential := rotateTowardsIndex64(b.players[player].pawns, OFFSETS[dir])
-	successful := potential & ^b.occupied
-	for _, index := range successful.eachIndexOfOne() {
-		moves = append(moves, Move{index - OFFSETS[dir], index})
+
+	// generate one step
+	{
+		potential := rotateTowardsIndex64(b.players[player].pawns, OFFSETS[dir])
+		potential = potential & ^b.occupied
+		for _, index := range potential.eachIndexOfOne() {
+			moves = append(moves, Move{index - OFFSETS[dir], index})
+		}
+	}
+
+	// generate skip step
+	{
+		potential := b.players[player].pawns
+		potential = potential & maskStartingPawnsForPlayer(player)
+		potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+		potential = potential & ^b.occupied
+		potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+		potential = potential & ^b.occupied
+
+		for _, index := range potential.eachIndexOfOne() {
+			moves = append(moves, Move{index - 2*OFFSETS[dir], index})
+		}
+	}
+
+	// generate captures
+	{
+		for _, dir := range []Dir{NE, NW} {
+			potential := b.players[player].pawns
+			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+			potential = potential & b.players[player.other()].occupied
+
+			for _, index := range potential.eachIndexOfOne() {
+				moves = append(moves, Move{index - OFFSETS[dir], index})
+			}
+		}
 	}
 
 	return moves

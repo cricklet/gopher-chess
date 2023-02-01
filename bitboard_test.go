@@ -207,15 +207,15 @@ func TestBitRotation(t *testing.T) {
 }
 
 func TestGeneratePseudoMoves(t *testing.T) {
-	s := "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 1 2"
+	s := "rnbqkbnr/pppp11pp/8/4pp2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 1 2"
 	g, err := gamestateFromString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, g.board.string(), NaturalBoardArray{
 		BR, BN, BB, BQ, BK, BB, BN, BR,
-		BP, BP, BP, BP, XX, BP, BP, BP,
+		BP, BP, BP, BP, XX, XX, BP, BP,
 		XX, XX, XX, XX, XX, XX, XX, XX,
-		XX, XX, XX, XX, BP, XX, XX, XX,
+		XX, XX, XX, XX, BP, BP, XX, XX,
 		XX, XX, XX, XX, WP, XX, XX, XX,
 		XX, XX, XX, XX, XX, XX, XX, XX,
 		WP, WP, WP, WP, XX, WP, WP, WP,
@@ -234,10 +234,23 @@ func TestGeneratePseudoMoves(t *testing.T) {
 		"b2b3",
 		"c2c3",
 		"d2d3",
-		// "e2e3", <-- blocked
+		// "e4e5", <-- blocked
 		"f2f3",
 		"g2g3",
 		"h2h3",
+
+		// skip step
+		"a2a4",
+		"b2b4",
+		"c2c4",
+		"d2d4",
+		// "e4e6", <-- not allowed
+		"f2f4",
+		"g2g4",
+		"h2h4",
+
+		// captures
+		"e4f5",
 	}
 
 	sort.Strings(result)
