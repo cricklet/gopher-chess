@@ -85,3 +85,52 @@ func TestDirMasks(t *testing.T) {
 		"00000000",
 	}, "\n"))
 }
+
+func TestBitboardSetup(t *testing.T) {
+	s := "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+	g, err := gamestateFromString(s)
+	assert.Nil(t, err)
+
+	assert.Equal(t, g.board.string(), NaturalBoardArray{
+		BR, BN, BB, BQ, BK, BB, BN, BR,
+		BP, BP, BP, BP, BP, BP, BP, BP,
+		XX, XX, XX, XX, XX, XX, XX, XX,
+		XX, XX, XX, XX, XX, XX, XX, XX,
+		XX, XX, XX, XX, WP, XX, XX, XX,
+		XX, XX, XX, XX, XX, XX, XX, XX,
+		WP, WP, WP, WP, XX, WP, WP, WP,
+		WR, WN, WB, WQ, WK, WB, WN, WR,
+	}.AsBoardArray().string())
+
+	bitboards := setupBitboards(g)
+	assert.Equal(t, bitboards.occupied.string(), strings.Join([]string{
+		"11111111",
+		"11111111",
+		"00000000",
+		"00000000",
+		"00001000",
+		"00000000",
+		"11110111",
+		"11111111",
+	}, "\n"))
+	assert.Equal(t, bitboards.white.string(), strings.Join([]string{
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00001000",
+		"00000000",
+		"11110111",
+		"11111111",
+	}, "\n"))
+	assert.Equal(t, bitboards.whiteP.string(), strings.Join([]string{
+		"00000000",
+		"00000000",
+		"00000000",
+		"00000000",
+		"00001000",
+		"00000000",
+		"11110111",
+		"00000000",
+	}, "\n"))
+}

@@ -172,3 +172,62 @@ func (b Bitboard) string() string {
 
 	return strings.Join(ranks[0:], "\n")
 }
+
+type Bitboards struct {
+	occupied Bitboard
+	white    Bitboard
+	black    Bitboard
+	whiteR   Bitboard
+	whiteN   Bitboard
+	whiteB   Bitboard
+	whiteQ   Bitboard
+	whiteK   Bitboard
+	whiteP   Bitboard
+	blackR   Bitboard
+	blackN   Bitboard
+	blackB   Bitboard
+	blackQ   Bitboard
+	blackK   Bitboard
+	blackP   Bitboard
+}
+
+func setupBitboards(g GameState) Bitboards {
+	result := Bitboards{}
+	for i, piece := range g.board {
+		switch piece {
+		case WR:
+			result.whiteR |= SingleBitboard(i)
+		case WN:
+			result.whiteN |= SingleBitboard(i)
+		case WB:
+			result.whiteB |= SingleBitboard(i)
+		case WK:
+			result.whiteK |= SingleBitboard(i)
+		case WQ:
+			result.whiteQ |= SingleBitboard(i)
+		case WP:
+			result.whiteP |= SingleBitboard(i)
+		case BR:
+			result.blackR |= SingleBitboard(i)
+		case BN:
+			result.blackN |= SingleBitboard(i)
+		case BB:
+			result.blackB |= SingleBitboard(i)
+		case BK:
+			result.blackK |= SingleBitboard(i)
+		case BQ:
+			result.blackQ |= SingleBitboard(i)
+		case BP:
+			result.blackP |= SingleBitboard(i)
+		}
+		if piece.isWhite() {
+			result.occupied |= SingleBitboard(i)
+			result.white |= SingleBitboard(i)
+		}
+		if piece.isBlack() {
+			result.occupied |= SingleBitboard(i)
+			result.black |= SingleBitboard(i)
+		}
+	}
+	return result
+}
