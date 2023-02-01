@@ -279,44 +279,46 @@ func (b Bitboard) eachIndexOfOne() []int {
 func (b Bitboards) generatePseudoMoves(player Player) []Move {
 	moves := make([]Move, 0, 256)
 
-	// generate pawn pushes
-	dir := S
-	if player == WHITE {
-		dir = N
-	}
-
-	// generate one step
 	{
-		potential := rotateTowardsIndex64(b.players[player].pawns, OFFSETS[dir])
-		potential = potential & ^b.occupied
-		for _, index := range potential.eachIndexOfOne() {
-			moves = append(moves, Move{index - OFFSETS[dir], index})
+		// generate pawn pushes
+		dir := S
+		if player == WHITE {
+			dir = N
 		}
-	}
 
-	// generate skip step
-	{
-		potential := b.players[player].pawns
-		potential = potential & maskStartingPawnsForPlayer(player)
-		potential = rotateTowardsIndex64(potential, OFFSETS[dir])
-		potential = potential & ^b.occupied
-		potential = rotateTowardsIndex64(potential, OFFSETS[dir])
-		potential = potential & ^b.occupied
-
-		for _, index := range potential.eachIndexOfOne() {
-			moves = append(moves, Move{index - 2*OFFSETS[dir], index})
-		}
-	}
-
-	// generate captures
-	{
-		for _, dir := range []Dir{NE, NW} {
-			potential := b.players[player].pawns
-			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
-			potential = potential & b.players[player.other()].occupied
-
+		// generate one step
+		{
+			potential := rotateTowardsIndex64(b.players[player].pawns, OFFSETS[dir])
+			potential = potential & ^b.occupied
 			for _, index := range potential.eachIndexOfOne() {
 				moves = append(moves, Move{index - OFFSETS[dir], index})
+			}
+		}
+
+		// generate skip step
+		{
+			potential := b.players[player].pawns
+			potential = potential & maskStartingPawnsForPlayer(player)
+			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+			potential = potential & ^b.occupied
+			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+			potential = potential & ^b.occupied
+
+			for _, index := range potential.eachIndexOfOne() {
+				moves = append(moves, Move{index - 2*OFFSETS[dir], index})
+			}
+		}
+
+		// generate captures
+		{
+			for _, dir := range []Dir{NE, NW} {
+				potential := b.players[player].pawns
+				potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+				potential = potential & b.players[player.other()].occupied
+
+				for _, index := range potential.eachIndexOfOne() {
+					moves = append(moves, Move{index - OFFSETS[dir], index})
+				}
 			}
 		}
 	}
