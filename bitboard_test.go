@@ -55,7 +55,7 @@ func TestAllOnes(t *testing.T) {
 }
 
 func TestDirMasks(t *testing.T) {
-	assert.Equal(t, MASKS[N].string(), strings.Join([]string{
+	assert.Equal(t, PRE_MOVE_MASKS[N].string(), strings.Join([]string{
 		"00000000",
 		"11111111",
 		"11111111",
@@ -65,7 +65,7 @@ func TestDirMasks(t *testing.T) {
 		"11111111",
 		"11111111",
 	}, "\n"))
-	assert.Equal(t, MASKS[NE].string(), strings.Join([]string{
+	assert.Equal(t, PRE_MOVE_MASKS[NE].string(), strings.Join([]string{
 		"00000000",
 		"11111110",
 		"11111110",
@@ -75,7 +75,7 @@ func TestDirMasks(t *testing.T) {
 		"11111110",
 		"11111110",
 	}, "\n"))
-	assert.Equal(t, MASKS[SSW].string(), strings.Join([]string{
+	assert.Equal(t, PRE_MOVE_MASKS[SSW].string(), strings.Join([]string{
 		"01111111",
 		"01111111",
 		"01111111",
@@ -251,12 +251,25 @@ func TestGeneratePseudoMoves(t *testing.T) {
 
 		// captures
 		"e4f5",
+
+		// bishop
+		"f1e2",
+		"f1d3",
+		"f1c4",
+		"f1b5",
+		"f1a6",
+
+		// queen
+		"d1e2",
+		"d1f3",
+		"d1g4",
+		"d1h5",
 	}
 
 	sort.Strings(result)
 	sort.Strings(expected)
 
-	assert.Equal(t, result, expected)
+	assert.Equal(t, expected, result)
 }
 
 func TestEachIndexOfOne(t *testing.T) {
@@ -297,7 +310,7 @@ func TestStringFromBoardIndex(t *testing.T) {
 
 		i := boardIndexFromString(str)
 		j := boardIndexFromFileRank(fileRank)
-		assert.Equal(t, stringFromBoardIndex(i), str)
-		assert.Equal(t, stringFromBoardIndex(j), str)
+		assert.Equal(t, str, stringFromBoardIndex(i))
+		assert.Equal(t, str, stringFromBoardIndex(j))
 	}
 }

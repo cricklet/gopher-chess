@@ -131,7 +131,7 @@ var (
 	MASK_WW Bitboard = zerosForRange(ONES, ZERO_TO_SEVEN)
 )
 
-var MASKS = [NUM_DIRS]Bitboard{
+var PRE_MOVE_MASKS = [NUM_DIRS]Bitboard{
 	MASK_N,
 	MASK_S,
 	MASK_E,
@@ -276,6 +276,36 @@ func (b Bitboard) eachIndexOfOne() []int {
 	return result
 }
 
+func generateWalkMoves(
+	pieces Bitboard,
+	allOccupied Bitboard,
+	enemyOccupied Bitboard,
+	dir Dir,
+	output []Move,
+) []Move {
+	mask := PRE_MOVE_MASKS[dir]
+	offset := OFFSETS[dir]
+
+	totalOffset := 0
+	potential := pieces
+
+	for potential != 0 {
+		potential = rotateTowardsIndex64(potential&mask, offset)
+		totalOffset += offset
+
+		quiet := potential & ^allOccupied
+		capture := potential & enemyOccupied
+
+		for _, index := range (quiet | capture).eachIndexOfOne() {
+			output = append(output, Move{index - totalOffset, index})
+		}
+
+		potential = quiet
+	}
+
+	return output
+}
+
 func (b Bitboards) generatePseudoMoves(player Player) []Move {
 	moves := make([]Move, 0, 256)
 
@@ -321,6 +351,28 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 				}
 			}
 		}
+	}
+
+	{
+		// generate rook / bishop / queen moves
+		moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, N, moves)
+		moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, S, moves)
+		moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, E, moves)
+		moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, W, moves)
+
+		moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, NE, moves)
+		moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, SE, moves)
+		moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, NW, moves)
+		moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, SW, moves)
+
+		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, N, moves)
+		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, S, moves)
+		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, E, moves)
+		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, W, moves)
+		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NE, moves)
+		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SE, moves)
+		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NW, moves)
+		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SW, moves)
 	}
 
 	return moves
