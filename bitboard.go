@@ -70,6 +70,28 @@ const (
 	NUM_DIRS
 )
 
+var KNIGHT_DIRS = []Dir{
+	NNE,
+	NNW,
+	SSE,
+	SSW,
+	ENE,
+	ESE,
+	WNW,
+	WSW,
+}
+
+var KING_DIRS = []Dir{
+	N,
+	S,
+	E,
+	W,
+	NE,
+	NW,
+	SE,
+	SW,
+}
+
 const (
 	OFFSET_N int = 8
 	OFFSET_S int = -8
@@ -306,6 +328,32 @@ func generateWalkMoves(
 	return output
 }
 
+func generateJumpMoves(
+	pieces Bitboard,
+	allOccupied Bitboard,
+	enemyOccupied Bitboard,
+	dirs []Dir,
+	output []Move,
+) []Move {
+	for _, dir := range dirs {
+		mask := PRE_MOVE_MASKS[dir]
+		offset := OFFSETS[dir]
+
+		potential := pieces
+		potential = rotateTowardsIndex64(potential&mask, offset)
+
+		quiet := potential & ^allOccupied
+		capture := potential & enemyOccupied
+
+		for _, index := range (quiet | capture).eachIndexOfOne() {
+			output = append(output, Move{index - offset, index})
+		}
+
+		potential = quiet
+	}
+	return output
+}
+
 func (b Bitboards) generatePseudoMoves(player Player) []Move {
 	moves := make([]Move, 0, 256)
 
@@ -373,6 +421,14 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SE, moves)
 		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NW, moves)
 		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SW, moves)
+	}
+
+	{
+		// generate knight moves
+		moves = generateJumpMoves(b.players[player].knights, b.occupied, b.players[player.other()].occupied, KNIGHT_DIRS, moves)
+
+		// generate king moves
+		moves = generateJumpMoves(b.players[player].king, b.occupied, b.players[player.other()].occupied, KING_DIRS, moves)
 	}
 
 	return moves

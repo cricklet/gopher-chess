@@ -83,7 +83,7 @@ func playerFromString(c string) (Player, error) {
 }
 
 func (p Player) other() Player {
-	_	return 1 - p
+	return 1 - p
 }
 
 type Piece int

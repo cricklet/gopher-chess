@@ -264,6 +264,18 @@ func TestGeneratePseudoMoves(t *testing.T) {
 		"d1f3",
 		"d1g4",
 		"d1h5",
+
+		// king
+		"e1e2",
+
+		// queenside knight
+		"b1a3",
+		"b1c3",
+
+		// kingside knight
+		"g1f3",
+		"g1h3",
+		"g1e2",
 	}
 
 	sort.Strings(result)
