@@ -2,7 +2,6 @@ package chessgo
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -27,7 +26,7 @@ func (r Rank) string() string {
 func rankFromChar(c byte) (Rank, error) {
 	rank := int(c - '1')
 	if rank < 0 || rank >= 8 {
-		return 0, errors.New(fmt.Sprintf("rank invalid %v", c))
+		return 0, fmt.Errorf("rank invalid %v", c)
 	}
 	return Rank(rank), nil
 }
@@ -35,7 +34,7 @@ func rankFromChar(c byte) (Rank, error) {
 func fileFromChar(c byte) (File, error) {
 	file := int(c - 'a')
 	if file < 0 || file >= 8 {
-		return 0, errors.New(fmt.Sprintf("file invalid %v", c))
+		return 0, fmt.Errorf("file invalid %v", c)
 	}
 	return File(file), nil
 }
@@ -51,14 +50,14 @@ func (v FileRank) string() string {
 
 func fileRankFromString(s string) (FileRank, error) {
 	if len(s) != 2 {
-		return FileRank{}, errors.New(fmt.Sprintf("invalid location %v", s))
+		return FileRank{}, fmt.Errorf("invalid location %v", s)
 	}
 
 	file, fileErr := fileFromChar(s[0])
 	rank, rankErr := rankFromChar(s[1])
 
 	if fileErr != nil || rankErr != nil {
-		return FileRank{}, errors.New(fmt.Sprintf("invalid location %v with errors %v, %v", s, fileErr, rankErr))
+		return FileRank{}, fmt.Errorf("invalid location %v with errors %v, %v", s, fileErr, rankErr)
 	}
 
 	return FileRank{file, rank}, nil
@@ -78,7 +77,7 @@ func playerFromString(c string) (Player, error) {
 	case "w":
 		return WHITE, nil
 	default:
-		return WHITE, errors.New(fmt.Sprintf("invalid player char %v", c))
+		return WHITE, fmt.Errorf("invalid player char %v", c)
 	}
 }
 
@@ -131,7 +130,7 @@ func pieceFromString(c rune) (Piece, error) {
 	case 'p':
 		return BP, nil
 	default:
-		return XX, errors.New(fmt.Sprintf("invalid piece %v", c))
+		return XX, fmt.Errorf("invalid piece %v", c)
 	}
 }
 
@@ -230,7 +229,7 @@ type GameState struct {
 func gamestateFromString(s string) (GameState, error) {
 	ss := strings.Fields(s)
 	if len(ss) != 6 {
-		return GameState{}, errors.New(fmt.Sprintf("wrong num %v of fields in str '%v'", len(ss), s))
+		return GameState{}, fmt.Errorf("wrong num %v of fields in str '%v'", len(ss), s)
 	}
 
 	game := GameState{}
@@ -242,7 +241,7 @@ func gamestateFromString(s string) (GameState, error) {
 	for _, c := range boardStr {
 		if c == '/' {
 			if fileIndex != 8 {
-				return GameState{}, errors.New(fmt.Sprintf("not enough squares in rank, '%v'", s))
+				return GameState{}, fmt.Errorf("not enough squares in rank, '%v'", s)
 			}
 			rankIndex--
 			fileIndex = 0
@@ -253,14 +252,14 @@ func gamestateFromString(s string) (GameState, error) {
 			game.board[boardIndexFromFileRank(FileRank{fileIndex, rankIndex})] = p
 			fileIndex++
 		} else {
-			return GameState{}, errors.New(fmt.Sprintf("unknown character '%v' in '%v'", c, s))
+			return GameState{}, fmt.Errorf("unknown character '%v' in '%v'", c, s)
 		}
 	}
 
 	if player, err := playerFromString(playerString); err == nil {
 		game.player = player
 	} else {
-		return GameState{}, errors.New(fmt.Sprintf("invalid player '%v' in '%v'", playerString, s))
+		return GameState{}, fmt.Errorf("invalid player '%v' in '%v'", playerString, s)
 	}
 
 	for _, c := range castlingRightsString {
@@ -283,19 +282,19 @@ func gamestateFromString(s string) (GameState, error) {
 	} else if enPassantTarget, err := fileRankFromString(enPassantTargetString); err == nil {
 		game.enPassantTarget = &enPassantTarget
 	} else {
-		return GameState{}, errors.New(fmt.Sprintf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s))
+		return GameState{}, fmt.Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)
 	}
 
 	if halfMoveClock, err := strconv.ParseInt(string(halfMoveClockString), 10, 0); err == nil {
 		game.halfMoveClock = int(halfMoveClock)
 	} else {
-		return GameState{}, errors.New(fmt.Sprintf("invalid half move clock '%v' in '%v'", halfMoveClockString, s))
+		return GameState{}, fmt.Errorf("invalid half move clock '%v' in '%v'", halfMoveClockString, s)
 	}
 
 	if fullMoveClock, err := strconv.ParseInt(string(fullMoveClockString), 10, 0); err == nil {
 		game.fullMoveClock = int(fullMoveClock)
 	} else {
-		return GameState{}, errors.New(fmt.Sprintf("invalid full move clock '%v' in '%v'", fullMoveClockString, s))
+		return GameState{}, fmt.Errorf("invalid full move clock '%v' in '%v'", fullMoveClockString, s)
 	}
 
 	return game, nil
