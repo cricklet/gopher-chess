@@ -326,3 +326,98 @@ func TestStringFromBoardIndex(t *testing.T) {
 		assert.Equal(t, str, stringFromBoardIndex(j))
 	}
 }
+
+func TestBitboardFromStrings(t *testing.T) {
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00100000",
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000000",
+		}).string(),
+		singleBitboard(boardIndexFromString("c7")).string())
+}
+
+func TestBlockerMasks(t *testing.T) {
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00001000",
+			"00001000",
+			"00001000",
+			"00001000",
+			"00001000",
+			"01110110",
+			"00000000",
+		}).string(),
+		ROOK_MAGICS[boardIndexFromString("e2")].blockerMask.string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00010000",
+			"00010000",
+			"01101110",
+			"00010000",
+			"00010000",
+			"00010000",
+			"00000000",
+		}).string(),
+		ROOK_MAGICS[boardIndexFromString("d5")].blockerMask.string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"10000000",
+			"10000000",
+			"10000000",
+			"10000000",
+			"10000000",
+			"10000000",
+			"01111110",
+		}).string(),
+		ROOK_MAGICS[boardIndexFromString("a1")].blockerMask.string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"01000100",
+			"00101000",
+			"00000000",
+			"00101000",
+			"01000100",
+			"00000010",
+			"00000000",
+		}).string(),
+		BISHOP_MAGICS[boardIndexFromString("d5")].blockerMask.string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00000010",
+			"00000100",
+			"00001000",
+			"00010000",
+			"00100000",
+			"01000000",
+			"00000000",
+		}).string(),
+		BISHOP_MAGICS[boardIndexFromString("a1")].blockerMask.string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"01000000",
+			"00100000",
+			"00010000",
+			"00001000",
+			"00000100",
+			"00000010",
+			"00000000",
+		}).string(),
+		BISHOP_MAGICS[boardIndexFromString("h1")].blockerMask.string())
+}

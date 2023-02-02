@@ -81,6 +81,20 @@ var KNIGHT_DIRS = []Dir{
 	WSW,
 }
 
+var ROOK_DIRS = []Dir{
+	N,
+	S,
+	E,
+	W,
+}
+
+var BISHOP_DIRS = []Dir{
+	NE,
+	NW,
+	SE,
+	SW,
+}
+
 var KING_DIRS = []Dir{
 	N,
 	S,
@@ -151,6 +165,8 @@ var (
 	MASK_SS Bitboard = zerosForRange(ZERO_TO_SEVEN, ONES)
 	MASK_EE Bitboard = zerosForRange(SIXES, ZERO_TO_SEVEN)
 	MASK_WW Bitboard = zerosForRange(ONES, ZERO_TO_SEVEN)
+
+	MASK_ALL_EDGES Bitboard = MASK_N & MASK_S & MASK_E & MASK_W
 )
 
 var PRE_MOVE_MASKS = [NUM_DIRS]Bitboard{
@@ -198,6 +214,10 @@ func singleBitboard(index int) Bitboard {
 	return shiftTowardsIndex64(1, index)
 }
 
+func singleBitboardAllowingNegativeIndex(index int) Bitboard {
+	return rotateTowardsIndex64(1, index)
+}
+
 func (b Bitboard) string() string {
 	ranks := [8]string{}
 	for rank := 0; rank < 8; rank++ {
@@ -217,6 +237,19 @@ func (b Bitboard) string() string {
 	}
 
 	return strings.Join(ranks[0:], "\n")
+}
+
+func bitboardFromStrings(strings [8]string) Bitboard {
+	b := Bitboard(0)
+	for inverseRank, line := range strings {
+		for file, c := range line {
+			if c == '1' {
+				index := boardIndexFromFileRank(FileRank{File(file), Rank(7 - inverseRank)})
+				b |= singleBitboard(index)
+			}
+		}
+	}
+	return b
 }
 
 type PlayerBitboards struct {
@@ -321,6 +354,33 @@ func generateWalkMoves(
 		for _, index := range (quiet | capture).eachIndexOfOne() {
 			output = append(output, Move{index - totalOffset, index})
 		}
+
+		potential = quiet
+	}
+
+	return output
+}
+
+func generateWalkBitboard(
+	pieceBoard Bitboard,
+	blockerBoard Bitboard,
+	dir Dir,
+	output Bitboard,
+) Bitboard {
+	mask := PRE_MOVE_MASKS[dir]
+	offset := OFFSETS[dir]
+
+	totalOffset := 0
+	potential := pieceBoard
+
+	for potential != 0 {
+		potential = rotateTowardsIndex64(potential&mask, offset)
+		totalOffset += offset
+
+		quiet := potential & ^blockerBoard
+		capture := potential & blockerBoard
+
+		output |= quiet | capture
 
 		potential = quiet
 	}
@@ -447,3 +507,102 @@ func (m Move) string() string {
 func stringFromBoardIndex(index int) string {
 	return fileRankFromBoardIndex(index).string()
 }
+
+func generateBlockerMask(startIndex int, dirs []Dir) Bitboard {
+	result := Bitboard(0)
+	for _, dir := range dirs {
+		walk := generateWalkBitboard(singleBitboard(startIndex), Bitboard(0), dir, result)
+		result |= walk & PRE_MOVE_MASKS[dir]
+	}
+
+	result &= ^singleBitboard(startIndex)
+
+	return result
+}
+
+func generateBlockerBoard(blockerMask Bitboard, seed int) Bitboard {
+	result := Bitboard(0)
+
+	numBits := bits.OnesCount64(uint64(blockerMask))
+	for i := 0; i < numBits; i++ {
+		// If the bit at i is 1 in the seed...
+		if seed&(1<<i) != 0 {
+			// Find the ith one bit in blockerMask and set the corresponding bit to one in result.
+			for oneIndex, indexInBitboard := range blockerMask.eachIndexOfOne() {
+				if oneIndex == i {
+					result |= singleBitboard(indexInBitboard)
+				}
+			}
+		}
+	}
+
+	return result
+}
+
+func generateMoveBoards(pieceIndex int, blockerMask Bitboard, dirs []Dir) [] /* OnesCount64(blockerMask) */ Bitboard {
+	numBits := bits.OnesCount64(uint64(blockerMask))
+	numBlockerBoards := 1 << numBits
+
+	blockerBoards := make([]Bitboard, numBlockerBoards)
+	for seed := 0; seed < numBlockerBoards; seed++ {
+		blockerBoards[seed] = generateBlockerBoard(blockerMask, seed)
+	}
+
+	pieceBoard := singleBitboard(pieceIndex)
+
+	result := make([]Bitboard, numBlockerBoards)
+	for seed, blockerBoard := range blockerBoards {
+		moves := Bitboard(0)
+		for _, dir := range dirs {
+			moves = generateWalkBitboard(pieceBoard, blockerBoard, dir, moves)
+		}
+
+		result[seed] = moves
+	}
+	return result
+}
+
+func generateMagicLookupValues(dirs []Dir) [64]MagicLookupValues {
+	result := [64]MagicLookupValues{}
+
+	previousBits := 0
+
+	for i := 0; i < 64; i++ {
+		blockerMask := generateBlockerMask(i, dirs)
+		numBits := bits.OnesCount64(uint64(blockerMask))
+
+		result[i].previousBits = uint64(previousBits)
+		result[i].blockerMask = blockerMask
+		result[i].numBits = numBits
+
+		previousBits += numBits
+	}
+
+	return result
+}
+
+type MagicLookupValues struct {
+	// Each of the 64 indices in the board has a magic-lookup precomputed.
+	// This is used to lookup a move based on the current occupancy of the
+	// board, eg:
+	// ROOK_MOVES[
+	//   offsetIndex +
+	//   (
+	//     ((occupancy & blockerMask) * magic)
+	//     >> (64 - numBits)
+	//   )
+	//  ]
+	previousBits uint64
+	blockerMask  Bitboard
+	magic        uint64
+	numBits      int
+}
+
+// We mask the occupancy with the blockerMask to get the blockerBoard.
+// Then we generate a magic index that gives a unique index that we use
+// to index the moves database.
+//  where
+
+var ROOK_MAGICS [64]MagicLookupValues = generateMagicLookupValues(ROOK_DIRS)
+
+var BISHOP_MAGICS [64]MagicLookupValues = generateMagicLookupValues(BISHOP_DIRS)
