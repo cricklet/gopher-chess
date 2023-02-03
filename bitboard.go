@@ -6,6 +6,7 @@ import (
 	"math/bits"
 	"math/rand"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -657,20 +658,20 @@ func findBetterMagicValue(bestMagic MagicValue, moves []MoveBoardForBlockerBoard
 func generateMagicMoveTable(dirs []Dir, blockerMasks [64]Bitboard, bestMagics [64]MagicValue, label string) MagicMoveTable {
 	result := MagicMoveTable{}
 
-	previousBits := 0
-
 	// bar := progressbar.Default(64, label)
 
 	for i := 0; i < 64; i++ {
 		blockerMask := blockerMasks[i]
 		moves := generateMoveBoards(i, blockerMask, dirs)
 
-		magicValue := findBetterMagicValue(bestMagics[i], moves)
+		betterMagic := findBetterMagicValue(bestMagics[i], moves)
+		result.magics[i] = betterMagic
 
-		result.magics[i] = magicValue
-		result.accumulatedMagicIndexBits[i] = previousBits
-
-		previousBits += result.magics[i].BitsInMagicIndex
+		result.moves[i] = make([]Bitboard, 1<<betterMagic.BitsInMagicIndex)
+		for _, m := range moves {
+			magicIndex := magicIndex(betterMagic.Magic, m.blockerBoard, betterMagic.BitsInMagicIndex)
+			result.moves[i][magicIndex] = m.moveBoard
+		}
 
 		// bar.Add(1)
 	}
@@ -693,9 +694,8 @@ type MagicMoveTable struct {
 	//     >> (64 - numBits)
 	//   ) << previousBits
 	//  ]
-	magics                    [64]MagicValue
-	accumulatedMagicIndexBits [64]int
-	moves                     []Bitboard
+	magics [64]MagicValue
+	moves  [64][]Bitboard
 }
 
 func (m MagicValue) string() string {
@@ -719,6 +719,20 @@ var BISHOP_BEST_MAGICS = [64]MagicValue{
 
 var ROOK_MAGIC_TABLE MagicMoveTable
 var BISHOP_MAGIC_TABLE MagicMoveTable
+
+func PrintMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	fmt.Printf("Alloc = %v KB", bToKb(m.Alloc))
+	fmt.Printf("\tTotalAlloc = %v KB", bToKb(m.TotalAlloc))
+	fmt.Printf("\tSys = %v KB", bToKb(m.Sys))
+	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+}
+
+func bToKb(b uint64) uint64 {
+	return b / 1024
+}
 
 func initMagicTables() {
 	rookInput, err := os.ReadFile("magics-for-rook.json")
@@ -755,8 +769,8 @@ func initMagicTables() {
 		sumBishopBits += m.BitsInMagicIndex
 	}
 
-	fmt.Println("for rook, best", lowestRookBits, "average", sumRookBits/64.0)
-	fmt.Println("for bishop, best", lowestBishopBits, "average", sumBishopBits/64.0)
+	fmt.Println("rook bits for magic index: best", lowestRookBits, "average", sumRookBits/64.0)
+	fmt.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
 
 	if rookOutput, err := json.Marshal(ROOK_BEST_MAGICS); err == nil {
 		os.WriteFile("magics-for-rook.json", rookOutput, 0777)
