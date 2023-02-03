@@ -367,6 +367,28 @@ func generateWalkMoves(
 	return output
 }
 
+func generateWalkMovesWithMagic(
+	pieces Bitboard,
+	allOccupied Bitboard,
+	selfOccupied Bitboard,
+	magicTable MagicMoveTable,
+	output []Move,
+) []Move {
+	for _, startIndex := range pieces.eachIndexOfOne() {
+		magicValues := magicTable.magics[startIndex]
+		magicIndex := magicIndex(magicValues.Magic, allOccupied, magicValues.BitsInMagicIndex)
+
+		potential := magicTable.moves[startIndex][magicIndex]
+		potential = potential & ^selfOccupied
+
+		for _, endIndex := range potential.eachIndexOfOne() {
+			output = append(output, Move{startIndex, endIndex})
+		}
+	}
+
+	return output
+}
+
 func generateWalkBitboard(
 	pieceBoard Bitboard,
 	blockerBoard Bitboard,
@@ -469,24 +491,29 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 
 	{
 		// generate rook / bishop / queen moves
-		moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, N, moves)
-		moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, S, moves)
-		moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, E, moves)
-		moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, W, moves)
+		// moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, N, moves)
+		// moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, S, moves)
+		// moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, E, moves)
+		// moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, W, moves)
 
-		moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, NE, moves)
-		moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, SE, moves)
-		moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, NW, moves)
-		moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, SW, moves)
+		// moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, NE, moves)
+		// moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, SE, moves)
+		// moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, NW, moves)
+		// moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, SW, moves)
 
-		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, N, moves)
-		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, S, moves)
-		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, E, moves)
-		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, W, moves)
-		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NE, moves)
-		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SE, moves)
-		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NW, moves)
-		moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SW, moves)
+		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, N, moves)
+		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, S, moves)
+		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, E, moves)
+		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, W, moves)
+		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NE, moves)
+		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SE, moves)
+		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NW, moves)
+		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SW, moves)
+
+		moves = generateWalkMovesWithMagic(b.players[player].rooks, b.occupied, b.players[player].occupied, ROOK_MAGIC_TABLE, moves)
+		moves = generateWalkMovesWithMagic(b.players[player].bishops, b.occupied, b.players[player].occupied, ROOK_MAGIC_TABLE, moves)
+		moves = generateWalkMovesWithMagic(b.players[player].queens, b.occupied, b.players[player].occupied, ROOK_MAGIC_TABLE, moves)
+		moves = generateWalkMovesWithMagic(b.players[player].queens, b.occupied, b.players[player].occupied, BISHOP_MAGIC_TABLE, moves)
 	}
 
 	{
