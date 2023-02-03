@@ -206,7 +206,7 @@ func TestBitRotation(t *testing.T) {
 	}, "\n"))
 }
 
-func TestGeneratePseudoMoves(t *testing.T) {
+func TestGeneratePseudoMovesEarly(t *testing.T) {
 	s := "rnbqkbnr/pppp11pp/8/4pp2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 1 2"
 	g, err := gamestateFromString(s)
 	assert.Nil(t, err)
@@ -225,7 +225,7 @@ func TestGeneratePseudoMoves(t *testing.T) {
 	bitboards := setupBitboards(g)
 
 	result := []string{}
-	for _, move := range bitboards.generatePseudoMoves(g.player) {
+	for _, move := range bitboards.generatePseudoMoves(g) {
 		result = append(result, move.string())
 	}
 
@@ -276,6 +276,87 @@ func TestGeneratePseudoMoves(t *testing.T) {
 		"g1f3",
 		"g1h3",
 		"g1e2",
+	}
+
+	sort.Strings(result)
+	sort.Strings(expected)
+
+	assert.Equal(t, expected, result)
+}
+
+func TestGeneratePseudoMovesEnPassant(t *testing.T) {
+	s := "rnbqkbnr/pppp3p/8/4pPp1/8/5N2/PPPP1PPP/RNBQKB1R w KQkq g6 0 4"
+	g, err := gamestateFromString(s)
+	assert.Nil(t, err)
+
+	assert.Equal(t, NaturalBoardArray{
+		BR, BN, BB, BQ, BK, BB, BN, BR,
+		BP, BP, BP, BP, XX, XX, XX, BP,
+		XX, XX, XX, XX, XX, XX, XX, XX,
+		XX, XX, XX, XX, BP, WP, BP, XX,
+		XX, XX, XX, XX, XX, XX, XX, XX,
+		XX, XX, XX, XX, XX, WN, XX, XX,
+		WP, WP, WP, WP, XX, WP, WP, WP,
+		WR, WN, WB, WQ, WK, WB, XX, WR,
+	}.AsBoardArray().string(), g.board.string())
+
+	assert.Equal(t, g.enPassantTarget.string(), "g6")
+
+	bitboards := setupBitboards(g)
+
+	result := []string{}
+	for _, move := range bitboards.generatePseudoMoves(g) {
+		result = append(result, move.string())
+	}
+
+	expected := []string{
+		"a2a3",
+		"b2b3",
+		"c2c3",
+		"d2d3",
+		"f5f6", // e pawn
+		// "f2f3", // f pawn blocked
+		"g2g3",
+		"h2h3",
+
+		// skip step
+		"a2a4",
+		"b2b4",
+		"c2c4",
+		"d2d4",
+		// "f2f4", // f pawn blocked
+		"g2g4",
+		"h2h4",
+
+		// captures
+		"f5g6",
+
+		// bishop
+		"f1e2",
+		"f1d3",
+		"f1c4",
+		"f1b5",
+		"f1a6",
+
+		// queen
+		"d1e2",
+
+		// king
+		"e1e2",
+
+		// rook
+		"h1g1",
+
+		// queenside knight
+		"b1a3",
+		"b1c3",
+
+		// kingside knight
+		"f3g1",
+		"f3d4",
+		"f3e5",
+		"f3g5",
+		"f3h4",
 	}
 
 	sort.Strings(result)

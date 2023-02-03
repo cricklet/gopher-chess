@@ -443,7 +443,10 @@ func generateJumpMoves(
 	return output
 }
 
-func (b Bitboards) generatePseudoMoves(player Player) []Move {
+func (b Bitboards) generatePseudoMoves(g GameState) []Move {
+	player := g.player
+	playerBoards := b.players[player]
+	enemyBoards := b.players[player.other()]
 	moves := make([]Move, 0, 256)
 
 	{
@@ -455,7 +458,7 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 
 		// generate one step
 		{
-			potential := rotateTowardsIndex64(b.players[player].pawns, OFFSETS[dir])
+			potential := rotateTowardsIndex64(playerBoards.pawns, OFFSETS[dir])
 			potential = potential & ^b.occupied
 			for _, index := range potential.eachIndexOfOne() {
 				moves = append(moves, Move{index - OFFSETS[dir], index})
@@ -464,7 +467,7 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 
 		// generate skip step
 		{
-			potential := b.players[player].pawns
+			potential := playerBoards.pawns
 			potential = potential & maskStartingPawnsForPlayer(player)
 			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
 			potential = potential & ^b.occupied
@@ -479,7 +482,7 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 		// generate captures
 		{
 			for _, dir := range []Dir{NE, NW} {
-				potential := b.players[player].pawns
+				potential := playerBoards.pawns
 				potential = rotateTowardsIndex64(potential, OFFSETS[dir])
 				potential = potential & b.players[player.other()].occupied
 
@@ -488,41 +491,57 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 				}
 			}
 		}
+
+		// generate en-passant
+		{
+			if g.enPassantTarget != nil {
+				enPassantBoard := singleBitboard(boardIndexFromFileRank(*g.enPassantTarget))
+				for _, dir := range []Dir{NE, NW} {
+					potential := playerBoards.pawns
+					potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+					potential = potential & enPassantBoard
+
+					for _, index := range potential.eachIndexOfOne() {
+						moves = append(moves, Move{index - OFFSETS[dir], index})
+					}
+				}
+			}
+		}
 	}
 
 	{
 		// generate rook / bishop / queen moves
-		// moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, N, moves)
-		// moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, S, moves)
-		// moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, E, moves)
-		// moves = generateWalkMoves(b.players[player].rooks, b.occupied, b.players[player.other()].occupied, W, moves)
+		// moves = generateWalkMoves(playerBoards.rooks, b.occupied, enemyBoards.occupied, N, moves)
+		// moves = generateWalkMoves(playerBoards.rooks, b.occupied, enemyBoards.occupied, S, moves)
+		// moves = generateWalkMoves(playerBoards.rooks, b.occupied, enemyBoards.occupied, E, moves)
+		// moves = generateWalkMoves(playerBoards.rooks, b.occupied, enemyBoards.occupied, W, moves)
 
-		// moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, NE, moves)
-		// moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, SE, moves)
-		// moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, NW, moves)
-		// moves = generateWalkMoves(b.players[player].bishops, b.occupied, b.players[player.other()].occupied, SW, moves)
+		// moves = generateWalkMoves(playerBoards.bishops, b.occupied, enemyBoards.occupied, NE, moves)
+		// moves = generateWalkMoves(playerBoards.bishops, b.occupied, enemyBoards.occupied, SE, moves)
+		// moves = generateWalkMoves(playerBoards.bishops, b.occupied, enemyBoards.occupied, NW, moves)
+		// moves = generateWalkMoves(playerBoards.bishops, b.occupied, enemyBoards.occupied, SW, moves)
 
-		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, N, moves)
-		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, S, moves)
-		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, E, moves)
-		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, W, moves)
-		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NE, moves)
-		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SE, moves)
-		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, NW, moves)
-		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SW, moves)
+		// moves = generateWalkMoves(playerBoards.queens, b.occupied, enemyBoards.occupied, N, moves)
+		// moves = generateWalkMoves(playerBoards.queens, b.occupied, enemyBoards.occupied, S, moves)
+		// moves = generateWalkMoves(playerBoards.queens, b.occupied, enemyBoards.occupied, E, moves)
+		// moves = generateWalkMoves(playerBoards.queens, b.occupied, enemyBoards.occupied, W, moves)
+		// moves = generateWalkMoves(playerBoards.queens, b.occupied, enemyBoards.occupied, NE, moves)
+		// moves = generateWalkMoves(playerBoards.queens, b.occupied, enemyBoards.occupied, SE, moves)
+		// moves = generateWalkMoves(playerBoards.queens, b.occupied, enemyBoards.occupied, NW, moves)
+		// moves = generateWalkMoves(playerBoards.queens, b.occupied, enemyBoards.occupied, SW, moves)
 
-		moves = generateWalkMovesWithMagic(b.players[player].rooks, b.occupied, b.players[player].occupied, ROOK_MAGIC_TABLE, moves)
-		moves = generateWalkMovesWithMagic(b.players[player].bishops, b.occupied, b.players[player].occupied, BISHOP_MAGIC_TABLE, moves)
-		moves = generateWalkMovesWithMagic(b.players[player].queens, b.occupied, b.players[player].occupied, ROOK_MAGIC_TABLE, moves)
-		moves = generateWalkMovesWithMagic(b.players[player].queens, b.occupied, b.players[player].occupied, BISHOP_MAGIC_TABLE, moves)
+		moves = generateWalkMovesWithMagic(playerBoards.rooks, b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, moves)
+		moves = generateWalkMovesWithMagic(playerBoards.bishops, b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, moves)
+		moves = generateWalkMovesWithMagic(playerBoards.queens, b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, moves)
+		moves = generateWalkMovesWithMagic(playerBoards.queens, b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, moves)
 	}
 
 	{
 		// generate knight moves
-		moves = generateJumpMoves(b.players[player].knights, b.occupied, b.players[player.other()].occupied, KNIGHT_DIRS, moves)
+		moves = generateJumpMoves(playerBoards.knights, b.occupied, enemyBoards.occupied, KNIGHT_DIRS, moves)
 
 		// generate king moves
-		moves = generateJumpMoves(b.players[player].king, b.occupied, b.players[player.other()].occupied, KING_DIRS, moves)
+		moves = generateJumpMoves(playerBoards.king, b.occupied, enemyBoards.occupied, KING_DIRS, moves)
 	}
 
 	return moves
@@ -794,8 +813,8 @@ func initMagicTables() {
 		sumBishopBits += m.BitsInMagicIndex
 	}
 
-	fmt.Println("rook bits for magic index: best", lowestRookBits, "average", sumRookBits/64.0)
-	fmt.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
+	// fmt.Println("rook bits for magic index: best", lowestRookBits, "average", sumRookBits/64.0)
+	// fmt.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
 
 	if rookOutput, err := json.Marshal(ROOK_BEST_MAGICS); err == nil {
 		os.WriteFile("magics-for-rook.json", rookOutput, 0777)
