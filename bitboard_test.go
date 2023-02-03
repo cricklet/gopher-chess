@@ -731,3 +731,77 @@ func TestAttackMap(t *testing.T) {
 		}).string(),
 		bitboards.dangerBoard(BLACK).string())
 }
+
+func TestCheck(t *testing.T) {
+	s := "r3k2r/pp1bb3/3pPPQp/qBp1n1p1/6n1/2N1BN2/PPP2PPP/R3K2R b KQkq - 1 14"
+
+	g, err := gamestateFromString(s)
+	assert.Nil(t, err)
+
+	bitboards := setupBitboards(g)
+
+	assert.Equal(t, strings.Join([]string{
+		"r   k  r",
+		"pp bb   ",
+		"   pPPQp",
+		"qBp n p ",
+		"      n ",
+		"  N BN  ",
+		"PPP  PPP",
+		"R   K  R",
+	}, "\n"), g.board.string())
+
+	result := []string{}
+	for _, move := range bitboards.generateLegalMoves(g) {
+		result = append(result, move.string())
+	}
+
+	expected := []string{
+		"e8d8", // move king
+		"e8f8",
+		"e5g6", // capture queen
+		"e5f7", // block queen
+	}
+
+	sort.Strings(result)
+	sort.Strings(expected)
+
+	assert.Equal(t, expected, result)
+}
+
+func TestPin(t *testing.T) {
+	s := "5k2/8/8/8/1q6/2N4p/2PK2pP/8 w - - 0 44"
+
+	g, err := gamestateFromString(s)
+	assert.Nil(t, err)
+
+	bitboards := setupBitboards(g)
+
+	assert.Equal(t, strings.Join([]string{
+		"     k  ",
+		"        ",
+		"        ",
+		"        ",
+		" q      ",
+		"  N    p",
+		"  PK  pP",
+		"        ",
+	}, "\n"), g.board.string())
+
+	result := []string{}
+	for _, move := range bitboards.generateLegalMoves(g) {
+		result = append(result, move.string())
+	}
+
+	expected := []string{
+		// we can move the king
+		"d2c1", "d2d1", "d2d3", "d2e1", "d2e2", "d2e3",
+		// but the knight is pinned
+
+	}
+
+	sort.Strings(result)
+	sort.Strings(expected)
+
+	assert.Equal(t, expected, result)
+}

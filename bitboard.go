@@ -756,88 +756,76 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 	return moves
 }
 
-func (b Bitboards) updateBitboards(originalState GameState, move Move) Bitboards {
+func (b *Bitboards) clearSquare(index int, piece Piece) {
+	player := piece.player()
+	pieceType := piece.pieceType()
+	oneBitboard := singleBitboard(index)
+	zeroBitboard := ^oneBitboard
+
+	b.occupied &= zeroBitboard
+	b.players[player].occupied &= zeroBitboard
+	b.players[player].pieces[pieceType] &= zeroBitboard
+}
+
+func (b *Bitboards) setSquare(index int, piece Piece) {
+	player := piece.player()
+	pieceType := piece.pieceType()
+	oneBitboard := singleBitboard(index)
+
+	b.occupied |= oneBitboard
+	b.players[player].occupied |= oneBitboard
+	b.players[player].pieces[pieceType] |= oneBitboard
+}
+
+func (b Bitboards) generateNextBitboards(originalState GameState, move Move) Bitboards {
 	startIndex := move.startIndex
 	endIndex := move.endIndex
 
 	newBitboards := b
 
 	startPiece := originalState.board[startIndex]
-	startPieceType := startPiece.pieceType()
-	startPlayer := startPiece.player()
-
-	startOneBitboard := singleBitboard(startIndex)
-	startZeroBitboard := ^startOneBitboard
-
-	endOneBitboard := singleBitboard(endIndex)
-	endZeroBitboard := ^endOneBitboard
 
 	switch move.moveType {
 	case QUIET_MOVE:
 		{
-			// Clear the start square
-			newBitboards.occupied &= startZeroBitboard
-			newBitboards.players[startPlayer].occupied &= startZeroBitboard
-			newBitboards.players[startPlayer].pieces[startPieceType] &= startZeroBitboard
-
-			// Set the end square
-			newBitboards.occupied |= endOneBitboard
-			newBitboards.players[startPlayer].occupied |= endOneBitboard
-			newBitboards.players[startPlayer].pieces[startPieceType] |= endOneBitboard
+			newBitboards.clearSquare(startIndex, startPiece)
+			newBitboards.setSquare(endIndex, startPiece)
 		}
 	case CAPTURE_MOVE:
 		{
-			// Clear the start square
-			newBitboards.occupied &= startZeroBitboard
-			newBitboards.players[startPlayer].occupied &= startZeroBitboard
-			newBitboards.players[startPlayer].pieces[startPieceType] &= startZeroBitboard
-
-			// Set the end square
-			newBitboards.occupied |= endOneBitboard
-			newBitboards.players[startPlayer].occupied |= endOneBitboard
-			newBitboards.players[startPlayer].pieces[startPieceType] |= endOneBitboard
-
-			// Clear captured piece
+			// Remove captured piece
 			endPiece := originalState.board[endIndex]
-			endPieceType := endPiece.pieceType()
-			endPlayer := endPiece.player()
+			newBitboards.clearSquare(endIndex, endPiece)
 
-			newBitboards.players[endPlayer].occupied &= endZeroBitboard
-			newBitboards.players[endPlayer].pieces[endPieceType] &= endZeroBitboard
+			// Move the capturing piece
+			newBitboards.clearSquare(startIndex, startPiece)
+			newBitboards.setSquare(endIndex, startPiece)
 		}
 	case EN_PASSANT_MOVE:
 		{
+			startPlayer := startPiece.player()
 			backwardsDir := S
 			if startPlayer == BLACK {
 				backwardsDir = N
 			}
 
 			captureIndex := endIndex - OFFSETS[backwardsDir]
-
-			// Clear the start square
-			newBitboards.occupied &= startZeroBitboard
-			newBitboards.players[startPlayer].occupied &= startZeroBitboard
-			newBitboards.players[startPlayer].pieces[startPieceType] &= startZeroBitboard
-
-			// Set the end square
-			newBitboards.occupied |= endOneBitboard
-			newBitboards.players[startPlayer].occupied |= endOneBitboard
-			newBitboards.players[startPlayer].pieces[startPieceType] |= endOneBitboard
-
-			// Clear captured piece
 			capturePiece := originalState.board[captureIndex]
-			capturePieceType := capturePiece.pieceType()
-			capturePlayer := capturePiece.player()
 
-			captureZeroBitboard := ^singleBitboard(captureIndex)
-
-			newBitboards.occupied &= captureZeroBitboard
-			newBitboards.players[capturePlayer].occupied &= captureZeroBitboard
-			newBitboards.players[capturePlayer].pieces[capturePieceType] &= captureZeroBitboard
+			newBitboards.clearSquare(captureIndex, capturePiece)
+			newBitboards.clearSquare(startIndex, startPiece)
+			newBitboards.setSquare(endIndex, startPiece)
 		}
 	case CASTLING_MOVE:
 		{
 			rookStartIndex, rookEndIndex := rookMoveForCastle(startIndex, endIndex)
+			rookPiece := originalState.board[rookStartIndex]
+
+			newBitboards.clearSquare(startIndex, startPiece)
+			newBitboards.setSquare(endIndex, startPiece)
+
+			newBitboards.clearSquare(rookStartIndex, rookPiece)
+			newBitboards.clearSquare(rookEndIndex, rookPiece)
 		}
 	}
 	return newBitboards
@@ -850,7 +838,10 @@ func (b Bitboards) generateLegalMoves(g GameState) []Move {
 
 	legalMoves := make([]Move, 0, 256)
 	for _, move := range potentialMoves {
-		nextBitboards := b.updateBitboards(g, move)
+		if "e8" == stringFromBoardIndex(move.startIndex) && "d8" == stringFromBoardIndex(move.endIndex) {
+			fmt.Println("hmm")
+		}
+		nextBitboards := b.generateNextBitboards(g, move)
 		kingIndex := nextBitboards.players[player].pieces[KING].firstIndexOfOne()
 		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {
 			legalMoves = append(legalMoves, move)
