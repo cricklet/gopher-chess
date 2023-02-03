@@ -27,7 +27,7 @@ func TestBoardPrint(t *testing.T) {
 		"        ",
 		"        ",
 		"        ",
-		"        \n",
+		"        ",
 	}, "\n"))
 }
 

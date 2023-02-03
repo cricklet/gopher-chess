@@ -685,3 +685,49 @@ func TestBlackCastling(t *testing.T) {
 
 	assert.Equal(t, expected, result)
 }
+
+func TestAttackMap(t *testing.T) {
+	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2NQBN2/PPP2PPP/R3K2R b KQkq - 2 11"
+
+	g, err := gamestateFromString(s)
+	assert.Nil(t, err)
+
+	bitboards := setupBitboards(g)
+
+	assert.Equal(t, strings.Join([]string{
+		"r   k  r",
+		"pp bb  p",
+		"  npPn  ",
+		"q p  Pp ",
+		"  B     ",
+		"  NQBN  ",
+		"PPP  PPP",
+		"R   K  R",
+	}, "\n"), g.board.string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"01111110",
+			"10111101",
+			"11111110",
+			"11111001",
+			"11011111",
+			"10100000",
+			"10000000",
+			"00000000",
+		}).string(),
+		bitboards.dangerBoard(WHITE).string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00010100",
+			"10011010",
+			"01111110",
+			"10111101",
+			"11111111",
+			"10111101",
+			"01111110",
+		}).string(),
+		bitboards.dangerBoard(BLACK).string())
+}

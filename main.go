@@ -187,7 +187,9 @@ func (b BoardArray) string() string {
 		for _, p := range row {
 			result += p.string()
 		}
-		result += "\n"
+		if rank != 0 {
+			result += "\n"
+		}
 	}
 	return result
 }

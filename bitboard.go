@@ -500,7 +500,7 @@ func generateJumpMoves(
 	return output
 }
 
-func (b Bitboards) fileRankIsAttacked(player Player, startIndex int, occupied Bitboard, enemyBitboards PlayerBitboards) bool {
+func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, enemyBitboards PlayerBitboards) bool {
 	startBoard := singleBitboard(startIndex)
 
 	// Bishop attacks
@@ -573,6 +573,18 @@ func (b Bitboards) fileRankIsAttacked(player Player, startIndex int, occupied Bi
 	}
 
 	return attackers != 0
+}
+
+func (b Bitboards) dangerBoard(player Player) Bitboard {
+	enemyPlayer := player.other()
+	enemyBoards := b.players[enemyPlayer]
+	result := Bitboard(0)
+	for i := 0; i < 64; i++ {
+		if playerIndexIsAttacked(player, i, b.occupied, enemyBoards) {
+			result |= singleBitboard(i)
+		}
+	}
+	return result
 }
 
 func (b Bitboards) generatePseudoMoves(g GameState) []Move {
@@ -684,7 +696,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 			if g.playerAndCastlingSideAllowed[player][castlingSide] {
 				requirements := CASTLING_REQUIREMENTS[player][castlingSide]
 				for _, index := range requirements.safe {
-					if b.fileRankIsAttacked(player, index, b.occupied, enemyBoards) {
+					if playerIndexIsAttacked(player, index, b.occupied, enemyBoards) {
 						canCastle = false
 						break
 					}
