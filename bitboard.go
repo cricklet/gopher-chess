@@ -233,22 +233,22 @@ var CASTLING_REQUIREMENTS = func() [2][2]CastlingRequirements {
 	result[WHITE][KINGSIDE] = CastlingRequirements{
 		safe:  mapSlice([]string{"e1", "f1", "g1"}, boardIndexFromString),
 		empty: bitboardWithAllLocationsSet(([]string{"f1", "g1"})),
-		move:  moveFromString("e1g1"),
+		move:  moveFromString("e1g1", CASTLING_MOVE),
 	}
 	result[WHITE][QUEENSIDE] = CastlingRequirements{
 		safe:  mapSlice([]string{"e1", "d1", "c1"}, boardIndexFromString),
 		empty: bitboardWithAllLocationsSet(([]string{"b1", "c1", "d1"})),
-		move:  moveFromString("e1c1"),
+		move:  moveFromString("e1c1", CASTLING_MOVE),
 	}
 	result[BLACK][KINGSIDE] = CastlingRequirements{
 		safe:  mapSlice([]string{"e8", "f8", "g8"}, boardIndexFromString),
 		empty: bitboardWithAllLocationsSet(([]string{"f8", "g8"})),
-		move:  moveFromString("e8g8"),
+		move:  moveFromString("e8g8", CASTLING_MOVE),
 	}
 	result[BLACK][QUEENSIDE] = CastlingRequirements{
 		safe:  mapSlice([]string{"e8", "d8", "c8"}, boardIndexFromString),
 		empty: bitboardWithAllLocationsSet(([]string{"b8", "c8", "d8"})),
-		move:  moveFromString("e8c8"),
+		move:  moveFromString("e8c8", CASTLING_MOVE),
 	}
 	return result
 }()
@@ -371,13 +371,28 @@ func setupBitboards(g GameState) Bitboards {
 	return result
 }
 
+type MoveType int
+
+const (
+	QUIET_MOVE MoveType = iota
+	CAPTURE_MOVE
+	CASTLING_MOVE
+	EN_PASSANT_MOVE
+)
+
 type Move struct {
+	moveType   MoveType
 	startIndex int
 	endIndex   int
 }
 
 func (b Bitboard) leastSignificantOne() Bitboard {
 	return b & -b
+}
+
+func (b Bitboard) firstIndexOfOne() int {
+	ls1 := b.leastSignificantOne()
+	return bits.OnesCount64(uint64(ls1 - 1))
 }
 
 func (b Bitboard) eachIndexOfOne() []int {
@@ -414,8 +429,12 @@ func generateWalkMoves(
 		quiet := potential & ^allOccupied
 		capture := potential & enemyOccupied
 
-		for _, index := range (quiet | capture).eachIndexOfOne() {
-			output = append(output, Move{index - totalOffset, index})
+		for _, endIndex := range quiet.eachIndexOfOne() {
+			output = append(output, Move{QUIET_MOVE, endIndex - totalOffset, endIndex})
+		}
+
+		for _, endIndex := range capture.eachIndexOfOne() {
+			output = append(output, Move{CAPTURE_MOVE, endIndex - totalOffset, endIndex})
 		}
 
 		potential = quiet
@@ -439,8 +458,15 @@ func generateWalkMovesWithMagic(
 		potential := magicTable.moves[startIndex][magicIndex]
 		potential = potential & ^selfOccupied
 
-		for _, endIndex := range potential.eachIndexOfOne() {
-			output = append(output, Move{startIndex, endIndex})
+		quiet := potential & ^allOccupied
+		capture := potential & ^quiet
+
+		for _, endIndex := range quiet.eachIndexOfOne() {
+			output = append(output, Move{QUIET_MOVE, startIndex, endIndex})
+		}
+
+		for _, endIndex := range capture.eachIndexOfOne() {
+			output = append(output, Move{CAPTURE_MOVE, startIndex, endIndex})
 		}
 	}
 
@@ -491,8 +517,12 @@ func generateJumpMoves(
 		quiet := potential & ^allOccupied
 		capture := potential & enemyOccupied
 
-		for _, index := range (quiet | capture).eachIndexOfOne() {
-			output = append(output, Move{index - offset, index})
+		for _, index := range quiet.eachIndexOfOne() {
+			output = append(output, Move{QUIET_MOVE, index - offset, index})
+		}
+
+		for _, index := range capture.eachIndexOfOne() {
+			output = append(output, Move{CAPTURE_MOVE, index - offset, index})
 		}
 
 		potential = quiet
@@ -606,7 +636,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 			potential := rotateTowardsIndex64(playerBoards.pawns, pushOffset)
 			potential = potential & ^b.occupied
 			for _, index := range potential.eachIndexOfOne() {
-				moves = append(moves, Move{index - pushOffset, index})
+				moves = append(moves, Move{QUIET_MOVE, index - pushOffset, index})
 			}
 		}
 
@@ -620,7 +650,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 			potential = potential & ^b.occupied
 
 			for _, index := range potential.eachIndexOfOne() {
-				moves = append(moves, Move{index - 2*pushOffset, index})
+				moves = append(moves, Move{QUIET_MOVE, index - 2*pushOffset, index})
 			}
 		}
 
@@ -632,7 +662,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 				potential = potential & enemyBoards.occupied
 
 				for _, index := range potential.eachIndexOfOne() {
-					moves = append(moves, Move{index - captureOffset, index})
+					moves = append(moves, Move{CAPTURE_MOVE, index - captureOffset, index})
 				}
 			}
 		}
@@ -647,7 +677,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 					potential = potential & enPassantBoard
 
 					for _, index := range potential.eachIndexOfOne() {
-						moves = append(moves, Move{index - captureOffset, index})
+						moves = append(moves, Move{EN_PASSANT_MOVE, index - captureOffset, index})
 					}
 				}
 			}
@@ -715,10 +745,55 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 	return moves
 }
 
-func moveFromString(s string) Move {
+// func (b Bitboards) performMove(move Move) Bitboards {
+// 	startIndex := move.startIndex
+// 	endIndex := move.endIndex
+
+// 	newBitboards := Bitboards{}
+
+// 	switch move.moveType {
+// 	case QUIET_MOVE:
+// 		{
+// 			// Clear the start square
+// 			newBitboards.occupied &= ^singleBitboard(startIndex)
+// 			// Clear the start square, set the end square
+// 			newBitboards.occupied |= singleBitboard(startIndex)
+// 		}
+// 	case CAPTURE_MOVE:
+// 		{
+// 		}
+// 	case EN_PASSANT_MOVE:
+// 		{
+
+// 		}
+// 	case CASTLING_MOVE:
+// 		{
+
+// 		}
+// 	}
+// 	return newBitboards
+// }
+
+// func (b Bitboards) generateLegalMoves(g GameState) []Move {
+// 	player := g.player
+// 	enemy := g.enemy()
+// 	potentialMoves := b.generatePseudoMoves(g)
+
+// 	legalMoves := make([]Move, 0, 256)
+// 	for _, move := range potentialMoves {
+// 		nextBitboards := b.performMove(move)
+// 		kingIndex := nextBitboards.players[player].king.firstIndexOfOne()
+// 		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {
+// 			legalMoves = append(legalMoves, move)
+// 		}
+// 	}
+// 	return legalMoves
+// }
+
+func moveFromString(s string, m MoveType) Move {
 	first := s[0:2]
 	second := s[2:4]
-	return Move{boardIndexFromString(first), boardIndexFromString(second)}
+	return Move{m, boardIndexFromString(first), boardIndexFromString(second)}
 }
 
 func (m Move) string() string {

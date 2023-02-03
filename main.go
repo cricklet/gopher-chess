@@ -232,6 +232,10 @@ type GameState struct {
 	fullMoveClock                int
 }
 
+func (g GameState) enemy() Player {
+	return g.player.other()
+}
+
 func (g GameState) whiteCanCastleKingside() bool {
 	return g.playerAndCastlingSideAllowed[WHITE][KINGSIDE]
 }
