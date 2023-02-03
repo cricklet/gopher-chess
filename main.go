@@ -328,3 +328,8 @@ func main() {
 		}
 	}
 }
+
+func init() {
+	// defer profile.Start(profile.ProfilePath(".")).Stop()
+	initMagicTables()
+}
