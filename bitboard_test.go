@@ -503,7 +503,7 @@ func TestBlockerMasks(t *testing.T) {
 		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("h1")].string())
 }
 
-func TestCastling(t *testing.T) {
+func TestWhiteCastling(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2N1BN2/PPP1QPPP/R3K2R w KQkq - 1 11"
 
 	g, err := gamestateFromString(s)
@@ -588,6 +588,96 @@ func TestCastling(t *testing.T) {
 		// rook
 		"h1f1",
 		"h1g1",
+	}
+
+	sort.Strings(result)
+	sort.Strings(expected)
+
+	assert.Equal(t, expected, result)
+}
+
+func TestBlackCastling(t *testing.T) {
+	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2NQBN2/PPP2PPP/R3K2R b KQkq - 2 11"
+
+	g, err := gamestateFromString(s)
+	assert.Nil(t, err)
+
+	assert.Nil(t, g.enPassantTarget)
+	assert.Equal(t, BLACK, g.player)
+	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
+
+	bitboards := setupBitboards(g)
+
+	result := []string{}
+	for _, move := range bitboards.generatePseudoMoves(g) {
+		result = append(result, move.string())
+	}
+
+	expected := []string{
+		// queen
+		"a5a2",
+		"a5a3",
+		"a5a4",
+		"a5a6",
+		"a5b4",
+		"a5b5",
+		"a5b6",
+		"a5c3",
+		"a5c7",
+		"a5d8",
+
+		// pawn
+		"a7a6",
+
+		// rook
+		"a8b8",
+		"a8c8",
+		"a8d8",
+
+		// pawn
+		"b7b5",
+		"b7b6",
+
+		//knight
+		"c6b4",
+		"c6b8",
+		"c6d4",
+		"c6d8",
+		"c6e5",
+
+		// pawn
+		"d6d5",
+
+		// bishop
+		"d7c8",
+		"d7e6",
+
+		// bishop
+		"e7d8",
+		"e7f8",
+
+		// king
+		"e8c8", // <- castling
+		"e8d8",
+		"e8f7",
+		"e8f8",
+		"e8g8", // <- castling
+
+		// knight
+		"f6d5",
+		"f6e4",
+		"f6g4",
+		"f6g8",
+		"f6h5",
+
+		// pawn
+		"g5g4",
+		"h7h5",
+		"h7h6",
+
+		// rook
+		"h8f8",
+		"h8g8",
 	}
 
 	sort.Strings(result)
