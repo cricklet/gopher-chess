@@ -214,16 +214,33 @@ func boardIndexFromString(s string) int {
 	return boardIndexFromFileRank(location)
 }
 
+type CastlingSide int
+
+const (
+	KINGSIDE CastlingSide = iota
+	QUEENSIDE
+)
+
 type GameState struct {
-	board                   BoardArray
-	player                  Player
-	whiteCanCastleKingside  bool
-	whiteCanCastleQueenside bool
-	blackCanCastleKingside  bool
-	blackCanCastleQueenside bool
-	enPassantTarget         *FileRank
-	halfMoveClock           int
-	fullMoveClock           int
+	board                        BoardArray
+	player                       Player
+	playerAndCastlingSideAllowed [2][2]bool
+	enPassantTarget              *FileRank
+	halfMoveClock                int
+	fullMoveClock                int
+}
+
+func (g GameState) whiteCanCastleKingside() bool {
+	return g.playerAndCastlingSideAllowed[WHITE][KINGSIDE]
+}
+func (g GameState) whiteCanCastleQueenside() bool {
+	return g.playerAndCastlingSideAllowed[BLACK][QUEENSIDE]
+}
+func (g GameState) blackCanCastleKingside() bool {
+	return g.playerAndCastlingSideAllowed[WHITE][KINGSIDE]
+}
+func (g GameState) blackCanCastleQueenside() bool {
+	return g.playerAndCastlingSideAllowed[BLACK][QUEENSIDE]
 }
 
 func gamestateFromString(s string) (GameState, error) {
@@ -267,13 +284,13 @@ func gamestateFromString(s string) (GameState, error) {
 		case '-':
 			continue
 		case 'K':
-			game.whiteCanCastleKingside = true
+			game.playerAndCastlingSideAllowed[WHITE][KINGSIDE] = true
 		case 'Q':
-			game.whiteCanCastleQueenside = true
+			game.playerAndCastlingSideAllowed[WHITE][QUEENSIDE] = true
 		case 'k':
-			game.blackCanCastleKingside = true
+			game.playerAndCastlingSideAllowed[BLACK][KINGSIDE] = true
 		case 'q':
-			game.blackCanCastleQueenside = true
+			game.playerAndCastlingSideAllowed[BLACK][QUEENSIDE] = true
 		}
 	}
 

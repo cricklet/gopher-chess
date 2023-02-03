@@ -196,6 +196,63 @@ var PRE_MOVE_MASKS = [NUM_DIRS]Bitboard{
 	MASK_WW & MASK_S & MASK_W,
 }
 
+type CastlingRequirements struct {
+	empty Bitboard
+	safe  []int
+	move  Move
+}
+
+func mapSlice[T, U any](ts []T, f func(T) U) []U {
+	us := make([]U, len(ts))
+	for i := range ts {
+		us[i] = f(ts[i])
+	}
+	return us
+}
+
+func reduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
+	u := initial
+	for _, t := range ts {
+		u = f(u, t)
+	}
+	return u
+}
+
+func bitboardWithAllLocationsSet(locations []string) Bitboard {
+	return reduceSlice(
+		mapSlice(locations, boardIndexFromString),
+		0,
+		func(result Bitboard, index int) Bitboard {
+			return result | singleBitboard(index)
+		},
+	)
+}
+
+var CASTLING_REQUIREMENTS = func() [2][2]CastlingRequirements {
+	result := [2][2]CastlingRequirements{}
+	result[WHITE][KINGSIDE] = CastlingRequirements{
+		safe:  mapSlice([]string{"e1", "f1", "g1"}, boardIndexFromString),
+		empty: bitboardWithAllLocationsSet(([]string{"f1", "g1"})),
+		move:  moveFromString("e1g1"),
+	}
+	result[WHITE][QUEENSIDE] = CastlingRequirements{
+		safe:  mapSlice([]string{"e1", "d1", "c1"}, boardIndexFromString),
+		empty: bitboardWithAllLocationsSet(([]string{"b1", "c1", "d1"})),
+		move:  moveFromString("e1c1"),
+	}
+	result[BLACK][KINGSIDE] = CastlingRequirements{
+		safe:  mapSlice([]string{"e8", "f8", "g8"}, boardIndexFromString),
+		empty: bitboardWithAllLocationsSet(([]string{"f8", "g8"})),
+		move:  moveFromString("e8g8"),
+	}
+	result[BLACK][QUEENSIDE] = CastlingRequirements{
+		safe:  mapSlice([]string{"e8", "d8", "c8"}, boardIndexFromString),
+		empty: bitboardWithAllLocationsSet(([]string{"b8", "c8", "d8"})),
+		move:  moveFromString("e8c8"),
+	}
+	return result
+}()
+
 func reverseBits(n uint8) uint8 {
 	return ReverseBitsCache[n]
 }
@@ -443,6 +500,81 @@ func generateJumpMoves(
 	return output
 }
 
+func (b Bitboards) fileRankIsAttacked(player Player, startIndex int, occupied Bitboard, enemyBitboards PlayerBitboards) bool {
+	startBoard := singleBitboard(startIndex)
+
+	// Bishop attacks
+	{
+		blockerBoard := BISHOP_MAGIC_TABLE.blockerMasks[startIndex] & occupied
+		magicValues := BISHOP_MAGIC_TABLE.magics[startIndex]
+		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
+
+		potential := BISHOP_MAGIC_TABLE.moves[startIndex][magicIndex]
+		potential = potential & (enemyBitboards.bishops | enemyBitboards.queens)
+
+		if potential != 0 {
+			return true
+		}
+	}
+	// Rook attacks
+	{
+		blockerBoard := ROOK_MAGIC_TABLE.blockerMasks[startIndex] & occupied
+		magicValues := ROOK_MAGIC_TABLE.magics[startIndex]
+		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
+
+		potential := ROOK_MAGIC_TABLE.moves[startIndex][magicIndex]
+		potential = potential & (enemyBitboards.rooks | enemyBitboards.queens)
+
+		if potential != 0 {
+			return true
+		}
+	}
+
+	attackers := Bitboard(0)
+
+	// Pawn attacks
+	{
+		enemyDir := S
+		if player.other() == WHITE {
+			enemyDir = N
+		}
+		enemyPushOffset := OFFSETS[enemyDir]
+
+		for _, enemyCaptureOffset := range []int{enemyPushOffset + OFFSET_E, enemyPushOffset + OFFSET_W} {
+			potential := enemyBitboards.pawns
+			potential = rotateTowardsIndex64(potential, enemyCaptureOffset)
+			potential = potential & startBoard
+
+			attackers |= potential
+		}
+	}
+	// Knight, king attacks
+	{
+		for _, enemyDir := range KNIGHT_DIRS {
+			enemyOffset := OFFSETS[enemyDir]
+			enemyMask := PRE_MOVE_MASKS[enemyDir]
+
+			potential := enemyBitboards.knights & enemyMask
+			potential = rotateTowardsIndex64(potential, enemyOffset)
+			potential = potential & startBoard
+
+			attackers |= potential
+		}
+		for _, enemyDir := range KING_DIRS {
+			enemyOffset := OFFSETS[enemyDir]
+			enemyMask := PRE_MOVE_MASKS[enemyDir]
+
+			potential := enemyBitboards.king & enemyMask
+			potential = rotateTowardsIndex64(potential, enemyOffset)
+			potential = potential & startBoard
+
+			attackers |= potential
+		}
+	}
+
+	return attackers != 0
+}
+
 func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 	player := g.player
 	playerBoards := b.players[player]
@@ -451,17 +583,18 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 
 	{
 		// generate pawn pushes
-		dir := S
+		pushDir := S
 		if player == WHITE {
-			dir = N
+			pushDir = N
 		}
+		pushOffset := OFFSETS[pushDir]
 
 		// generate one step
 		{
-			potential := rotateTowardsIndex64(playerBoards.pawns, OFFSETS[dir])
+			potential := rotateTowardsIndex64(playerBoards.pawns, pushOffset)
 			potential = potential & ^b.occupied
 			for _, index := range potential.eachIndexOfOne() {
-				moves = append(moves, Move{index - OFFSETS[dir], index})
+				moves = append(moves, Move{index - pushOffset, index})
 			}
 		}
 
@@ -469,25 +602,25 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 		{
 			potential := playerBoards.pawns
 			potential = potential & maskStartingPawnsForPlayer(player)
-			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+			potential = rotateTowardsIndex64(potential, pushOffset)
 			potential = potential & ^b.occupied
-			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+			potential = rotateTowardsIndex64(potential, pushOffset)
 			potential = potential & ^b.occupied
 
 			for _, index := range potential.eachIndexOfOne() {
-				moves = append(moves, Move{index - 2*OFFSETS[dir], index})
+				moves = append(moves, Move{index - 2*pushOffset, index})
 			}
 		}
 
 		// generate captures
 		{
-			for _, dir := range []Dir{NE, NW} {
+			for _, captureOffset := range []int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
 				potential := playerBoards.pawns
-				potential = rotateTowardsIndex64(potential, OFFSETS[dir])
-				potential = potential & b.players[player.other()].occupied
+				potential = rotateTowardsIndex64(potential, captureOffset)
+				potential = potential & enemyBoards.occupied
 
 				for _, index := range potential.eachIndexOfOne() {
-					moves = append(moves, Move{index - OFFSETS[dir], index})
+					moves = append(moves, Move{index - captureOffset, index})
 				}
 			}
 		}
@@ -496,13 +629,13 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 		{
 			if g.enPassantTarget != nil {
 				enPassantBoard := singleBitboard(boardIndexFromFileRank(*g.enPassantTarget))
-				for _, dir := range []Dir{NE, NW} {
+				for _, captureOffset := range []int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
 					potential := playerBoards.pawns
-					potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+					potential = rotateTowardsIndex64(potential, captureOffset)
 					potential = potential & enPassantBoard
 
 					for _, index := range potential.eachIndexOfOne() {
-						moves = append(moves, Move{index - OFFSETS[dir], index})
+						moves = append(moves, Move{index - captureOffset, index})
 					}
 				}
 			}
@@ -542,6 +675,29 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 
 		// generate king moves
 		moves = generateJumpMoves(playerBoards.king, b.occupied, enemyBoards.occupied, KING_DIRS, moves)
+	}
+
+	{
+		// generate king castle
+		for _, castlingSide := range [2]CastlingSide{KINGSIDE, QUEENSIDE} {
+			canCastle := true
+			if g.playerAndCastlingSideAllowed[player][castlingSide] {
+				requirements := CASTLING_REQUIREMENTS[player][castlingSide]
+				for _, index := range requirements.safe {
+					if b.fileRankIsAttacked(player, index, b.occupied, enemyBoards) {
+						canCastle = false
+						break
+					}
+				}
+				if b.occupied&requirements.empty != 0 {
+					canCastle = false
+				}
+
+				if canCastle {
+					moves = append(moves, requirements.move)
+				}
+			}
+		}
 	}
 
 	return moves

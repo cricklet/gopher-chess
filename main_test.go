@@ -92,10 +92,10 @@ func TestNotationDecoding(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, *g.enPassantTarget, expectedLocation)
 
-	assert.Equal(t, g.whiteCanCastleKingside, true)
-	assert.Equal(t, g.whiteCanCastleQueenside, true)
-	assert.Equal(t, g.blackCanCastleKingside, true)
-	assert.Equal(t, g.blackCanCastleQueenside, true)
+	assert.Equal(t, g.whiteCanCastleKingside(), true)
+	assert.Equal(t, g.whiteCanCastleQueenside(), true)
+	assert.Equal(t, g.blackCanCastleKingside(), true)
+	assert.Equal(t, g.blackCanCastleQueenside(), true)
 
 	assert.Equal(t, g.halfMoveClock, 0)
 	assert.Equal(t, g.fullMoveClock, 1)
@@ -120,10 +120,10 @@ func TestNotationDecoding2(t *testing.T) {
 
 	assert.Nil(t, g.enPassantTarget)
 
-	assert.Equal(t, g.whiteCanCastleKingside, false)
-	assert.Equal(t, g.whiteCanCastleQueenside, false)
-	assert.Equal(t, g.blackCanCastleKingside, false)
-	assert.Equal(t, g.blackCanCastleQueenside, false)
+	assert.Equal(t, g.whiteCanCastleKingside(), false)
+	assert.Equal(t, g.whiteCanCastleQueenside(), false)
+	assert.Equal(t, g.blackCanCastleKingside(), false)
+	assert.Equal(t, g.blackCanCastleQueenside(), false)
 
 	assert.Equal(t, g.halfMoveClock, 99)
 	assert.Equal(t, g.fullMoveClock, 50)
