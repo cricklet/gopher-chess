@@ -745,7 +745,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 	return moves
 }
 
-// func (b Bitboards) performMove(move Move) Bitboards {
+// func (b Bitboards) updateBitboard(g GameState, move Move) Bitboards {
 // 	startIndex := move.startIndex
 // 	endIndex := move.endIndex
 

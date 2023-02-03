@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-type File int
-type Rank int
+type File uint8
+type Rank uint8
 
 func (f File) string() string {
 	return [8]string{
@@ -85,7 +85,7 @@ func (p Player) other() Player {
 	return 1 - p
 }
 
-type Piece int
+type Piece uint8
 
 const (
 	XX Piece = iota
