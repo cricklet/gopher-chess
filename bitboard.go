@@ -375,8 +375,9 @@ func generateWalkMovesWithMagic(
 	output []Move,
 ) []Move {
 	for _, startIndex := range pieces.eachIndexOfOne() {
+		blockerBoard := magicTable.blockerMasks[startIndex] & allOccupied
 		magicValues := magicTable.magics[startIndex]
-		magicIndex := magicIndex(magicValues.Magic, allOccupied, magicValues.BitsInMagicIndex)
+		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
 
 		potential := magicTable.moves[startIndex][magicIndex]
 		potential = potential & ^selfOccupied
@@ -511,7 +512,7 @@ func (b Bitboards) generatePseudoMoves(player Player) []Move {
 		// moves = generateWalkMoves(b.players[player].queens, b.occupied, b.players[player.other()].occupied, SW, moves)
 
 		moves = generateWalkMovesWithMagic(b.players[player].rooks, b.occupied, b.players[player].occupied, ROOK_MAGIC_TABLE, moves)
-		moves = generateWalkMovesWithMagic(b.players[player].bishops, b.occupied, b.players[player].occupied, ROOK_MAGIC_TABLE, moves)
+		moves = generateWalkMovesWithMagic(b.players[player].bishops, b.occupied, b.players[player].occupied, BISHOP_MAGIC_TABLE, moves)
 		moves = generateWalkMovesWithMagic(b.players[player].queens, b.occupied, b.players[player].occupied, ROOK_MAGIC_TABLE, moves)
 		moves = generateWalkMovesWithMagic(b.players[player].queens, b.occupied, b.players[player].occupied, BISHOP_MAGIC_TABLE, moves)
 	}
@@ -682,13 +683,15 @@ func findBetterMagicValue(bestMagic MagicValue, moves []MoveBoardForBlockerBoard
 	return bestMagic
 }
 
-func generateMagicMoveTable(dirs []Dir, blockerMasks [64]Bitboard, bestMagics [64]MagicValue, label string) MagicMoveTable {
+func generateMagicMoveTable(dirs []Dir, bestMagics [64]MagicValue, label string) MagicMoveTable {
 	result := MagicMoveTable{}
 
 	// bar := progressbar.Default(64, label)
 
 	for i := 0; i < 64; i++ {
-		blockerMask := blockerMasks[i]
+		blockerMask := generateBlockerMask(i, dirs)
+		result.blockerMasks[i] = blockerMask
+
 		moves := generateMoveBoards(i, blockerMask, dirs)
 
 		betterMagic := findBetterMagicValue(bestMagics[i], moves)
@@ -721,8 +724,9 @@ type MagicMoveTable struct {
 	//     >> (64 - numBits)
 	//   ) << previousBits
 	//  ]
-	magics [64]MagicValue
-	moves  [64][]Bitboard
+	magics       [64]MagicValue
+	blockerMasks [64]Bitboard
+	moves        [64][]Bitboard
 }
 
 func (m MagicValue) string() string {
@@ -733,9 +737,6 @@ func (m MagicValue) string() string {
 // Then we generate a magic index that gives a unique index that we use
 // to index the moves database.
 //  where
-
-var ROOK_BLOCKER_MASKS [64]Bitboard
-var BISHOP_BLOCKER_MASKS [64]Bitboard
 
 var ROOK_BEST_MAGICS = [64]MagicValue{
 	{9331458498780872708, 12}, {4665729506550484992, 11}, {144126186415460480, 11}, {144124147393380420, 12}, {11565257037802111104, 11}, {144132788852099073, 11}, {360290736719004416, 11}, {72057871080096230, 12}, {4719913149124313312, 11}, {293156463157707144, 10}, {6917669902577307648, 10}, {140771923603456, 10}, {1162069475734979584, 10}, {9223935029758136344, 10}, {73465046232203520, 10}, {72198473260253312, 11}, {72207677412868132, 11}, {9160032444752128, 10}, {144256475856900105, 10}, {5193215519872860424, 10}, {159430394052612, 10}, {10523224031208014848, 10}, {864765895917076752, 10}, {600333755678852, 11}, {15832969587466384, 11}, {4503884168962050, 10}, {1161937501029400896, 10}, {5814147670840180754, 10}, {576645472412763136, 10}, {42786397639148544, 10}, {2315415374626029896, 10}, {10520549469173335296, 11}, {2317524495633481760, 11}, {360323223285399872, 10}, {9007474451424004, 10}, {5700005885121026, 10}, {10160261531204324352, 10}, {15016162516944359556, 10}, {17636813465603, 10}, {150026164885260370, 11}, {18015225290719265, 11}, {292736450217132032, 10}, {1333100674342224000, 10}, {1153484494829912080, 10}, {145243183935160356, 10}, {4648277800028340236, 10}, {18295882077241348, 10}, {148900299225235458, 11}, {2308517022067064960, 11}, {2666166164849787008, 10}, {10484947351389610496, 10}, {865113409641250944, 10}, {79164905423104, 10}, {598134445769894144, 10}, {8865384334336, 10}, {140741783341184, 11}, {11822236544142419985, 12}, {853358739210241, 11}, {2306689770606579907, 11}, {27305340485764105, 11}, {562958563547782, 12}, {576742261673689253, 11}, {563053041289474, 11}, {72061994248775234, 12},
@@ -772,11 +773,8 @@ func initMagicTables() {
 		json.Unmarshal(bishopInput, &BISHOP_BEST_MAGICS)
 	}
 
-	ROOK_BLOCKER_MASKS = generateBlockerMasks(ROOK_DIRS)
-	BISHOP_BLOCKER_MASKS = generateBlockerMasks(BISHOP_DIRS)
-
-	ROOK_MAGIC_TABLE = generateMagicMoveTable(ROOK_DIRS, ROOK_BLOCKER_MASKS, ROOK_BEST_MAGICS, "rook magics ")
-	BISHOP_MAGIC_TABLE = generateMagicMoveTable(BISHOP_DIRS, BISHOP_BLOCKER_MASKS, BISHOP_BEST_MAGICS, "bishop magic")
+	ROOK_MAGIC_TABLE = generateMagicMoveTable(ROOK_DIRS, ROOK_BEST_MAGICS, "rook magics ")
+	BISHOP_MAGIC_TABLE = generateMagicMoveTable(BISHOP_DIRS, BISHOP_BEST_MAGICS, "bishop magic")
 
 	lowestRookBits := 12
 	sumRookBits := 0
