@@ -103,6 +103,96 @@ const (
 	BP
 )
 
+func (p Piece) pieceType() PieceType {
+	switch p {
+	case WR:
+		return ROOK
+	case WN:
+		return KNIGHT
+	case WB:
+		return BISHOP
+	case WK:
+		return KING
+	case WQ:
+		return QUEEN
+	case WP:
+		return PAWN
+	case BR:
+		return ROOK
+	case BN:
+		return KNIGHT
+	case BB:
+		return BISHOP
+	case BK:
+		return KING
+	case BQ:
+		return QUEEN
+	case BP:
+		return PAWN
+	}
+	return EMPTY
+}
+
+func (p Piece) player() Player {
+	if p >= WR && p <= WP {
+		return WHITE
+	}
+	if p >= BR && p <= BP {
+		return BLACK
+	}
+
+	panic("only call player() on a non-empty piece")
+}
+
+type PieceType uint8
+
+const (
+	ROOK PieceType = iota
+	KNIGHT
+	BISHOP
+	KING
+	QUEEN
+	PAWN
+	EMPTY
+)
+
+func (p PieceType) forPlayer(player Player) Piece {
+	switch player {
+	case WHITE:
+		switch p {
+		case ROOK:
+			return WR
+		case KNIGHT:
+			return WN
+		case BISHOP:
+			return WB
+		case KING:
+			return WK
+		case QUEEN:
+			return WQ
+		case PAWN:
+			return WP
+		}
+	case BLACK:
+		switch p {
+		case ROOK:
+			return BR
+		case KNIGHT:
+			return BN
+		case BISHOP:
+			return BB
+		case KING:
+			return BK
+		case QUEEN:
+			return BQ
+		case PAWN:
+			return BP
+		}
+	}
+
+	panic(fmt.Sprintln("could not determine piece based on", player, p))
+}
+
 func pieceFromString(c rune) (Piece, error) {
 	switch c {
 	case 'R':

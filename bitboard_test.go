@@ -124,7 +124,7 @@ func TestBitboardSetup(t *testing.T) {
 		"11110111",
 		"11111111",
 	}, "\n"))
-	assert.Equal(t, bitboards.players[WHITE].pawns.string(), strings.Join([]string{
+	assert.Equal(t, bitboards.players[WHITE].pieces[PAWN].string(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
