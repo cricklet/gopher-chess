@@ -322,6 +322,46 @@ type GameState struct {
 	fullMoveClock                int
 }
 
+func (g *GameState) performMove(move Move) {
+	startPiece := g.board[move.startIndex]
+	switch move.moveType {
+	case QUIET_MOVE:
+		{
+			g.board[move.startIndex] = XX
+			g.board[move.endIndex] = startPiece
+		}
+	case CAPTURE_MOVE:
+		{
+			g.board[move.startIndex] = XX
+			g.board[move.endIndex] = startPiece
+		}
+	case EN_PASSANT_MOVE:
+		{
+			startPlayer := startPiece.player()
+			backwardsDir := S
+			if startPlayer == BLACK {
+				backwardsDir = N
+			}
+
+			captureIndex := move.endIndex - OFFSETS[backwardsDir]
+			g.board[captureIndex] = XX
+			g.board[move.startIndex] = XX
+			g.board[move.endIndex] = startPiece
+		}
+	case CASTLING_MOVE:
+		{
+			rookStartIndex, rookEndIndex := rookMoveForCastle(move.startIndex, move.endIndex)
+			rookPiece := g.board[rookStartIndex]
+
+			g.board[move.startIndex] = XX
+			g.board[rookStartIndex] = XX
+			g.board[move.endIndex] = startPiece
+			g.board[rookEndIndex] = rookPiece
+		}
+	}
+	g.player = g.player.other()
+}
+
 func (g GameState) enemy() Player {
 	return g.player.other()
 }

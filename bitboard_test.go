@@ -805,3 +805,61 @@ func TestPin(t *testing.T) {
 
 	assert.Equal(t, expected, result)
 }
+
+type X struct {
+	a []int
+	b [2]int
+	c int
+}
+
+func (x X) updateValue(v int) {
+	x.a[0] = v
+	x.a[1] = v
+	x.b[0] = v
+	x.b[1] = v
+	x.c = v
+}
+
+func (x *X) updatePointer(v int) {
+	x.a[0] = v
+	x.a[1] = v
+	x.b[0] = v
+	x.b[1] = v
+	x.c = v
+}
+
+func updateValueX(x X, v int) {
+	x.a[0] = v
+	x.a[1] = v
+	x.b[0] = v
+	x.b[1] = v
+	x.c = v
+}
+
+func updatePointerX(x *X, v int) {
+	x.a[0] = v
+	x.a[1] = v
+	x.b[0] = v
+	x.b[1] = v
+	x.c = v
+}
+
+func TestArraysArePassedByReference(t *testing.T) {
+	x := X{[]int{1, 1}, [2]int{1, 1}, 1}
+
+	x.updateValue(9)
+	assert.Equal(t, X{[]int{9, 9}, [2]int{1, 1}, 1}, x)
+
+	updateValueX(x, 99)
+	assert.Equal(t, X{[]int{99, 99}, [2]int{1, 1}, 1}, x)
+
+	x.updatePointer(999)
+	assert.Equal(t, X{[]int{999, 999}, [2]int{999, 999}, 999}, x)
+
+	updatePointerX(&x, 9999)
+	assert.Equal(t, X{[]int{9999, 9999}, [2]int{9999, 9999}, 9999}, x)
+}
+
+func CountMovesAtDepth(n int) int {
+	return 0
+}
