@@ -1,5 +1,4 @@
 isready
 uci
-position fen rnbqkbnr/1ppppppp/8/p7/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2
-go perft 1
-go perft 2
+position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+go perft 6

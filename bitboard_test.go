@@ -2,7 +2,9 @@ package chessgo
 
 import (
 	"fmt"
+	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -92,7 +94,7 @@ func TestDirMasks(t *testing.T) {
 
 func TestBitboardSetup(t *testing.T) {
 	s := "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, g.board.string(), NaturalBoardArray{
@@ -211,7 +213,7 @@ func TestBitRotation(t *testing.T) {
 
 func TestGeneratePseudoMovesEarly(t *testing.T) {
 	s := "rnbqkbnr/pppp11pp/8/4pp2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 1 2"
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, g.board.string(), NaturalBoardArray{
@@ -289,7 +291,7 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 
 func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 	s := "rnbqkbnr/pppp3p/8/4pPp1/8/5N2/PPPP1PPP/RNBQKB1R w KQkq g6 0 4"
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, NaturalBoardArray{
@@ -509,10 +511,10 @@ func TestBlockerMasks(t *testing.T) {
 func TestWhiteCastling(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2N1BN2/PPP1QPPP/R3K2R w KQkq - 1 11"
 
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Nil(t, g.enPassantTarget)
+	assert.Equal(t, true, g.enPassantTarget.IsEmtpy())
 	assert.Equal(t, WHITE, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
@@ -602,10 +604,10 @@ func TestWhiteCastling(t *testing.T) {
 func TestBlackCastling(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2NQBN2/PPP2PPP/R3K2R b KQkq - 2 11"
 
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Nil(t, g.enPassantTarget)
+	assert.Equal(t, true, g.enPassantTarget.IsEmtpy())
 	assert.Equal(t, BLACK, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
@@ -692,7 +694,7 @@ func TestBlackCastling(t *testing.T) {
 func TestAttackMap(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2NQBN2/PPP2PPP/R3K2R b KQkq - 2 11"
 
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	bitboards := setupBitboards(g)
@@ -738,7 +740,7 @@ func TestAttackMap(t *testing.T) {
 func TestCheck(t *testing.T) {
 	s := "r3k2r/pp1bb3/3pPPQp/qBp1n1p1/6n1/2N1BN2/PPP2PPP/R3K2R b KQkq - 1 14"
 
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	bitboards := setupBitboards(g)
@@ -775,7 +777,7 @@ func TestCheck(t *testing.T) {
 func TestPin(t *testing.T) {
 	s := "5k2/8/8/8/1q6/2N4p/2PK2pP/8 w - - 0 44"
 
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	bitboards := setupBitboards(g)
@@ -907,19 +909,24 @@ func TestGameStateCopyingIsDeep(t *testing.T) {
 	assert.Equal(t, c.playerAndCastlingSideAllowed[0][1], true)
 }
 
-func CountMovesAtDepth(g GameState, b Bitboards, n int, expectedCount Optional[int]) int {
+type CountPerftOptions struct {
+	recordPerft   bool
+	expectedCount Optional[int]
+}
+
+func CountAndPerftForDepth(g GameState, b Bitboards, n int, options CountPerftOptions) (int, map[string]int) {
 	if n == 0 {
-		return 1
+		return 1, map[string]int{}
 	}
 
 	num := 0
 	moves := b.generateLegalMoves(g)
 
-	var bar *progressbar.ProgressBar
+	var progressBar *progressbar.ProgressBar
 	var startTime time.Time
-	perft := []string{}
-	if expectedCount.HasValue() {
-		bar = progressbar.Default(int64(expectedCount.Value()), fmt.Sprint("depth ", n))
+	var perft = make(map[string]int)
+	if options.expectedCount.HasValue() && options.expectedCount.Value() > 10000 {
+		progressBar = progressbar.Default(int64(options.expectedCount.Value()), fmt.Sprint("depth ", n))
 		startTime = time.Now()
 	}
 
@@ -930,24 +937,26 @@ func CountMovesAtDepth(g GameState, b Bitboards, n int, expectedCount Optional[i
 		nextBoard.performMove(g, move)
 		nextState.performMove(move)
 
-		countUnderMove := CountMovesAtDepth(nextState, nextBoard, n-1, Empty[int]())
+		countUnderMove, _ := CountAndPerftForDepth(nextState, nextBoard, n-1, CountPerftOptions{})
 
 		num += countUnderMove
 
-		if bar != nil {
-			bar.Set(num)
-			perft = append(perft, fmt.Sprintf("%v: %v\n", move.string(), countUnderMove))
+		if progressBar != nil {
+			progressBar.Set(num)
+		}
+
+		if options.recordPerft {
+			perft[move.string()] = countUnderMove
 		}
 	}
 
-	if bar != nil {
-		bar.Close()
+	if progressBar != nil {
+		progressBar.Close()
 		fmt.Println("             |", time.Now().Sub(startTime))
-		// fmt.Println(strings.Join(perft, ""))
 		fmt.Println()
 	}
 
-	return num
+	return num, perft
 }
 
 func TestMovesAtDepth(t *testing.T) {
@@ -960,20 +969,190 @@ func TestMovesAtDepth(t *testing.T) {
 		8902,
 		197281,
 		4865609,
-		// 119060324,
+		119060324,
 	}
 
 	for depth, expectedCount := range EXPECTED_COUNT {
-		g, err := gamestateFromString(s)
+		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)
 		b := setupBitboards(g)
-		actualCount := CountMovesAtDepth(g, b, depth, Some(expectedCount))
+		actualCount, _ := CountAndPerftForDepth(g, b, depth, CountPerftOptions{false, Some(expectedCount)})
 
 		assert.Equal(t, expectedCount, actualCount)
 	}
 }
 
-func TestDebuggingMovesAtDepth(t *testing.T) {
+type PerftComparison int
+
+const (
+	MOVE_IS_INVALID PerftComparison = iota
+	MOVE_IS_MISSING
+	COUNT_TOO_HIGH
+	COUNT_TOO_LOW
+)
+
+func parsePerft(s string) (map[string]int, int) {
+	expectedPerft := make(map[string]int)
+
+	ok := false
+	for _, line := range strings.Split(s, "\n") {
+		if ok {
+			if len(line) == 0 {
+				continue
+			} else if strings.HasPrefix(line, "Nodes searched: ") {
+				expectedCountStr := strings.TrimPrefix(line, "Nodes searched: ")
+				expectedCount, err := strconv.Atoi(expectedCountStr)
+				if err != nil {
+					panic(fmt.Sprint("couldn't parse searched nodes", line, err))
+				}
+
+				return expectedPerft, expectedCount
+			} else {
+				lineParts := strings.Split(line, ": ")
+				moveStr := lineParts[0]
+				moveCount, err := strconv.Atoi(lineParts[1])
+				if err != nil {
+					panic(fmt.Sprint("couldn't parse count from move", line, err))
+				}
+
+				expectedPerft[moveStr] = moveCount
+			}
+		} else if line == "uciok" {
+			ok = true
+		}
+	}
+
+	panic(fmt.Sprint("could not parse", s))
+}
+
+func computeIncorrectPerftMoves(t *testing.T, s string, depth int) map[string]PerftComparison {
+	if depth == 0 {
+		panic("0 depth not valid for stockfish")
+	}
+	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", s, depth)
+	cmd := exec.Command("bash", "-c", input)
+	output, _ := cmd.CombinedOutput()
+
+	expectedPerft, expectedTotal := parsePerft(string(output))
+
+	g, err := gamestateFromFenString(s)
+	assert.Nil(t, err)
+	b := setupBitboards(g)
+	total, perft := CountAndPerftForDepth(g, b, depth, CountPerftOptions{true, Some(expectedTotal)})
+
+	result := make(map[string]PerftComparison)
+
+	for move, count := range perft {
+		expectedCount, ok := expectedPerft[move]
+		if ok == false {
+			result[move] = MOVE_IS_INVALID
+		} else if count > expectedCount {
+			result[move] = COUNT_TOO_HIGH
+		} else if count < expectedCount {
+			result[move] = COUNT_TOO_LOW
+		}
+	}
+	for expectedMove, _ := range expectedPerft {
+		_, ok := perft[expectedMove]
+		if ok == false {
+			result[expectedMove] = MOVE_IS_MISSING
+		}
+	}
+
+	if total != expectedTotal && len(result) == 0 {
+		panic("should have found a discrepancy between perft")
+	}
+
+	return result
+}
+
+type MoveToSearch struct {
+	move    string
+	issue   PerftComparison
+	initial string
+}
+
+func (p PerftComparison) string() string {
+	switch p {
+	case MOVE_IS_INVALID:
+		return "invalid"
+	case MOVE_IS_MISSING:
+		return "missing"
+	case COUNT_TOO_HIGH:
+		return "high"
+	case COUNT_TOO_LOW:
+		return "low"
+	}
+	panic(fmt.Sprint("unknown issue", p))
+}
+
+func (m MoveToSearch) string() string {
+	return fmt.Sprintf("%v %v at \"%v\"",
+		m.issue.string(),
+		m.move,
+		m.initial,
+	)
+}
+
+var totalInvalidMoves int = 0
+
+const MAX_TOTAL_INVALID_MOVES int = 20
+
+func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string {
+	result := []string{}
+	movesToSearch := []MoveToSearch{}
+
+	for i := 1; i < maxDepth; i++ {
+		incorrectMoves := computeIncorrectPerftMoves(t, initialString, i)
+		if len(incorrectMoves) > 0 {
+			for move, issue := range incorrectMoves {
+				movesToSearch = append(movesToSearch, MoveToSearch{move, issue, initialString})
+			}
+			break
+		}
+	}
+
+	for _, search := range movesToSearch {
+		if totalInvalidMoves > MAX_TOTAL_INVALID_MOVES {
+			break
+		}
+		if search.issue == MOVE_IS_INVALID || search.issue == MOVE_IS_MISSING {
+			result = append(result, search.string())
+			totalInvalidMoves++
+		} else {
+			nextString, err := fenStringWithMoveApplied(search.initial, search.move)
+			if err != nil {
+				panic(err)
+			}
+			result = append(result, findInvalidMoves(t, nextString, maxDepth-1)...)
+		}
+	}
+
+	if len(result) == 0 && len(movesToSearch) > 0 && totalInvalidMoves < MAX_TOTAL_INVALID_MOVES {
+		panic("we weren't able to find the invalid move")
+	}
+	return result
+}
+
+func TestIncorrectEnPassantOutOfBounds(t *testing.T) {
+	s := "rnbqkb1r/1ppppppp/5n2/p7/6PP/8/PPPPPP2/RNBQKBNR/ w KQkq a6 2 2"
+	invalidMoves := findInvalidMoves(t, s, 2)
+
+	for _, move := range invalidMoves {
+		assert.Equal(t, nil, move)
+	}
+}
+
+func TestFindIncorrectMoves(t *testing.T) {
+	s := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	invalidMoves := findInvalidMoves(t, s, 6)
+
+	for _, move := range invalidMoves {
+		assert.Equal(t, nil, move)
+	}
+}
+
+func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 	s := "rnbqkbnr/1ppppppp/8/p7/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2"
 
 	EXPECTED_COUNT := []int{
@@ -983,10 +1162,10 @@ func TestDebuggingMovesAtDepth(t *testing.T) {
 	}
 
 	for depth, expectedCount := range EXPECTED_COUNT {
-		g, err := gamestateFromString(s)
+		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)
 		b := setupBitboards(g)
-		actualCount := CountMovesAtDepth(g, b, depth, Some(expectedCount))
+		actualCount, _ := CountAndPerftForDepth(g, b, depth, CountPerftOptions{false, Some(expectedCount)})
 
 		assert.Equal(t, expectedCount, actualCount)
 	}

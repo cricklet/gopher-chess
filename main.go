@@ -344,13 +344,73 @@ type GameState struct {
 	fullMoveClock                int
 }
 
+func absDiff[T int](x T, y T) T {
+	if x < y {
+		return y - x
+	}
+	return x - y
+}
+
+func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
+	if startPieceType != PAWN {
+		return false
+	}
+
+	start := fileRankFromBoardIndex(startIndex)
+	end := fileRankFromBoardIndex(endIndex)
+
+	return absDiff(int(start.file), int(end.file)) == 1 && absDiff(int(start.rank), int(end.rank)) == 1
+}
+
+func (g GameState) moveFromString(s string) Move {
+	start := boardIndexFromString(s[0:2])
+	end := boardIndexFromString(s[2:4])
+
+	var moveType MoveType
+	if g.board[end] == XX {
+		startPieceType := g.board[start].pieceType()
+		// either a quiet, castle, or en passant
+		if startPieceType == KING && absDiff(start, end) == 2 {
+			moveType = CASTLING_MOVE
+		} else if isPawnCapture(startPieceType, start, end) {
+			moveType = EN_PASSANT_MOVE
+		} else {
+			moveType = QUIET_MOVE
+		}
+	} else {
+		moveType = CAPTURE_MOVE
+	}
+	return Move{moveType, start, end}
+}
+
+func isPawnSkip(startPiece Piece, move Move) bool {
+	if move.moveType != QUIET_MOVE || startPiece.pieceType() != PAWN {
+		return false
+	}
+
+	return absDiff(move.startIndex, move.endIndex) == OFFSET_N+OFFSET_N
+}
+
+func enPassantTarget(move Move) int {
+	if move.endIndex > move.startIndex {
+		return move.startIndex + OFFSET_N
+	} else {
+		return move.startIndex + OFFSET_S
+	}
+}
+
 func (g *GameState) performMove(move Move) {
 	startPiece := g.board[move.startIndex]
+	g.enPassantTarget = Empty[FileRank]()
 	switch move.moveType {
 	case QUIET_MOVE:
 		{
 			g.board[move.startIndex] = XX
 			g.board[move.endIndex] = startPiece
+
+			if isPawnSkip(startPiece, move) {
+				g.enPassantTarget = Some(fileRankFromBoardIndex(enPassantTarget(move)))
+			}
 		}
 	case CAPTURE_MOVE:
 		{
@@ -381,6 +441,10 @@ func (g *GameState) performMove(move Move) {
 			g.board[rookEndIndex] = rookPiece
 		}
 	}
+	g.halfMoveClock++
+	if g.player == BLACK {
+		g.fullMoveClock++
+	}
 	g.player = g.player.other()
 }
 
@@ -401,7 +465,86 @@ func (g GameState) blackCanCastleQueenside() bool {
 	return g.playerAndCastlingSideAllowed[BLACK][QUEENSIDE]
 }
 
-func gamestateFromString(s string) (GameState, error) {
+func (p Player) fenString() string {
+	if p == WHITE {
+		return "w"
+	} else {
+		return "b"
+	}
+}
+
+var FEN_STRING_FOR_CASTLING = [2][2]string{
+	{"K", "Q"},
+	{"k", "q"},
+}
+
+func fenStringForCastlingAllowed(playerAndCastlingSideAllowed [2][2]bool) string {
+	s := ""
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 2; j++ {
+			if playerAndCastlingSideAllowed[i][j] {
+				s += FEN_STRING_FOR_CASTLING[i][j]
+			}
+		}
+	}
+	if len(s) == 0 {
+		s += "-"
+	}
+	return s
+}
+
+func fenStringForEnPassant(enPassant Optional[FileRank]) string {
+	if enPassant.IsEmtpy() {
+		return "-"
+	}
+	return enPassant.Value().string()
+}
+
+func (g GameState) fenString() string {
+	s := ""
+	for rank := 7; rank >= 0; rank-- {
+		numSpaces := 0
+		for file := 0; file < 8; file++ {
+			index := boardIndexFromFileRank(FileRank{File(file), Rank(rank)})
+			piece := g.board[index]
+			if piece == XX {
+				numSpaces++
+				continue
+			}
+			if numSpaces > 0 {
+				s += fmt.Sprint(numSpaces)
+				numSpaces = 0
+			}
+			s += piece.string()
+		}
+		if numSpaces > 0 {
+			s += fmt.Sprint(numSpaces)
+		}
+		s += "/"
+	}
+	s += fmt.Sprintf(" %v %v %v %v %v",
+		g.player.fenString(),
+		fenStringForCastlingAllowed(g.playerAndCastlingSideAllowed),
+		fenStringForEnPassant(g.enPassantTarget),
+		g.halfMoveClock,
+		g.fullMoveClock)
+
+	return s
+}
+
+func fenStringWithMoveApplied(s string, m string) (string, error) {
+	g, err := gamestateFromFenString(s)
+	if err != nil {
+		return "", err
+	}
+
+	move := g.moveFromString(m)
+	g.performMove(move)
+
+	return g.fenString(), nil
+}
+
+func gamestateFromFenString(s string) (GameState, error) {
 	ss := strings.Fields(s)
 	if len(ss) != 6 {
 		return GameState{}, fmt.Errorf("wrong num %v of fields in str '%v'", len(ss), s)
@@ -453,7 +596,7 @@ func gamestateFromString(s string) (GameState, error) {
 	}
 
 	if enPassantTargetString == "-" {
-		game.enPassantTarget = nil
+		game.enPassantTarget = Empty[FileRank]()
 	} else if enPassantTarget, err := fileRankFromString(enPassantTargetString); err == nil {
 		game.enPassantTarget = Some(enPassantTarget)
 	} else {

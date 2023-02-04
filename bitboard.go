@@ -724,7 +724,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 			if g.enPassantTarget.HasValue() {
 				enPassantBoard := singleBitboard(boardIndexFromFileRank(g.enPassantTarget.Value()))
 				for _, captureOffset := range []int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
-					potential := playerBoards.pieces[PAWN]
+					potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
 					potential = rotateTowardsIndex64(potential, captureOffset)
 					potential = potential & enPassantBoard
 
@@ -842,13 +842,13 @@ func (b *Bitboards) performMove(originalState GameState, move Move) {
 		}
 	case EN_PASSANT_MOVE:
 		{
-			startPlayer := startPiece.player()
-			backwardsDir := S
-			if startPlayer == BLACK {
-				backwardsDir = N
+			capturedPlayer := startPiece.player().other()
+			capturedBackwards := N
+			if capturedPlayer == BLACK {
+				capturedBackwards = S
 			}
 
-			captureIndex := endIndex - OFFSETS[backwardsDir]
+			captureIndex := endIndex + OFFSETS[capturedBackwards]
 			capturePiece := originalState.board[captureIndex]
 
 			b.clearSquare(captureIndex, capturePiece)

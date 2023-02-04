@@ -36,7 +36,7 @@ func TestLocationDecoding(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{0, 0})
 
-	game, err := gamestateFromString("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
+	game, err := gamestateFromFenString("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
 	assert.Nil(t, err)
 
 	assert.Equal(t, pieceAtFileRank(game.board, location).string(), WR.string())
@@ -72,7 +72,7 @@ func TestLocationDecoding(t *testing.T) {
 
 func TestNotationDecoding(t *testing.T) {
 	s := "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, g.board.string(), NaturalBoardArray{
@@ -103,7 +103,7 @@ func TestNotationDecoding(t *testing.T) {
 
 func TestNotationDecoding2(t *testing.T) {
 	s := "8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 w - - 99 50"
-	g, err := gamestateFromString(s)
+	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, g.board, NaturalBoardArray{
