@@ -752,6 +752,59 @@ func TestAttackMap(t *testing.T) {
 		bitboards.dangerBoard(BLACK).string())
 }
 
+func TestKnightMasks(t *testing.T) {
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000000",
+			"01000000",
+			"00100000",
+			"00000000",
+		}).string(),
+		KNIGHT_ATTACK_MASKS[boardIndexFromString("a1")].string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00000000",
+			"00010100",
+			"00100010",
+			"00000000",
+			"00100010",
+			"00010100",
+			"00000000",
+		}).string(),
+		KNIGHT_ATTACK_MASKS[boardIndexFromString("e4")].string())
+
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000010",
+			"00000100",
+			"00000000",
+			"00000100",
+		}).string(),
+		KNIGHT_ATTACK_MASKS[boardIndexFromString("h2")].string())
+	assert.Equal(t,
+		bitboardFromStrings([8]string{
+			"00000000",
+			"00000100",
+			"00000010",
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000000",
+			"00000000",
+		}).string(),
+		KNIGHT_ATTACK_MASKS[boardIndexFromString("h8")].string())
+}
+
 func TestCheck(t *testing.T) {
 	s := "r3k2r/pp1bb3/3pPPQp/qBp1n1p1/6n1/2N1BN2/PPP2PPP/R3K2R b KQkq - 1 14"
 
@@ -973,8 +1026,10 @@ func CountAndPerftForDepthWithProgress(g GameState, b Bitboards, n int, expected
 
 	var progressBar *progressbar.ProgressBar
 	var startTime time.Time
-	progressBar = progressbar.Default(int64(expectedCount), fmt.Sprint("depth ", n))
-	startTime = time.Now()
+	if expectedCount > 9999999 {
+		progressBar = progressbar.Default(int64(expectedCount), fmt.Sprint("depth ", n))
+		startTime = time.Now()
+	}
 
 	progressChan := make(chan int)
 
@@ -985,12 +1040,16 @@ func CountAndPerftForDepthWithProgress(g GameState, b Bitboards, n int, expected
 	}()
 
 	for p := range progressChan {
-		progressBar.Set(p)
+		if progressBar != nil {
+			progressBar.Set(p)
+		}
 	}
 
-	progressBar.Close()
-	fmt.Println("             |", time.Now().Sub(startTime))
-	fmt.Println()
+	if progressBar != nil {
+		progressBar.Close()
+		fmt.Println("             |", time.Now().Sub(startTime))
+		fmt.Println()
+	}
 
 	return result, perft
 }

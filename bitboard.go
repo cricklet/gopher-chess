@@ -113,6 +113,36 @@ var KING_DIRS = []Dir{
 	SW,
 }
 
+var KNIGHT_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
+	result := [64]Bitboard{}
+
+	for i := 0; i < 64; i++ {
+		pieceBoard := singleBitboard(i)
+		for _, dir := range KNIGHT_DIRS {
+			potential := pieceBoard & PRE_MOVE_MASKS[dir]
+			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+
+			result[i] |= potential
+		}
+	}
+	return result
+}()
+
+var KING_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
+	result := [64]Bitboard{}
+
+	for i := 0; i < 64; i++ {
+		pieceBoard := singleBitboard(i)
+		for _, dir := range KING_DIRS {
+			potential := pieceBoard & PRE_MOVE_MASKS[dir]
+			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+
+			result[i] |= potential
+		}
+	}
+	return result
+}()
+
 const (
 	OFFSET_N int = 8
 	OFFSET_S int = -8
@@ -588,37 +618,35 @@ func generateWalkBitboard(
 	return output
 }
 
-func generateJumpMoves(
+func generateJumpMovesByLookup(
 	pieces Bitboard,
 	allOccupied Bitboard,
-	enemyOccupied Bitboard,
-	dirs []Dir,
+	selfOccupied Bitboard,
+	attackMasks [64]Bitboard,
 	output []Move,
 ) []Move {
-	buffer := GetIndicesBuffer()
+	piecesBuffer := GetIndicesBuffer()
+	potentialsBuffer := GetIndicesBuffer()
 
-	for _, dir := range dirs {
-		mask := PRE_MOVE_MASKS[dir]
-		offset := OFFSETS[dir]
-
-		potential := pieces
-		potential = rotateTowardsIndex64(potential&mask, offset)
+	for _, startIndex := range *pieces.eachIndexOfOne(piecesBuffer) {
+		attackMask := attackMasks[startIndex]
+		potential := attackMask & ^selfOccupied
 
 		quiet := potential & ^allOccupied
-		capture := potential & enemyOccupied
+		capture := potential & ^quiet
 
-		for _, index := range *quiet.eachIndexOfOne(buffer) {
-			output = append(output, Move{QUIET_MOVE, index - offset, index})
+		for _, endIndex := range *quiet.eachIndexOfOne(potentialsBuffer) {
+			output = append(output, Move{QUIET_MOVE, startIndex, endIndex})
 		}
 
-		for _, index := range *capture.eachIndexOfOne(buffer) {
-			output = append(output, Move{CAPTURE_MOVE, index - offset, index})
+		for _, endIndex := range *capture.eachIndexOfOne(potentialsBuffer) {
+			output = append(output, Move{CAPTURE_MOVE, startIndex, endIndex})
 		}
-
-		potential = quiet
 	}
 
-	ReleaseIndicesBuffer(buffer)
+	ReleaseIndicesBuffer(piecesBuffer)
+	ReleaseIndicesBuffer(potentialsBuffer)
+
 	return output
 }
 
@@ -668,24 +696,14 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	}
 	// Knight, king attacks
 	{
-		for _, enemyDir := range KNIGHT_DIRS {
-			enemyOffset := OFFSETS[enemyDir]
-			enemyMask := PRE_MOVE_MASKS[enemyDir]
-
-			potential := enemyBitboards.pieces[KNIGHT] & enemyMask
-			potential = rotateTowardsIndex64(potential, enemyOffset)
-			potential = potential & startBoard
-
+		{
+			knightMask := KNIGHT_ATTACK_MASKS[startIndex]
+			potential := enemyBitboards.pieces[KNIGHT] & knightMask
 			attackers |= potential
 		}
-		for _, enemyDir := range KING_DIRS {
-			enemyOffset := OFFSETS[enemyDir]
-			enemyMask := PRE_MOVE_MASKS[enemyDir]
-
-			potential := enemyBitboards.pieces[KING] & enemyMask
-			potential = rotateTowardsIndex64(potential, enemyOffset)
-			potential = potential & startBoard
-
+		{
+			kingMask := KING_ATTACK_MASKS[startIndex]
+			potential := enemyBitboards.pieces[KING] & kingMask
 			attackers |= potential
 		}
 	}
@@ -853,10 +871,10 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 
 	{
 		// generate knight moves
-		*moves = generateJumpMoves(playerBoards.pieces[KNIGHT], b.occupied, enemyBoards.occupied, KNIGHT_DIRS, *moves)
+		*moves = generateJumpMovesByLookup(playerBoards.pieces[KNIGHT], b.occupied, playerBoards.occupied, KNIGHT_ATTACK_MASKS, *moves)
 
 		// generate king moves
-		*moves = generateJumpMoves(playerBoards.pieces[KING], b.occupied, enemyBoards.occupied, KING_DIRS, *moves)
+		*moves = generateJumpMovesByLookup(playerBoards.pieces[KING], b.occupied, playerBoards.occupied, KING_ATTACK_MASKS, *moves)
 	}
 
 	{
@@ -969,25 +987,6 @@ func (b Bitboards) generateLegalMoves(g GameState, legalMovesOutput *[]Move) {
 		kingIndex := nextBitboards.players[player].pieces[KING].firstIndexOfOne()
 		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
-		}
-	}
-
-	ReleaseMovesBuffer(potentialMoves)
-}
-
-func (b Bitboards) pushLegalMovesToChannel(g GameState, moves chan Move) {
-	player := g.player
-	enemy := g.enemy()
-	potentialMoves := GetMovesBuffer()
-	b.generatePseudoMoves(g, potentialMoves)
-
-	for _, move := range *potentialMoves {
-		nextBitboards := b
-		nextBitboards.performMove(g, move)
-
-		kingIndex := nextBitboards.players[player].pieces[KING].firstIndexOfOne()
-		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {
-			moves <- move
 		}
 	}
 
