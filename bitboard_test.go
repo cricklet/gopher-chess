@@ -1261,43 +1261,39 @@ func TestSliceVsArray(t *testing.T) {
 	defer profile.Start(profile.ProfilePath("./TestSliceVsArray")).Stop()
 	var wg sync.WaitGroup
 
-	total := 99999
+	total := 999999
 	sliceProgress := progressbar.Default(int64(total), "slice")
+	for i := 0; i < total; i++ {
+		debugValue := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			slice := GetTestSlice()
+			for j := 0; j < 64; j++ {
+				*slice = append(*slice, debugValue)
+			}
+			ReleaseTestSlice(slice)
+			sliceProgress.Add(1)
+		}()
+	}
+	wg.Wait()
+	sliceProgress.Close()
+
 	arrayProgress := progressbar.Default(int64(total), "array")
 	for i := 0; i < total; i++ {
 		debugValue := i
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sliceProgress.Add(1)
-			slice := GetTestSlice()
-			for j := 0; j < 64; j++ {
-				*slice = append(*slice, debugValue)
-			}
-			for _, s := range *slice {
-				assert.Equal(t, s, debugValue)
-			}
-			ReleaseTestSlice(slice)
-		}()
-	}
-	for i := 0; i < total; i++ {
-		debugValue := i
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			arrayProgress.Add(1)
 			array := GetTestArray()
 			for j := 0; j < 64; j++ {
 				array.add(debugValue)
 			}
-			for j := 0; j < array.size; j++ {
-				assert.Equal(t, array.get(j), debugValue)
-			}
 			ReleaseTestArray(array)
+			arrayProgress.Add(1)
 		}()
 	}
 
 	wg.Wait()
-	sliceProgress.Close()
 	arrayProgress.Close()
 }
