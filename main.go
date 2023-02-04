@@ -393,6 +393,13 @@ func enPassantTarget(move Move) int {
 	}
 }
 
+// type UndoMove struct {
+
+// 	fullMoveClock int
+// 	halfMoveClock int
+// 	player        Player
+// }
+
 func (g *GameState) performMove(move Move) {
 	startPiece := g.board[move.startIndex]
 	g.enPassantTarget = Empty[FileRank]()
