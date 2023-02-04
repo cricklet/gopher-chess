@@ -141,6 +141,20 @@ var OFFSETS = [NUM_DIRS]int{
 	OFFSET_W + OFFSET_S + OFFSET_W,
 }
 
+var PAWN_PUSH_OFFSETS = [2]int{
+	OFFSET_N,
+	OFFSET_S,
+}
+
+var PAWN_CAPTURE_OFFSETS = [2][2]int{
+	{ // WHITE
+		OFFSET_N + OFFSET_E, OFFSET_N + OFFSET_W,
+	},
+	{
+		OFFSET_S + OFFSET_E, OFFSET_S + OFFSET_W,
+	},
+}
+
 var ZEROS = []int{0, 0, 0, 0, 0, 0, 0, 0}
 var ONES = []int{1, 1, 1, 1, 1, 1, 1, 1}
 var SIXES = []int{6, 6, 6, 6, 6, 6, 6, 6}
@@ -709,12 +723,7 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 	enemyBoards := b.players[player.other()]
 
 	{
-		// generate pawn pushes
-		pushDir := S
-		if player == WHITE {
-			pushDir = N
-		}
-		pushOffset := OFFSETS[pushDir]
+		pushOffset := PAWN_PUSH_OFFSETS[player]
 
 		// generate one step
 		{
@@ -741,7 +750,7 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 
 		// generate captures
 		{
-			for _, captureOffset := range [2]int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
+			for _, captureOffset := range PAWN_CAPTURE_OFFSETS[player] {
 				potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
 				potential = rotateTowardsIndex64(potential, captureOffset)
 				potential = potential & enemyBoards.occupied
@@ -806,7 +815,7 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 
 	{
 		// generate king castle
-		for _, castlingSide := range [2]CastlingSide{KINGSIDE, QUEENSIDE} {
+		for _, castlingSide := range CASTLING_SIDES {
 			canCastle := true
 			if g.playerAndCastlingSideAllowed[player][castlingSide] {
 				requirements := CASTLING_REQUIREMENTS[player][castlingSide]

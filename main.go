@@ -313,6 +313,8 @@ const (
 	QUEENSIDE
 )
 
+var CASTLING_SIDES = [2]CastlingSide{KINGSIDE, QUEENSIDE}
+
 type Optional[T any] []T
 
 func Some[T any](t T) Optional[T] {
