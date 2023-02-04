@@ -103,34 +103,26 @@ const (
 	BP
 )
 
+var PIECE_TYPE_LOOKUP [16]PieceType = func() [16]PieceType {
+	result := [16]PieceType{}
+	result[XX] = INVALID
+	result[WR] = ROOK
+	result[WN] = KNIGHT
+	result[WB] = BISHOP
+	result[WK] = KING
+	result[WQ] = QUEEN
+	result[WP] = PAWN
+	result[BR] = ROOK
+	result[BN] = KNIGHT
+	result[BB] = BISHOP
+	result[BK] = KING
+	result[BQ] = QUEEN
+	result[BP] = PAWN
+	return result
+}()
+
 func (p Piece) pieceType() PieceType {
-	switch p {
-	case WR:
-		return ROOK
-	case WN:
-		return KNIGHT
-	case WB:
-		return BISHOP
-	case WK:
-		return KING
-	case WQ:
-		return QUEEN
-	case WP:
-		return PAWN
-	case BR:
-		return ROOK
-	case BN:
-		return KNIGHT
-	case BB:
-		return BISHOP
-	case BK:
-		return KING
-	case BQ:
-		return QUEEN
-	case BP:
-		return PAWN
-	}
-	return EMPTY
+	return PIECE_TYPE_LOOKUP[p]
 }
 
 func (p Piece) player() Player {
@@ -153,7 +145,7 @@ const (
 	KING
 	QUEEN
 	PAWN
-	EMPTY
+	INVALID
 )
 
 func (p PieceType) forPlayer(player Player) Piece {

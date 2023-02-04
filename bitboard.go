@@ -396,12 +396,28 @@ func rotateTowardsIndex64(b Bitboard, n int) Bitboard {
 	return Bitboard(bits.RotateLeft64(uint64(b), n))
 }
 
+var SINGLE_BITBOARDS [64]Bitboard = func() [64]Bitboard {
+	result := [64]Bitboard{}
+	for i := 0; i < 64; i++ {
+		result[i] = shiftTowardsIndex64(1, i)
+	}
+	return result
+}()
+
 func singleBitboard(index int) Bitboard {
-	return shiftTowardsIndex64(1, index)
+	return SINGLE_BITBOARDS[index]
 }
 
+var SINGLE_BITBOARDS_ALLOWING_NEGATIVE_INDEX [64]Bitboard = func() [64]Bitboard {
+	result := [64]Bitboard{}
+	for i := 0; i < 64; i++ {
+		result[i] = rotateTowardsIndex64(1, i)
+	}
+	return result
+}()
+
 func singleBitboardAllowingNegativeIndex(index int) Bitboard {
-	return rotateTowardsIndex64(1, index)
+	return SINGLE_BITBOARDS_ALLOWING_NEGATIVE_INDEX[index]
 }
 
 func (b Bitboard) string() string {
@@ -451,11 +467,13 @@ type Bitboards struct {
 func setupBitboards(g GameState) Bitboards {
 	result := Bitboards{}
 	for i, piece := range g.board {
-		pieceType := piece.pieceType()
-		if pieceType != EMPTY {
-			player := piece.player()
-			result.players[player].pieces[pieceType] |= singleBitboard(i)
+		if piece == XX {
+			continue
 		}
+		pieceType := piece.pieceType()
+		player := piece.player()
+		result.players[player].pieces[pieceType] |= singleBitboard(i)
+
 		if piece.isWhite() {
 			result.occupied |= singleBitboard(i)
 			result.players[WHITE].occupied |= singleBitboard(i)
