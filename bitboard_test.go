@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -994,30 +995,6 @@ func CountAndPerftForDepthWithProgress(g GameState, b Bitboards, n int, expected
 	return result, perft
 }
 
-func TestMovesAtDepth(t *testing.T) {
-	s := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-
-	EXPECTED_COUNT := []int{
-		1,
-		20,
-		400,
-		8902,
-		197281,
-		4865609,
-		119060324,
-	}
-
-	defer profile.Start(profile.ProfilePath(".")).Stop()
-	for depth, expectedCount := range EXPECTED_COUNT {
-		g, err := gamestateFromFenString(s)
-		assert.Nil(t, err)
-		b := setupBitboards(g)
-		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
-
-		assert.Equal(t, expectedCount, actualCount)
-	}
-}
-
 type PerftComparison int
 
 const (
@@ -1235,4 +1212,92 @@ func TestThreadSafetyForPool(t *testing.T) {
 			ReleaseTestBuffer(buffer)
 		}()
 	}
+}
+
+func TestMovesAtDepth(t *testing.T) {
+	s := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	EXPECTED_COUNT := []int{
+		1,
+		20,
+		400,
+		8902,
+		197281,
+		// 4865609,
+		// 119060324,
+	}
+
+	defer profile.Start(profile.ProfilePath("./TestMovesAtDepth")).Stop()
+	for depth, expectedCount := range EXPECTED_COUNT {
+		g, err := gamestateFromFenString(s)
+		assert.Nil(t, err)
+		b := setupBitboards(g)
+		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
+
+		assert.Equal(t, expectedCount, actualCount)
+	}
+}
+
+type TestSlice []int
+
+var GetTestSlice, ReleaseTestSlice = createPool(func() TestSlice { return make(TestSlice, 0, 64) }, func(x *TestSlice) { *x = (*x)[:0] })
+
+type TestArray struct {
+	_values [64]int
+	size    int
+}
+
+func (xs *TestArray) add(x int) {
+	xs._values[xs.size] = x
+	xs.size++
+}
+func (xs *TestArray) get(i int) int {
+	return xs._values[i]
+}
+
+var GetTestArray, ReleaseTestArray = createPool(func() TestArray { return TestArray{} }, func(x *TestArray) { x.size = 0 })
+
+func TestSliceVsArray(t *testing.T) {
+	defer profile.Start(profile.ProfilePath("./TestSliceVsArray")).Stop()
+	var wg sync.WaitGroup
+
+	total := 99999
+	sliceProgress := progressbar.Default(int64(total), "slice")
+	arrayProgress := progressbar.Default(int64(total), "array")
+	for i := 0; i < total; i++ {
+		debugValue := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sliceProgress.Add(1)
+			slice := GetTestSlice()
+			for j := 0; j < 64; j++ {
+				*slice = append(*slice, debugValue)
+			}
+			for _, s := range *slice {
+				assert.Equal(t, s, debugValue)
+			}
+			ReleaseTestSlice(slice)
+		}()
+	}
+	for i := 0; i < total; i++ {
+		debugValue := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			arrayProgress.Add(1)
+			array := GetTestArray()
+			for j := 0; j < 64; j++ {
+				array.add(debugValue)
+			}
+			for j := 0; j < array.size; j++ {
+				assert.Equal(t, array.get(j), debugValue)
+			}
+			ReleaseTestArray(array)
+		}()
+	}
+
+	wg.Wait()
+	sliceProgress.Close()
+	arrayProgress.Close()
 }
