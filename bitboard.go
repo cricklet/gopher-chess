@@ -466,18 +466,18 @@ type IndicesBuffer []int
 
 var GetIndicesBuffer, ReleaseIndicesBuffer = createPool(func() IndicesBuffer { return make(IndicesBuffer, 0, 64) }, func(x *IndicesBuffer) { *x = (*x)[:0] })
 
-func (b Bitboard) eachIndexOfOne() IndicesBuffer {
-	result := make([]int, 0, 64)
+func (b Bitboard) eachIndexOfOne(buffer *IndicesBuffer) *IndicesBuffer {
+	*buffer = (*buffer)[:0]
 
 	temp := b
 	for temp != 0 {
 		ls1 := temp.leastSignificantOne()
 		index := bits.OnesCount64(uint64(ls1 - 1))
-		result = append(result, int(index))
+		*buffer = append(*buffer, int(index))
 		temp = temp ^ ls1
 	}
 
-	return result
+	return buffer
 }
 
 func generateWalkMoves(
@@ -493,6 +493,8 @@ func generateWalkMoves(
 	totalOffset := 0
 	potential := pieces
 
+	buffer := GetIndicesBuffer()
+
 	for potential != 0 {
 		potential = rotateTowardsIndex64(potential&mask, offset)
 		totalOffset += offset
@@ -500,16 +502,18 @@ func generateWalkMoves(
 		quiet := potential & ^allOccupied
 		capture := potential & enemyOccupied
 
-		for _, endIndex := range quiet.eachIndexOfOne() {
+		for _, endIndex := range *quiet.eachIndexOfOne(buffer) {
 			output = append(output, Move{QUIET_MOVE, endIndex - totalOffset, endIndex})
 		}
 
-		for _, endIndex := range capture.eachIndexOfOne() {
+		for _, endIndex := range *capture.eachIndexOfOne(buffer) {
 			output = append(output, Move{CAPTURE_MOVE, endIndex - totalOffset, endIndex})
 		}
 
 		potential = quiet
 	}
+
+	ReleaseIndicesBuffer(buffer)
 
 	return output
 }
@@ -521,7 +525,10 @@ func generateWalkMovesWithMagic(
 	magicTable MagicMoveTable,
 	output []Move,
 ) []Move {
-	for _, startIndex := range pieces.eachIndexOfOne() {
+	piecesBuffer := GetIndicesBuffer()
+	potentialsBuffer := GetIndicesBuffer()
+
+	for _, startIndex := range *pieces.eachIndexOfOne(piecesBuffer) {
 		blockerBoard := magicTable.blockerMasks[startIndex] & allOccupied
 		magicValues := magicTable.magics[startIndex]
 		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
@@ -532,14 +539,17 @@ func generateWalkMovesWithMagic(
 		quiet := potential & ^allOccupied
 		capture := potential & ^quiet
 
-		for _, endIndex := range quiet.eachIndexOfOne() {
+		for _, endIndex := range *quiet.eachIndexOfOne(potentialsBuffer) {
 			output = append(output, Move{QUIET_MOVE, startIndex, endIndex})
 		}
 
-		for _, endIndex := range capture.eachIndexOfOne() {
+		for _, endIndex := range *capture.eachIndexOfOne(potentialsBuffer) {
 			output = append(output, Move{CAPTURE_MOVE, startIndex, endIndex})
 		}
 	}
+
+	ReleaseIndicesBuffer(piecesBuffer)
+	ReleaseIndicesBuffer(potentialsBuffer)
 
 	return output
 }
@@ -578,6 +588,8 @@ func generateJumpMoves(
 	dirs []Dir,
 	output []Move,
 ) []Move {
+	buffer := GetIndicesBuffer()
+
 	for _, dir := range dirs {
 		mask := PRE_MOVE_MASKS[dir]
 		offset := OFFSETS[dir]
@@ -588,16 +600,18 @@ func generateJumpMoves(
 		quiet := potential & ^allOccupied
 		capture := potential & enemyOccupied
 
-		for _, index := range quiet.eachIndexOfOne() {
+		for _, index := range *quiet.eachIndexOfOne(buffer) {
 			output = append(output, Move{QUIET_MOVE, index - offset, index})
 		}
 
-		for _, index := range capture.eachIndexOfOne() {
+		for _, index := range *capture.eachIndexOfOne(buffer) {
 			output = append(output, Move{CAPTURE_MOVE, index - offset, index})
 		}
 
 		potential = quiet
 	}
+
+	ReleaseIndicesBuffer(buffer)
 	return output
 }
 
@@ -635,13 +649,9 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 
 	// Pawn attacks
 	{
-		enemyDir := S
-		if player.other() == WHITE {
-			enemyDir = N
-		}
-		enemyPushOffset := OFFSETS[enemyDir]
+		enemyPlayer := player.other()
 
-		for _, enemyCaptureOffset := range []int{enemyPushOffset + OFFSET_E, enemyPushOffset + OFFSET_W} {
+		for _, enemyCaptureOffset := range PAWN_CAPTURE_OFFSETS[enemyPlayer] {
 			potential := enemyBitboards.pieces[PAWN]
 			potential = rotateTowardsIndex64(potential, enemyCaptureOffset)
 			potential = potential & startBoard
@@ -726,6 +736,8 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 	playerBoards := b.players[player]
 	enemyBoards := b.players[player.other()]
 
+	buffer := GetIndicesBuffer()
+
 	{
 		pushOffset := PAWN_PUSH_OFFSETS[player]
 
@@ -733,7 +745,7 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 		{
 			potential := rotateTowardsIndex64(playerBoards.pieces[PAWN], pushOffset)
 			potential = potential & ^b.occupied
-			for _, index := range potential.eachIndexOfOne() {
+			for _, index := range *potential.eachIndexOfOne(buffer) {
 				*moves = append(*moves, Move{QUIET_MOVE, index - pushOffset, index})
 			}
 		}
@@ -747,7 +759,7 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 			potential = rotateTowardsIndex64(potential, pushOffset)
 			potential = potential & ^b.occupied
 
-			for _, index := range potential.eachIndexOfOne() {
+			for _, index := range *potential.eachIndexOfOne(buffer) {
 				*moves = append(*moves, Move{QUIET_MOVE, index - 2*pushOffset, index})
 			}
 		}
@@ -759,7 +771,7 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 				potential = rotateTowardsIndex64(potential, captureOffset)
 				potential = potential & enemyBoards.occupied
 
-				for _, index := range potential.eachIndexOfOne() {
+				for _, index := range *potential.eachIndexOfOne(buffer) {
 					*moves = append(*moves, Move{CAPTURE_MOVE, index - captureOffset, index})
 				}
 			}
@@ -774,7 +786,7 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 					potential = rotateTowardsIndex64(potential, captureOffset)
 					potential = potential & enPassantBoard
 
-					for _, index := range potential.eachIndexOfOne() {
+					for _, index := range *potential.eachIndexOfOne(buffer) {
 						*moves = append(*moves, Move{EN_PASSANT_MOVE, index - captureOffset, index})
 					}
 				}
@@ -839,6 +851,7 @@ func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 			}
 		}
 	}
+	ReleaseIndicesBuffer(buffer)
 }
 
 func (b *Bitboards) clearSquare(index int, piece Piece) {
@@ -980,18 +993,20 @@ func generateBlockerMask(startIndex int, dirs []Dir) Bitboard {
 func generateBlockerBoard(blockerMask Bitboard, seed int) Bitboard {
 	result := Bitboard(0)
 
+	buffer := GetIndicesBuffer()
 	numBits := bits.OnesCount64(uint64(blockerMask))
 	for i := 0; i < numBits; i++ {
 		// If the bit at i is 1 in the seed...
 		if seed&(1<<i) != 0 {
 			// Find the ith one bit in blockerMask and set the corresponding bit to one in result.
-			for oneIndex, indexInBitboard := range blockerMask.eachIndexOfOne() {
+			for oneIndex, indexInBitboard := range *blockerMask.eachIndexOfOne(buffer) {
 				if oneIndex == i {
 					result |= singleBitboard(indexInBitboard)
 				}
 			}
 		}
 	}
+	ReleaseIndicesBuffer(buffer)
 
 	return result
 }

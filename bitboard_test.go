@@ -393,9 +393,11 @@ func TestEachIndexOfOne(t *testing.T) {
 		"d1", "f1", "g4", "h8",
 	}
 	result := []string{}
-	for _, index := range board.eachIndexOfOne() {
+	buffer := GetIndicesBuffer()
+	for _, index := range *board.eachIndexOfOne(buffer) {
 		result = append(result, stringFromBoardIndex(index))
 	}
+	ReleaseIndicesBuffer(buffer)
 
 	sort.Strings(result)
 	sort.Strings(expected)
@@ -1001,8 +1003,8 @@ func TestMovesAtDepth(t *testing.T) {
 		400,
 		8902,
 		197281,
-		// 4865609,
-		// 119060324,
+		4865609,
+		119060324,
 	}
 
 	defer profile.Start(profile.ProfilePath(".")).Stop()
