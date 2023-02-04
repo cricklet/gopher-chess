@@ -190,7 +190,7 @@ func (p PieceType) forPlayer(player Player) Piece {
 		}
 	}
 
-	panic(fmt.Sprintln("could not determine piece based on", player, p))
+	panic(fmt.Sprint("could not determine piece based on", player, p))
 }
 
 func pieceFromString(c rune) (Piece, error) {

@@ -1,10 +1,13 @@
 package chessgo
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/schollz/progressbar/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -904,6 +907,87 @@ func TestGameStateCopyingIsDeep(t *testing.T) {
 	assert.Equal(t, c.playerAndCastlingSideAllowed[0][1], true)
 }
 
-func CountMovesAtDepth(g GameState, b Bitboards, n int) int {
-	return 0
+func CountMovesAtDepth(g GameState, b Bitboards, n int, expectedCount Optional[int]) int {
+	if n == 0 {
+		return 1
+	}
+
+	num := 0
+	moves := b.generateLegalMoves(g)
+
+	var bar *progressbar.ProgressBar
+	var startTime time.Time
+	perft := []string{}
+	if expectedCount.HasValue() {
+		bar = progressbar.Default(int64(expectedCount.Value()), fmt.Sprint("depth ", n))
+		startTime = time.Now()
+	}
+
+	for _, move := range moves {
+		nextState := g
+		nextBoard := b
+
+		nextBoard.performMove(g, move)
+		nextState.performMove(move)
+
+		countUnderMove := CountMovesAtDepth(nextState, nextBoard, n-1, Empty[int]())
+
+		num += countUnderMove
+
+		if bar != nil {
+			bar.Set(num)
+			perft = append(perft, fmt.Sprintf("%v: %v\n", move.string(), countUnderMove))
+		}
+	}
+
+	if bar != nil {
+		bar.Close()
+		fmt.Println("             |", time.Now().Sub(startTime))
+		// fmt.Println(strings.Join(perft, ""))
+		fmt.Println()
+	}
+
+	return num
+}
+
+func TestMovesAtDepth(t *testing.T) {
+	s := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	EXPECTED_COUNT := []int{
+		1,
+		20,
+		400,
+		8902,
+		197281,
+		4865609,
+		// 119060324,
+	}
+
+	for depth, expectedCount := range EXPECTED_COUNT {
+		g, err := gamestateFromString(s)
+		assert.Nil(t, err)
+		b := setupBitboards(g)
+		actualCount := CountMovesAtDepth(g, b, depth, Some(expectedCount))
+
+		assert.Equal(t, expectedCount, actualCount)
+	}
+}
+
+func TestDebuggingMovesAtDepth(t *testing.T) {
+	s := "rnbqkbnr/1ppppppp/8/p7/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2"
+
+	EXPECTED_COUNT := []int{
+		1,
+		19,
+		399,
+	}
+
+	for depth, expectedCount := range EXPECTED_COUNT {
+		g, err := gamestateFromString(s)
+		assert.Nil(t, err)
+		b := setupBitboards(g)
+		actualCount := CountMovesAtDepth(g, b, depth, Some(expectedCount))
+
+		assert.Equal(t, expectedCount, actualCount)
+	}
 }

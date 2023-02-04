@@ -196,6 +196,47 @@ var PRE_MOVE_MASKS = [NUM_DIRS]Bitboard{
 	MASK_WW & MASK_S & MASK_W,
 }
 
+func PremoveMaskFromOffset(offset int) Bitboard {
+	switch offset {
+	case OFFSET_N:
+		return PRE_MOVE_MASKS[0]
+	case OFFSET_S:
+		return PRE_MOVE_MASKS[1]
+	case OFFSET_E:
+		return PRE_MOVE_MASKS[2]
+	case OFFSET_W:
+		return PRE_MOVE_MASKS[3]
+
+	case OFFSET_N + OFFSET_E:
+		return PRE_MOVE_MASKS[4]
+	case OFFSET_N + OFFSET_W:
+		return PRE_MOVE_MASKS[5]
+	case OFFSET_S + OFFSET_E:
+		return PRE_MOVE_MASKS[6]
+	case OFFSET_S + OFFSET_W:
+		return PRE_MOVE_MASKS[7]
+
+	case OFFSET_N + OFFSET_N + OFFSET_E:
+		return PRE_MOVE_MASKS[8]
+	case OFFSET_N + OFFSET_N + OFFSET_W:
+		return PRE_MOVE_MASKS[9]
+	case OFFSET_S + OFFSET_S + OFFSET_E:
+		return PRE_MOVE_MASKS[10]
+	case OFFSET_S + OFFSET_S + OFFSET_W:
+		return PRE_MOVE_MASKS[11]
+	case OFFSET_E + OFFSET_N + OFFSET_E:
+		return PRE_MOVE_MASKS[12]
+	case OFFSET_E + OFFSET_S + OFFSET_E:
+		return PRE_MOVE_MASKS[13]
+	case OFFSET_W + OFFSET_N + OFFSET_W:
+		return PRE_MOVE_MASKS[14]
+	case OFFSET_W + OFFSET_S + OFFSET_W:
+		return PRE_MOVE_MASKS[15]
+	}
+
+	panic(fmt.Sprint("unknown offset", offset))
+}
+
 type CastlingRequirements struct {
 	empty Bitboard
 	safe  []int
@@ -287,7 +328,7 @@ func rookMoveForCastle(startIndex int, endIndex int) (int, int) {
 			return H8, F8
 		}
 	}
-	panic(fmt.Sprintln("unknown castling move", stringFromBoardIndex(startIndex), stringFromBoardIndex(endIndex)))
+	panic(fmt.Sprint("unknown castling move", stringFromBoardIndex(startIndex), stringFromBoardIndex(endIndex)))
 }
 
 func reverseBits(n uint8) uint8 {
@@ -667,8 +708,8 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 
 		// generate captures
 		{
-			for _, captureOffset := range []int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
-				potential := playerBoards.pieces[PAWN]
+			for _, captureOffset := range [2]int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
+				potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
 				potential = rotateTowardsIndex64(potential, captureOffset)
 				potential = potential & enemyBoards.occupied
 
@@ -777,29 +818,27 @@ func (b *Bitboards) setSquare(index int, piece Piece) {
 	b.players[player].pieces[pieceType] |= oneBitboard
 }
 
-func (b Bitboards) generateNextBitboards(originalState GameState, move Move) Bitboards {
+func (b *Bitboards) performMove(originalState GameState, move Move) {
 	startIndex := move.startIndex
 	endIndex := move.endIndex
-
-	newBitboards := b
 
 	startPiece := originalState.board[startIndex]
 
 	switch move.moveType {
 	case QUIET_MOVE:
 		{
-			newBitboards.clearSquare(startIndex, startPiece)
-			newBitboards.setSquare(endIndex, startPiece)
+			b.clearSquare(startIndex, startPiece)
+			b.setSquare(endIndex, startPiece)
 		}
 	case CAPTURE_MOVE:
 		{
 			// Remove captured piece
 			endPiece := originalState.board[endIndex]
-			newBitboards.clearSquare(endIndex, endPiece)
+			b.clearSquare(endIndex, endPiece)
 
 			// Move the capturing piece
-			newBitboards.clearSquare(startIndex, startPiece)
-			newBitboards.setSquare(endIndex, startPiece)
+			b.clearSquare(startIndex, startPiece)
+			b.setSquare(endIndex, startPiece)
 		}
 	case EN_PASSANT_MOVE:
 		{
@@ -812,23 +851,22 @@ func (b Bitboards) generateNextBitboards(originalState GameState, move Move) Bit
 			captureIndex := endIndex - OFFSETS[backwardsDir]
 			capturePiece := originalState.board[captureIndex]
 
-			newBitboards.clearSquare(captureIndex, capturePiece)
-			newBitboards.clearSquare(startIndex, startPiece)
-			newBitboards.setSquare(endIndex, startPiece)
+			b.clearSquare(captureIndex, capturePiece)
+			b.clearSquare(startIndex, startPiece)
+			b.setSquare(endIndex, startPiece)
 		}
 	case CASTLING_MOVE:
 		{
 			rookStartIndex, rookEndIndex := rookMoveForCastle(startIndex, endIndex)
 			rookPiece := originalState.board[rookStartIndex]
 
-			newBitboards.clearSquare(startIndex, startPiece)
-			newBitboards.setSquare(endIndex, startPiece)
+			b.clearSquare(startIndex, startPiece)
+			b.setSquare(endIndex, startPiece)
 
-			newBitboards.clearSquare(rookStartIndex, rookPiece)
-			newBitboards.clearSquare(rookEndIndex, rookPiece)
+			b.clearSquare(rookStartIndex, rookPiece)
+			b.clearSquare(rookEndIndex, rookPiece)
 		}
 	}
-	return newBitboards
 }
 
 func (b Bitboards) generateLegalMoves(g GameState) []Move {
@@ -838,7 +876,9 @@ func (b Bitboards) generateLegalMoves(g GameState) []Move {
 
 	legalMoves := make([]Move, 0, 256)
 	for _, move := range potentialMoves {
-		nextBitboards := b.generateNextBitboards(g, move)
+		nextBitboards := b
+		nextBitboards.performMove(g, move)
+
 		kingIndex := nextBitboards.players[player].pieces[KING].firstIndexOfOne()
 		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {
 			legalMoves = append(legalMoves, move)
