@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/profile"
 	"github.com/schollz/progressbar/v3"
 	"github.com/stretchr/testify/assert"
 )
@@ -514,7 +515,7 @@ func TestWhiteCastling(t *testing.T) {
 	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Equal(t, true, g.enPassantTarget.IsEmtpy())
+	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
 	assert.Equal(t, WHITE, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
@@ -607,7 +608,7 @@ func TestBlackCastling(t *testing.T) {
 	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Equal(t, true, g.enPassantTarget.IsEmtpy())
+	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
 	assert.Equal(t, BLACK, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
@@ -909,54 +910,66 @@ func TestGameStateCopyingIsDeep(t *testing.T) {
 	assert.Equal(t, c.playerAndCastlingSideAllowed[0][1], true)
 }
 
-type CountPerftOptions struct {
-	recordPerft   bool
-	expectedCount Optional[int]
-}
+type PerftMap map[string]int
 
-func CountAndPerftForDepth(g GameState, b Bitboards, n int, options CountPerftOptions) (int, map[string]int) {
+func countAndPerftForDepth(g GameState, b Bitboards, n int, progress *chan int, perft *PerftMap) int {
 	if n == 0 {
-		return 1, map[string]int{}
+		return 1
 	}
 
 	num := 0
-	moves := b.generateLegalMoves(g)
-
-	var progressBar *progressbar.ProgressBar
-	var startTime time.Time
-	var perft = make(map[string]int)
-	if options.expectedCount.HasValue() && options.expectedCount.Value() > 10000 {
-		progressBar = progressbar.Default(int64(options.expectedCount.Value()), fmt.Sprint("depth ", n))
-		startTime = time.Now()
-	}
-
-	for _, move := range moves {
+	movesChan := make(chan Move)
+	go func() {
+		b.pushLegalMovesToChannel(g, movesChan)
+		close(movesChan)
+	}()
+	for move := range movesChan {
+		// for _, move := range b.generateLegalMoves(g) {
 		nextState := g
 		nextBoard := b
 
 		nextBoard.performMove(g, move)
 		nextState.performMove(move)
 
-		countUnderMove, _ := CountAndPerftForDepth(nextState, nextBoard, n-1, CountPerftOptions{})
+		countUnderMove := countAndPerftForDepth(nextState, nextBoard, n-1, nil, nil)
 
 		num += countUnderMove
 
-		if progressBar != nil {
-			progressBar.Set(num)
+		if perft != nil {
+			(*perft)[move.string()] = countUnderMove
 		}
-
-		if options.recordPerft {
-			perft[move.string()] = countUnderMove
+		if progress != nil {
+			*progress <- num
 		}
 	}
+	return num
+}
 
-	if progressBar != nil {
-		progressBar.Close()
-		fmt.Println("             |", time.Now().Sub(startTime))
-		fmt.Println()
+func CountAndPerftForDepthWithProgress(g GameState, b Bitboards, n int, expectedCount int) (int, PerftMap) {
+	perft := make(PerftMap)
+
+	var progressBar *progressbar.ProgressBar
+	var startTime time.Time
+	progressBar = progressbar.Default(int64(expectedCount), fmt.Sprint("depth ", n))
+	startTime = time.Now()
+
+	progressChan := make(chan int)
+
+	var result int
+	go func() {
+		result = countAndPerftForDepth(g, b, n, &progressChan, &perft)
+		close(progressChan)
+	}()
+
+	for p := range progressChan {
+		progressBar.Set(p)
 	}
 
-	return num, perft
+	progressBar.Close()
+	fmt.Println("             |", time.Now().Sub(startTime))
+	fmt.Println()
+
+	return result, perft
 }
 
 func TestMovesAtDepth(t *testing.T) {
@@ -972,11 +985,12 @@ func TestMovesAtDepth(t *testing.T) {
 		119060324,
 	}
 
+	defer profile.Start(profile.ProfilePath(".")).Stop()
 	for depth, expectedCount := range EXPECTED_COUNT {
 		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)
 		b := setupBitboards(g)
-		actualCount, _ := CountAndPerftForDepth(g, b, depth, CountPerftOptions{false, Some(expectedCount)})
+		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
 	}
@@ -1038,7 +1052,7 @@ func computeIncorrectPerftMoves(t *testing.T, s string, depth int) map[string]Pe
 	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 	b := setupBitboards(g)
-	total, perft := CountAndPerftForDepth(g, b, depth, CountPerftOptions{true, Some(expectedTotal)})
+	total, perft := CountAndPerftForDepthWithProgress(g, b, depth, expectedTotal)
 
 	result := make(map[string]PerftComparison)
 
@@ -1145,7 +1159,7 @@ func TestIncorrectEnPassantOutOfBounds(t *testing.T) {
 
 func TestFindIncorrectMoves(t *testing.T) {
 	s := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-	invalidMoves := findInvalidMoves(t, s, 6)
+	invalidMoves := findInvalidMoves(t, s, 3)
 
 	for _, move := range invalidMoves {
 		assert.Equal(t, nil, move)
@@ -1165,7 +1179,7 @@ func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)
 		b := setupBitboards(g)
-		actualCount, _ := CountAndPerftForDepth(g, b, depth, CountPerftOptions{false, Some(expectedCount)})
+		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
 	}

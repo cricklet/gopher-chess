@@ -118,7 +118,7 @@ func TestNotationDecoding2(t *testing.T) {
 	}.AsBoardArray())
 	assert.Equal(t, g.player, WHITE)
 
-	assert.Nil(t, g.enPassantTarget)
+	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
 
 	assert.Equal(t, g.whiteCanCastleKingside(), false)
 	assert.Equal(t, g.whiteCanCastleQueenside(), false)

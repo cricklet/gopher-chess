@@ -887,6 +887,22 @@ func (b Bitboards) generateLegalMoves(g GameState) []Move {
 	return legalMoves
 }
 
+func (b Bitboards) pushLegalMovesToChannel(g GameState, moves chan Move) {
+	player := g.player
+	enemy := g.enemy()
+	potentialMoves := b.generatePseudoMoves(g)
+
+	for _, move := range potentialMoves {
+		nextBitboards := b
+		nextBitboards.performMove(g, move)
+
+		kingIndex := nextBitboards.players[player].pieces[KING].firstIndexOfOne()
+		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {
+			moves <- move
+		}
+	}
+}
+
 func moveFromString(s string, m MoveType) Move {
 	first := s[0:2]
 	second := s[2:4]

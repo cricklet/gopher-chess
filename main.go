@@ -323,12 +323,12 @@ func Empty[T any]() Optional[T] {
 	return Optional[T]{}
 }
 
-func (o Optional[T]) IsEmtpy() bool {
+func (o Optional[T]) IsEmpty() bool {
 	return len(o) == 0
 }
 
 func (o Optional[T]) HasValue() bool {
-	return !o.IsEmtpy()
+	return !o.IsEmpty()
 }
 
 func (o Optional[T]) Value() T {
@@ -494,7 +494,7 @@ func fenStringForCastlingAllowed(playerAndCastlingSideAllowed [2][2]bool) string
 }
 
 func fenStringForEnPassant(enPassant Optional[FileRank]) string {
-	if enPassant.IsEmtpy() {
+	if enPassant.IsEmpty() {
 		return "-"
 	}
 	return enPassant.Value().string()
@@ -648,7 +648,7 @@ func main() {
 }
 
 func init() {
-	// defer profile.Start(profile.ProfilePath(".")).Stop(
+	// defer profile.Start(profile.ProfilePath(".")).Stop()
 	// defer profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop()
 	initMagicTables()
 }
