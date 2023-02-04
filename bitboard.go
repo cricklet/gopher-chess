@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 type Bitboard uint64
@@ -669,11 +670,43 @@ func (b Bitboards) dangerBoard(player Player) Bitboard {
 	return result
 }
 
-func (b Bitboards) generatePseudoMoves(g GameState) []Move {
+func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T)) {
+	available := []*T{}
+	lock := sync.Mutex{}
+
+	var get = func() *T {
+		lock.Lock()
+
+		if len(available) > 0 {
+			result := available[0]
+			available = available[1:]
+
+			lock.Unlock()
+			return result
+		}
+
+		lock.Unlock()
+
+		result := create()
+		return &result
+	}
+
+	var release = func(t *T) {
+		reset(t)
+		lock.Lock()
+		available = append(available, t)
+		lock.Unlock()
+	}
+
+	return get, release
+}
+
+var GetMovesBuffer, ReleaseMovesBuffer = createPool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
+
+func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 	player := g.player
 	playerBoards := b.players[player]
 	enemyBoards := b.players[player.other()]
-	moves := make([]Move, 0, 256)
 
 	{
 		// generate pawn pushes
@@ -688,7 +721,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 			potential := rotateTowardsIndex64(playerBoards.pieces[PAWN], pushOffset)
 			potential = potential & ^b.occupied
 			for _, index := range potential.eachIndexOfOne() {
-				moves = append(moves, Move{QUIET_MOVE, index - pushOffset, index})
+				*moves = append(*moves, Move{QUIET_MOVE, index - pushOffset, index})
 			}
 		}
 
@@ -702,7 +735,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 			potential = potential & ^b.occupied
 
 			for _, index := range potential.eachIndexOfOne() {
-				moves = append(moves, Move{QUIET_MOVE, index - 2*pushOffset, index})
+				*moves = append(*moves, Move{QUIET_MOVE, index - 2*pushOffset, index})
 			}
 		}
 
@@ -714,7 +747,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 				potential = potential & enemyBoards.occupied
 
 				for _, index := range potential.eachIndexOfOne() {
-					moves = append(moves, Move{CAPTURE_MOVE, index - captureOffset, index})
+					*moves = append(*moves, Move{CAPTURE_MOVE, index - captureOffset, index})
 				}
 			}
 		}
@@ -729,7 +762,7 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 					potential = potential & enPassantBoard
 
 					for _, index := range potential.eachIndexOfOne() {
-						moves = append(moves, Move{EN_PASSANT_MOVE, index - captureOffset, index})
+						*moves = append(*moves, Move{EN_PASSANT_MOVE, index - captureOffset, index})
 					}
 				}
 			}
@@ -738,37 +771,37 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 
 	{
 		// generate rook / bishop / queen moves
-		// moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, N, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, S, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, E, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, W, moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, N, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, S, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, E, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, W, *moves)
 
-		// moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, NE, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, SE, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, NW, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, SW, moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, NE, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, SE, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, NW, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, SW, *moves)
 
-		// moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, N, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, S, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, E, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, W, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NE, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SE, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NW, moves)
-		// moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SW, moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, N, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, S, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, E, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, W, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NE, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SE, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NW, *moves)
+		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SW, *moves)
 
-		moves = generateWalkMovesWithMagic(playerBoards.pieces[ROOK], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, moves)
-		moves = generateWalkMovesWithMagic(playerBoards.pieces[BISHOP], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, moves)
-		moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, moves)
-		moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[ROOK], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[BISHOP], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, *moves)
 	}
 
 	{
 		// generate knight moves
-		moves = generateJumpMoves(playerBoards.pieces[KNIGHT], b.occupied, enemyBoards.occupied, KNIGHT_DIRS, moves)
+		*moves = generateJumpMoves(playerBoards.pieces[KNIGHT], b.occupied, enemyBoards.occupied, KNIGHT_DIRS, *moves)
 
 		// generate king moves
-		moves = generateJumpMoves(playerBoards.pieces[KING], b.occupied, enemyBoards.occupied, KING_DIRS, moves)
+		*moves = generateJumpMoves(playerBoards.pieces[KING], b.occupied, enemyBoards.occupied, KING_DIRS, *moves)
 	}
 
 	{
@@ -788,13 +821,11 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 				}
 
 				if canCastle {
-					moves = append(moves, requirements.move)
+					*moves = append(*moves, requirements.move)
 				}
 			}
 		}
 	}
-
-	return moves
 }
 
 func (b *Bitboards) clearSquare(index int, piece Piece) {
@@ -869,30 +900,32 @@ func (b *Bitboards) performMove(originalState GameState, move Move) {
 	}
 }
 
-func (b Bitboards) generateLegalMoves(g GameState) []Move {
+func (b Bitboards) generateLegalMoves(g GameState, legalMovesOutput *[]Move) {
 	player := g.player
 	enemy := g.enemy()
-	potentialMoves := b.generatePseudoMoves(g)
+	potentialMoves := GetMovesBuffer()
+	b.generatePseudoMoves(g, potentialMoves)
 
-	legalMoves := make([]Move, 0, 256)
-	for _, move := range potentialMoves {
+	for _, move := range *potentialMoves {
 		nextBitboards := b
 		nextBitboards.performMove(g, move)
 
 		kingIndex := nextBitboards.players[player].pieces[KING].firstIndexOfOne()
 		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {
-			legalMoves = append(legalMoves, move)
+			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 	}
-	return legalMoves
+
+	ReleaseMovesBuffer(potentialMoves)
 }
 
 func (b Bitboards) pushLegalMovesToChannel(g GameState, moves chan Move) {
 	player := g.player
 	enemy := g.enemy()
-	potentialMoves := b.generatePseudoMoves(g)
+	potentialMoves := GetMovesBuffer()
+	b.generatePseudoMoves(g, potentialMoves)
 
-	for _, move := range potentialMoves {
+	for _, move := range *potentialMoves {
 		nextBitboards := b
 		nextBitboards.performMove(g, move)
 
@@ -901,6 +934,8 @@ func (b Bitboards) pushLegalMovesToChannel(g GameState, moves chan Move) {
 			moves <- move
 		}
 	}
+
+	ReleaseMovesBuffer(potentialMoves)
 }
 
 func moveFromString(s string, m MoveType) Move {

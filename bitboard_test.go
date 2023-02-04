@@ -231,7 +231,9 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 	bitboards := setupBitboards(g)
 
 	result := []string{}
-	for _, move := range bitboards.generatePseudoMoves(g) {
+	moves := GetMovesBuffer()
+	bitboards.generatePseudoMoves(g, moves)
+	for _, move := range *moves {
 		result = append(result, move.string())
 	}
 
@@ -311,7 +313,10 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 	bitboards := setupBitboards(g)
 
 	result := []string{}
-	for _, move := range bitboards.generatePseudoMoves(g) {
+
+	moves := GetMovesBuffer()
+	bitboards.generatePseudoMoves(g, moves)
+	for _, move := range *moves {
 		result = append(result, move.string())
 	}
 
@@ -522,7 +527,10 @@ func TestWhiteCastling(t *testing.T) {
 	bitboards := setupBitboards(g)
 
 	result := []string{}
-	for _, move := range bitboards.generatePseudoMoves(g) {
+
+	moves := GetMovesBuffer()
+	bitboards.generatePseudoMoves(g, moves)
+	for _, move := range *moves {
 		result = append(result, move.string())
 	}
 
@@ -615,7 +623,10 @@ func TestBlackCastling(t *testing.T) {
 	bitboards := setupBitboards(g)
 
 	result := []string{}
-	for _, move := range bitboards.generatePseudoMoves(g) {
+
+	moves := GetMovesBuffer()
+	bitboards.generatePseudoMoves(g, moves)
+	for _, move := range *moves {
 		result = append(result, move.string())
 	}
 
@@ -758,7 +769,9 @@ func TestCheck(t *testing.T) {
 	}, "\n"), g.board.string())
 
 	result := []string{}
-	for _, move := range bitboards.generateLegalMoves(g) {
+	moves := make([]Move, 0)
+	bitboards.generateLegalMoves(g, &moves)
+	for _, move := range moves {
 		result = append(result, move.string())
 	}
 
@@ -795,7 +808,9 @@ func TestPin(t *testing.T) {
 	}, "\n"), g.board.string())
 
 	result := []string{}
-	for _, move := range bitboards.generateLegalMoves(g) {
+	moves := make([]Move, 0)
+	bitboards.generateLegalMoves(g, &moves)
+	for _, move := range moves {
 		result = append(result, move.string())
 	}
 
@@ -918,13 +933,15 @@ func countAndPerftForDepth(g GameState, b Bitboards, n int, progress *chan int, 
 	}
 
 	num := 0
-	movesChan := make(chan Move)
-	go func() {
-		b.pushLegalMovesToChannel(g, movesChan)
-		close(movesChan)
-	}()
-	for move := range movesChan {
-		// for _, move := range b.generateLegalMoves(g) {
+
+	moves := GetMovesBuffer()
+	b.generateLegalMoves(g, moves)
+	for _, move := range *moves {
+
+		// moves := make([]Move, 0, 256)
+		// b.generateLegalMoves(g, &moves)
+		// for _, move := range moves {
+
 		nextState := g
 		nextBoard := b
 
@@ -942,6 +959,9 @@ func countAndPerftForDepth(g GameState, b Bitboards, n int, progress *chan int, 
 			*progress <- num
 		}
 	}
+
+	ReleaseMovesBuffer(moves)
+
 	return num
 }
 
@@ -982,7 +1002,7 @@ func TestMovesAtDepth(t *testing.T) {
 		8902,
 		197281,
 		4865609,
-		// 119060324,
+		119060324,
 	}
 
 	defer profile.Start(profile.ProfilePath(".")).Stop()
