@@ -464,7 +464,14 @@ func (b Bitboard) firstIndexOfOne() int {
 
 type IndicesBuffer []int
 
-var GetIndicesBuffer, ReleaseIndicesBuffer = createPool(func() IndicesBuffer { return make(IndicesBuffer, 0, 64) }, func(x *IndicesBuffer) { *x = (*x)[:0] })
+var GetIndicesBuffer, ReleaseIndicesBuffer, StatsIndicesBuffer = createPool(
+	func() IndicesBuffer {
+		return make(IndicesBuffer, 0, 64)
+	},
+	func(x *IndicesBuffer) {
+		*x = (*x)[:0]
+	},
+)
 
 func (b Bitboard) eachIndexOfOne(buffer *IndicesBuffer) *IndicesBuffer {
 	*buffer = (*buffer)[:0]
@@ -698,9 +705,24 @@ func (b Bitboards) dangerBoard(player Player) Bitboard {
 	return result
 }
 
-func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T)) {
+type PoolStats struct {
+	creates int
+	resets  int
+	hits    int
+}
+
+func (s PoolStats) string() string {
+	return fmt.Sprint("creates: ", s.creates, ", resets: ", s.resets, ", hits: ", s.hits)
+}
+
+func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T), func() PoolStats) {
 	available := []*T{}
+
 	lock := sync.Mutex{}
+
+	creates := 0
+	resets := 0
+	hits := 0
 
 	var get = func() *T {
 		lock.Lock()
@@ -708,28 +730,36 @@ func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T)) {
 		if len(available) > 0 {
 			result := available[0]
 			available = available[1:]
-
 			lock.Unlock()
+
+			hits++
 			return result
 		}
 
 		lock.Unlock()
 
+		creates++
 		result := create()
 		return &result
 	}
 
 	var release = func(t *T) {
+		resets++
 		reset(t)
+
 		lock.Lock()
 		available = append(available, t)
 		lock.Unlock()
 	}
 
-	return get, release
+	var stats = func() PoolStats {
+		return PoolStats{creates, resets, hits}
+	}
+
+	return get, release, stats
 }
 
-var GetMovesBuffer, ReleaseMovesBuffer = createPool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
+var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = createPool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
 func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
 	player := g.player

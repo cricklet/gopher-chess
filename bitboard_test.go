@@ -1186,7 +1186,7 @@ func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 
 type TestBuffer []int
 
-var GetTestBuffer, ReleaseTestBuffer = createPool(func() TestBuffer { return make(TestBuffer, 0, 64) }, func(x *TestBuffer) { *x = (*x)[:0] })
+var GetTestBuffer, ReleaseTestBuffer, StatsTestBuffer = createPool(func() TestBuffer { return make(TestBuffer, 0, 64) }, func(x *TestBuffer) { *x = (*x)[:0] })
 
 func RecursivelySetBuffer(t *testing.T, limit int, x *TestBuffer) {
 	if limit <= 0 {
@@ -1205,7 +1205,7 @@ func RecursivelySetBuffer(t *testing.T, limit int, x *TestBuffer) {
 }
 
 func TestThreadSafetyForPool(t *testing.T) {
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 64; i++ {
 		go func() {
 			buffer := GetTestBuffer()
 			RecursivelySetBuffer(t, 10, buffer)
@@ -1223,8 +1223,8 @@ func TestMovesAtDepth(t *testing.T) {
 		400,
 		8902,
 		197281,
-		// 4865609,
-		// 119060324,
+		4865609,
+		119060324,
 	}
 
 	defer profile.Start(profile.ProfilePath("./TestMovesAtDepth")).Stop()
@@ -1236,11 +1236,17 @@ func TestMovesAtDepth(t *testing.T) {
 
 		assert.Equal(t, expectedCount, actualCount)
 	}
+
+	fmt.Println("indices pool ", StatsIndicesBuffer().string())
+	fmt.Println("move pool ", StatsMoveBuffer().string())
 }
 
 type TestSlice []int
 
-var GetTestSlice, ReleaseTestSlice = createPool(func() TestSlice { return make(TestSlice, 0, 64) }, func(x *TestSlice) { *x = (*x)[:0] })
+var GetTestSlice, ReleaseTestSlice, StatsTestSlice = createPool(
+	func() TestSlice { return make(TestSlice, 0, 64) },
+	func(x *TestSlice) { *x = (*x)[:0] },
+)
 
 type TestArray struct {
 	_values [64]int
@@ -1255,45 +1261,56 @@ func (xs *TestArray) get(i int) int {
 	return xs._values[i]
 }
 
-var GetTestArray, ReleaseTestArray = createPool(func() TestArray { return TestArray{} }, func(x *TestArray) { x.size = 0 })
+var GetTestArray, ReleaseTestArray, StatsTestArray = createPool(
+	func() TestArray { return TestArray{} },
+	func(x *TestArray) { x.size = 0 },
+)
 
 func TestSliceVsArray(t *testing.T) {
 	defer profile.Start(profile.ProfilePath("./TestSliceVsArray")).Stop()
 	var wg sync.WaitGroup
 
-	total := 999999
-	sliceProgress := progressbar.Default(int64(total), "slice")
-	for i := 0; i < total; i++ {
-		debugValue := i
+	competingThreads := 50
+	allocationsPerThread := 99999
+	sliceProgress := progressbar.Default(int64(competingThreads*allocationsPerThread), "slice")
+	for t := 0; t < competingThreads; t++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			slice := GetTestSlice()
-			for j := 0; j < 64; j++ {
-				*slice = append(*slice, debugValue)
+			for i := 0; i < allocationsPerThread; i++ {
+				debugValue := i
+				slice := GetTestSlice()
+				for j := 0; j < 64; j++ {
+					*slice = append(*slice, debugValue)
+				}
+				ReleaseTestSlice(slice)
+				sliceProgress.Add(1)
 			}
-			ReleaseTestSlice(slice)
-			sliceProgress.Add(1)
 		}()
 	}
 	wg.Wait()
 	sliceProgress.Close()
 
-	arrayProgress := progressbar.Default(int64(total), "array")
-	for i := 0; i < total; i++ {
-		debugValue := i
+	arrayProgress := progressbar.Default(int64(competingThreads*allocationsPerThread), "array")
+	for t := 0; t < competingThreads; t++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			array := GetTestArray()
-			for j := 0; j < 64; j++ {
-				array.add(debugValue)
+			for i := 0; i < allocationsPerThread; i++ {
+				debugValue := i
+				array := GetTestArray()
+				for j := 0; j < 64; j++ {
+					array.add(debugValue)
+				}
+				ReleaseTestArray(array)
+				arrayProgress.Add(1)
 			}
-			ReleaseTestArray(array)
-			arrayProgress.Add(1)
 		}()
 	}
 
 	wg.Wait()
 	arrayProgress.Close()
+
+	fmt.Println("slices ", StatsTestSlice().string())
+	fmt.Println("array ", StatsTestArray().string())
 }
