@@ -462,7 +462,11 @@ func (b Bitboard) firstIndexOfOne() int {
 	return bits.OnesCount64(uint64(ls1 - 1))
 }
 
-func (b Bitboard) eachIndexOfOne() []int {
+type IndicesBuffer []int
+
+var GetIndicesBuffer, ReleaseIndicesBuffer = createPool(func() IndicesBuffer { return make(IndicesBuffer, 0, 64) }, func(x *IndicesBuffer) { *x = (*x)[:0] })
+
+func (b Bitboard) eachIndexOfOne() IndicesBuffer {
 	result := make([]int, 0, 64)
 
 	temp := b

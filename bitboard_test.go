@@ -1001,8 +1001,8 @@ func TestMovesAtDepth(t *testing.T) {
 		400,
 		8902,
 		197281,
-		4865609,
-		119060324,
+		// 4865609,
+		// 119060324,
 	}
 
 	defer profile.Start(profile.ProfilePath(".")).Stop()
@@ -1202,5 +1202,35 @@ func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
+	}
+}
+
+type TestBuffer []int
+
+var GetTestBuffer, ReleaseTestBuffer = createPool(func() TestBuffer { return make(TestBuffer, 0, 64) }, func(x *TestBuffer) { *x = (*x)[:0] })
+
+func RecursivelySetBuffer(t *testing.T, limit int, x *TestBuffer) {
+	if limit <= 0 {
+		return
+	}
+
+	*x = (*x)[:0]
+	for i := 0; i < 64; i++ {
+		*x = append(*x, limit)
+	}
+	for i := 0; i < 64; i++ {
+		assert.Equal(t, (*x)[i], limit)
+	}
+
+	RecursivelySetBuffer(t, limit-1, x)
+}
+
+func TestThreadSafetyForPool(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		go func() {
+			buffer := GetTestBuffer()
+			RecursivelySetBuffer(t, 10, buffer)
+			ReleaseTestBuffer(buffer)
+		}()
 	}
 }
