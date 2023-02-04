@@ -90,7 +90,7 @@ func TestNotationDecoding(t *testing.T) {
 
 	expectedLocation, err := fileRankFromString("e3")
 	assert.Nil(t, err)
-	assert.Equal(t, *g.enPassantTarget, expectedLocation)
+	assert.Equal(t, g.enPassantTarget.Value(), expectedLocation)
 
 	assert.Equal(t, g.whiteCanCastleKingside(), true)
 	assert.Equal(t, g.whiteCanCastleQueenside(), true)

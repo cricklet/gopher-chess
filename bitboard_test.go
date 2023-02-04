@@ -300,7 +300,7 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, XX, WR,
 	}.AsBoardArray().string(), g.board.string())
 
-	assert.Equal(t, g.enPassantTarget.string(), "g6")
+	assert.Equal(t, g.enPassantTarget.Value().string(), "g6")
 
 	bitboards := setupBitboards(g)
 
@@ -860,6 +860,50 @@ func TestArraysArePassedByReference(t *testing.T) {
 	assert.Equal(t, X{[]int{9999, 9999}, [2]int{9999, 9999}, 9999}, x)
 }
 
-func CountMovesAtDepth(n int) int {
+func TestBitboardsCopyingIsDeep(t *testing.T) {
+	b := Bitboards{}
+	b.occupied = 7
+	b.players[WHITE].occupied = 7
+	b.players[WHITE].pieces[ROOK] = 7
+
+	c := b
+	c.occupied = 11
+	c.players[WHITE].occupied = 11
+	c.players[WHITE].pieces[ROOK] = 11
+
+	assert.Equal(t, b.occupied, Bitboard(7))
+	assert.Equal(t, b.players[WHITE].occupied, Bitboard(7))
+	assert.Equal(t, b.players[WHITE].pieces[ROOK], Bitboard(7))
+
+	assert.Equal(t, c.occupied, Bitboard(11))
+	assert.Equal(t, c.players[WHITE].occupied, Bitboard(11))
+	assert.Equal(t, c.players[WHITE].pieces[ROOK], Bitboard(11))
+}
+
+func TestGameStateCopyingIsDeep(t *testing.T) {
+	b := GameState{}
+	b.board[0] = WQ
+	b.halfMoveClock = 9
+	b.playerAndCastlingSideAllowed[0][0] = true
+	b.playerAndCastlingSideAllowed[0][1] = false
+
+	c := b
+	c.board[0] = BQ
+	c.halfMoveClock = 11
+	c.playerAndCastlingSideAllowed[0][0] = false
+	c.playerAndCastlingSideAllowed[0][1] = true
+
+	assert.Equal(t, b.board[0], WQ)
+	assert.Equal(t, b.halfMoveClock, 9)
+	assert.Equal(t, b.playerAndCastlingSideAllowed[0][0], true)
+	assert.Equal(t, b.playerAndCastlingSideAllowed[0][1], false)
+
+	assert.Equal(t, c.board[0], BQ)
+	assert.Equal(t, c.halfMoveClock, 11)
+	assert.Equal(t, c.playerAndCastlingSideAllowed[0][0], false)
+	assert.Equal(t, c.playerAndCastlingSideAllowed[0][1], true)
+}
+
+func CountMovesAtDepth(g GameState, b Bitboards, n int) int {
 	return 0
 }

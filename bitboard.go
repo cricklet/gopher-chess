@@ -680,8 +680,8 @@ func (b Bitboards) generatePseudoMoves(g GameState) []Move {
 
 		// generate en-passant
 		{
-			if g.enPassantTarget != nil {
-				enPassantBoard := singleBitboard(boardIndexFromFileRank(*g.enPassantTarget))
+			if g.enPassantTarget.HasValue() {
+				enPassantBoard := singleBitboard(boardIndexFromFileRank(g.enPassantTarget.Value()))
 				for _, captureOffset := range []int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
 					potential := playerBoards.pieces[PAWN]
 					potential = rotateTowardsIndex64(potential, captureOffset)
@@ -838,9 +838,6 @@ func (b Bitboards) generateLegalMoves(g GameState) []Move {
 
 	legalMoves := make([]Move, 0, 256)
 	for _, move := range potentialMoves {
-		if "e8" == stringFromBoardIndex(move.startIndex) && "d8" == stringFromBoardIndex(move.endIndex) {
-			fmt.Println("hmm")
-		}
 		nextBitboards := b.generateNextBitboards(g, move)
 		kingIndex := nextBitboards.players[player].pieces[KING].firstIndexOfOne()
 		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {

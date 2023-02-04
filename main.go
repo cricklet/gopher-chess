@@ -313,11 +313,33 @@ const (
 	QUEENSIDE
 )
 
+type Optional[T any] []T
+
+func Some[T any](t T) Optional[T] {
+	return Optional[T]{t}
+}
+
+func Empty[T any]() Optional[T] {
+	return Optional[T]{}
+}
+
+func (o Optional[T]) IsEmtpy() bool {
+	return len(o) == 0
+}
+
+func (o Optional[T]) HasValue() bool {
+	return !o.IsEmtpy()
+}
+
+func (o Optional[T]) Value() T {
+	return o[0]
+}
+
 type GameState struct {
 	board                        BoardArray
 	player                       Player
 	playerAndCastlingSideAllowed [2][2]bool
-	enPassantTarget              *FileRank
+	enPassantTarget              Optional[FileRank]
 	halfMoveClock                int
 	fullMoveClock                int
 }
@@ -433,7 +455,7 @@ func gamestateFromString(s string) (GameState, error) {
 	if enPassantTargetString == "-" {
 		game.enPassantTarget = nil
 	} else if enPassantTarget, err := fileRankFromString(enPassantTargetString); err == nil {
-		game.enPassantTarget = &enPassantTarget
+		game.enPassantTarget = Some(enPassantTarget)
 	} else {
 		return GameState{}, fmt.Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)
 	}
