@@ -867,14 +867,14 @@ func (b Bitboards) generatePseudoMoves(g *GameState, moves *[]Move) {
 			canCastle := true
 			if g.playerAndCastlingSideAllowed[player][castlingSide] {
 				requirements := CASTLING_REQUIREMENTS[player][castlingSide]
+				if b.occupied&requirements.empty != 0 {
+					canCastle = false
+				}
 				for _, index := range requirements.safe {
 					if playerIndexIsAttacked(player, index, b.occupied, enemyBoards) {
 						canCastle = false
 						break
 					}
-				}
-				if b.occupied&requirements.empty != 0 {
-					canCastle = false
 				}
 
 				if canCastle {
