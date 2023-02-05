@@ -1453,3 +1453,37 @@ func TestEachIndexOfOneCallbackVsRange(t *testing.T) {
 	}
 	manualProgress.Close()
 }
+
+func TestIndexSingeVsDoubleArray(t *testing.T) {
+	defer profile.Start(profile.ProfilePath("./TestEachIndexOfOneCallbackVsRange")).Stop()
+
+	double := [64][64]int{}
+	single := [64 * 64]int{}
+	testNum := 100000
+
+	singleProgress := progressbar.Default(int64(testNum), "single")
+	for i := 0; i < testNum; i++ {
+		for j := range single {
+			_ = single[j]
+		}
+		if i%1000 == 0 {
+			singleProgress.Add(1000)
+		}
+	}
+	singleProgress.Close()
+
+	doubleProgress := progressbar.Default(int64(testNum), "double")
+	for i := 0; i < testNum; i++ {
+		for j := range double {
+			interior := &double[j]
+			for k := range *interior {
+				_ = double[j][k]
+			}
+		}
+		if i%1000 == 0 {
+			doubleProgress.Add(1000)
+		}
+	}
+	doubleProgress.Close()
+
+}
