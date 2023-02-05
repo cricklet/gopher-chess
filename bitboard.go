@@ -958,6 +958,28 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 	}
 }
 
+func (b *Bitboards) performUndo(originalState *GameState, undo UndoMove) {
+	for i := undo.numPrevious - 1; i >= 0; i-- {
+		index := undo.previous[i].index
+		current := originalState.board[index]
+		previous := undo.previous[i].piece
+
+		if current == XX {
+			if previous == XX {
+			} else {
+				b.setSquare(index, previous)
+			}
+		} else {
+			if previous == XX {
+				b.clearSquare(index, current)
+			} else {
+				b.clearSquare(index, current)
+				b.setSquare(index, previous)
+			}
+		}
+	}
+}
+
 func (b Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
 	player := g.player
 	enemy := g.enemy()

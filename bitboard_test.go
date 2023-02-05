@@ -983,7 +983,7 @@ func TestGameStateCopyingIsDeep(t *testing.T) {
 
 type PerftMap map[string]int
 
-func countAndPerftForDepth(g GameState, b Bitboards, n int, progress *chan int, perft *PerftMap) int {
+func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, progress *chan int, perft *PerftMap) int {
 	if n == 0 {
 		return 1
 	}
@@ -991,20 +991,28 @@ func countAndPerftForDepth(g GameState, b Bitboards, n int, progress *chan int, 
 	num := 0
 
 	moves := GetMovesBuffer()
-	b.generateLegalMoves(&g, moves)
+	b.generateLegalMoves(g, moves)
 	for _, move := range *moves {
 
-		// moves := make([]Move, 0, 256)
-		// b.generateLegalMoves(&g, &moves)
-		// for _, move := range moves {
+		undo := UndoMove{}
 
-		nextState := g
-		nextBoard := b
+		// expectedBitboards := *b
+		// expectedState := *g
 
-		nextBoard.performMove(&g, move)
-		nextState.performMove(move)
+		b.performMove(g, move)
+		g.performMove(move, &undo)
 
-		countUnderMove := countAndPerftForDepth(nextState, nextBoard, n-1, nil, nil)
+		countUnderMove := countAndPerftForDepth(t, g, b, n-1, nil, nil)
+
+		b.performUndo(g, undo)
+		g.performUndo(undo)
+
+		// assert.Equal(t, expectedBitboards, *b)
+		// assert.Equal(t, expectedState.board, g.board)
+		// assert.Equal(t, expectedState.enPassantTarget, g.enPassantTarget)
+		// assert.Equal(t, expectedState.fullMoveClock, g.fullMoveClock)
+		// assert.Equal(t, expectedState.halfMoveClock, g.halfMoveClock)
+		// assert.Equal(t, expectedState.playerAndCastlingSideAllowed, g.playerAndCastlingSideAllowed)
 
 		num += countUnderMove
 
@@ -1021,7 +1029,7 @@ func countAndPerftForDepth(g GameState, b Bitboards, n int, progress *chan int, 
 	return num
 }
 
-func CountAndPerftForDepthWithProgress(g GameState, b Bitboards, n int, expectedCount int) (int, PerftMap) {
+func CountAndPerftForDepthWithProgress(t *testing.T, g *GameState, b *Bitboards, n int, expectedCount int) (int, PerftMap) {
 	perft := make(PerftMap)
 
 	var progressBar *progressbar.ProgressBar
@@ -1035,7 +1043,7 @@ func CountAndPerftForDepthWithProgress(g GameState, b Bitboards, n int, expected
 
 	var result int
 	go func() {
-		result = countAndPerftForDepth(g, b, n, &progressChan, &perft)
+		result = countAndPerftForDepth(t, g, b, n, &progressChan, &perft)
 		close(progressChan)
 	}()
 
@@ -1097,20 +1105,17 @@ func parsePerft(s string) (map[string]int, int) {
 	panic(fmt.Sprint("could not parse", s))
 }
 
-func computeIncorrectPerftMoves(t *testing.T, s string, depth int) map[string]PerftComparison {
+func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth int) map[string]PerftComparison {
 	if depth == 0 {
 		panic("0 depth not valid for stockfish")
 	}
-	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", s, depth)
+	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", g.fenString(), depth)
 	cmd := exec.Command("bash", "-c", input)
 	output, _ := cmd.CombinedOutput()
 
 	expectedPerft, expectedTotal := parsePerft(string(output))
 
-	g, err := gamestateFromFenString(s)
-	assert.Nil(t, err)
-	b := setupBitboards(&g)
-	total, perft := CountAndPerftForDepthWithProgress(g, b, depth, expectedTotal)
+	total, perft := CountAndPerftForDepthWithProgress(t, g, b, depth, expectedTotal)
 
 	result := make(map[string]PerftComparison)
 
@@ -1174,8 +1179,12 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 	result := []string{}
 	movesToSearch := []MoveToSearch{}
 
-	for i := 1; i < maxDepth; i++ {
-		incorrectMoves := computeIncorrectPerftMoves(t, initialString, i)
+	g, err := gamestateFromFenString(initialString)
+	assert.Nil(t, err)
+	b := setupBitboards(&g)
+
+	for i := 1; i <= maxDepth; i++ {
+		incorrectMoves := computeIncorrectPerftMoves(t, &g, &b, i)
 		if len(incorrectMoves) > 0 {
 			for move, issue := range incorrectMoves {
 				movesToSearch = append(movesToSearch, MoveToSearch{move, issue, initialString})
@@ -1192,10 +1201,16 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 			result = append(result, search.string())
 			totalInvalidMoves++
 		} else {
-			nextString, err := fenStringWithMoveApplied(search.initial, search.move)
-			if err != nil {
-				panic(err)
-			}
+			move := g.moveFromString(search.move)
+			undo := UndoMove{}
+			b.performMove(&g, move)
+			g.performMove(move, &undo)
+
+			nextString := g.fenString()
+
+			b.performUndo(&g, undo)
+			g.performUndo(undo)
+
 			result = append(result, findInvalidMoves(t, nextString, maxDepth-1)...)
 		}
 	}
@@ -1209,6 +1224,15 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 func TestIncorrectEnPassantOutOfBounds(t *testing.T) {
 	s := "rnbqkb1r/1ppppppp/5n2/p7/6PP/8/PPPPPP2/RNBQKBNR/ w KQkq a6 2 2"
 	invalidMoves := findInvalidMoves(t, s, 2)
+
+	for _, move := range invalidMoves {
+		assert.Equal(t, nil, move)
+	}
+}
+
+func TestIncorrectUndoBoard(t *testing.T) {
+	s := "rnbqkbnr/pp1p1ppp/2p5/4pP2/8/2P5/PP1PP1PP/RNBQKBNR/ b KQkq - 5 3"
+	invalidMoves := findInvalidMoves(t, s, 3)
 
 	for _, move := range invalidMoves {
 		assert.Equal(t, nil, move)
@@ -1237,7 +1261,7 @@ func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)
 		b := setupBitboards(&g)
-		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
+		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
 	}
@@ -1291,7 +1315,7 @@ func TestMovesAtDepth(t *testing.T) {
 		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)
 		b := setupBitboards(&g)
-		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
+		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
 	}
