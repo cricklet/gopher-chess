@@ -338,7 +338,7 @@ type GameState struct {
 	fullMoveClock                int
 }
 
-func absDiff[T int](x T, y T) T {
+func absDiff(x int, y int) int {
 	if x < y {
 		return y - x
 	}
@@ -466,6 +466,7 @@ func RecordCurrentState(g *GameState, output *OldGameState) {
 
 func (g *GameState) performMove(move Move, update BoardUpdate) {
 	startPiece := g.board[move.startIndex]
+
 	g.enPassantTarget = Empty[FileRank]()
 	if move.moveType == QUIET_MOVE && isPawnSkip(startPiece, move) {
 		g.enPassantTarget = Some(fileRankFromBoardIndex(enPassantTarget(move)))

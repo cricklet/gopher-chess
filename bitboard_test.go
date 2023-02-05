@@ -1310,9 +1310,18 @@ func TestMovesAtDepth(t *testing.T) {
 		197281,
 		4865609,
 		119060324,
+		// 3195901860,
 	}
 
 	defer profile.Start(profile.ProfilePath("./TestMovesAtDepth")).Stop()
+	for depth, expectedCount := range EXPECTED_COUNT {
+		g, err := gamestateFromFenString(s)
+		assert.Nil(t, err)
+		b := setupBitboards(&g)
+		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
+
+		assert.Equal(t, expectedCount, actualCount)
+	}
 	for depth, expectedCount := range EXPECTED_COUNT {
 		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)

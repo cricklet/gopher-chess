@@ -665,14 +665,16 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	// Pawn attacks
 	{
 		enemyPlayer := player.other()
+		enemyPawns := enemyBitboards.pieces[PAWN]
+		captureOffset0 := PAWN_CAPTURE_OFFSETS[enemyPlayer][0]
+		captureOffset1 := PAWN_CAPTURE_OFFSETS[enemyPlayer][1]
+		captureMask0 := enemyPawns & PremoveMaskFromOffset(captureOffset0)
+		captureMask1 := enemyPawns & PremoveMaskFromOffset(captureOffset1)
 
-		for _, enemyCaptureOffset := range PAWN_CAPTURE_OFFSETS[enemyPlayer] {
-			potential := enemyBitboards.pieces[PAWN]
-			potential = rotateTowardsIndex64(potential, enemyCaptureOffset)
-			potential = potential & startBoard
-
-			attackers |= potential
-		}
+		potential := rotateTowardsIndex64(captureMask0, captureOffset0)
+		potential |= rotateTowardsIndex64(captureMask1, captureOffset1)
+		potential &= startBoard
+		attackers |= potential
 	}
 	// Knight, king attacks
 	{
@@ -981,7 +983,8 @@ func (b *Bitboards) undoUpdate(update BoardUpdate) {
 }
 
 func (b *Bitboards) kingIsInCheck(player Player, enemy Player) bool {
-	kingIndex := b.players[player].pieces[KING].firstIndexOfOne()
+	kingBoard := b.players[player].pieces[KING]
+	kingIndex := kingBoard.firstIndexOfOne()
 	return playerIndexIsAttacked(player, kingIndex, b.occupied, b.players[enemy])
 }
 
@@ -1092,7 +1095,10 @@ func mostlyZeroRand64() uint64 {
 }
 
 func magicIndex(magic uint64, blockerBoard Bitboard, bitsInIndex int) int {
-	return int((uint64(blockerBoard) * magic) >> (64 - bitsInIndex))
+	mult := uint64(blockerBoard) * magic
+	shift := 64 - bitsInIndex
+	result := mult >> shift
+	return int(result)
 }
 
 var tmpCache = [1 << 12]Bitboard{}
