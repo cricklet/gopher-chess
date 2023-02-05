@@ -393,53 +393,42 @@ func enPassantTarget(move Move) int {
 	}
 }
 
-type UndoSquare struct {
-	index int
-	piece Piece
-}
-
-type UndoMove struct {
+type OldGameState struct {
 	player                       Player
 	playerAndCastlingSideAllowed [2][2]bool
 	enPassantTarget              Optional[FileRank]
 	halfMoveClock                int
 	fullMoveClock                int
-
-	previous    [4]UndoSquare
-	numPrevious int
 }
 
-func (g *GameState) setSquare(index int, value Piece, output *UndoMove) {
-	output.previous[output.numPrevious].index = index
-	output.previous[output.numPrevious].piece = g.board[index]
-	output.numPrevious++
+type BoardUpdate struct {
+	indices [4]int
+	pieces  [4]Piece
+	num     int
 
-	g.board[index] = value
+	old [4]Piece
 }
 
-func (g *GameState) performMove(move Move, output *UndoMove) {
-	output.player = g.player
-	output.playerAndCastlingSideAllowed = g.playerAndCastlingSideAllowed
-	output.enPassantTarget = g.enPassantTarget
-	output.fullMoveClock = g.fullMoveClock
-	output.halfMoveClock = g.halfMoveClock
+func (u *BoardUpdate) Add(g *GameState, index int, piece Piece) {
+	u.indices[u.num] = index
+	u.pieces[u.num] = piece
+	u.old[u.num] = g.board[index]
+	u.num++
+}
 
+func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) {
 	startPiece := g.board[move.startIndex]
-	g.enPassantTarget = Empty[FileRank]()
+
 	switch move.moveType {
 	case QUIET_MOVE:
 		{
-			g.setSquare(move.startIndex, XX, output)
-			g.setSquare(move.endIndex, startPiece, output)
-
-			if isPawnSkip(startPiece, move) {
-				g.enPassantTarget = Some(fileRankFromBoardIndex(enPassantTarget(move)))
-			}
+			output.Add(g, move.startIndex, XX)
+			output.Add(g, move.endIndex, startPiece)
 		}
 	case CAPTURE_MOVE:
 		{
-			g.setSquare(move.startIndex, XX, output)
-			g.setSquare(move.endIndex, startPiece, output)
+			output.Add(g, move.startIndex, XX)
+			output.Add(g, move.endIndex, startPiece)
 		}
 	case EN_PASSANT_MOVE:
 		{
@@ -450,21 +439,40 @@ func (g *GameState) performMove(move Move, output *UndoMove) {
 			}
 
 			captureIndex := move.endIndex + OFFSETS[backwardsDir]
-			g.setSquare(captureIndex, XX, output)
-			g.setSquare(move.startIndex, XX, output)
-			g.setSquare(move.endIndex, startPiece, output)
+			output.Add(g, captureIndex, XX)
+			output.Add(g, move.startIndex, XX)
+			output.Add(g, move.endIndex, startPiece)
 		}
 	case CASTLING_MOVE:
 		{
 			rookStartIndex, rookEndIndex := rookMoveForCastle(move.startIndex, move.endIndex)
 			rookPiece := g.board[rookStartIndex]
 
-			g.setSquare(move.startIndex, XX, output)
-			g.setSquare(rookStartIndex, XX, output)
-			g.setSquare(move.endIndex, startPiece, output)
-			g.setSquare(rookEndIndex, rookPiece, output)
+			output.Add(g, move.startIndex, XX)
+			output.Add(g, rookStartIndex, XX)
+			output.Add(g, move.endIndex, startPiece)
+			output.Add(g, rookEndIndex, rookPiece)
 		}
 	}
+}
+
+func (g *GameState) performMove(move Move, update BoardUpdate, output *OldGameState) {
+	output.player = g.player
+	output.playerAndCastlingSideAllowed = g.playerAndCastlingSideAllowed
+	output.enPassantTarget = g.enPassantTarget
+	output.fullMoveClock = g.fullMoveClock
+	output.halfMoveClock = g.halfMoveClock
+
+	startPiece := g.board[move.startIndex]
+	g.enPassantTarget = Empty[FileRank]()
+	if move.moveType == QUIET_MOVE && isPawnSkip(startPiece, move) {
+		g.enPassantTarget = Some(fileRankFromBoardIndex(enPassantTarget(move)))
+	}
+
+	for i := 0; i < update.num; i++ {
+		g.board[update.indices[i]] = update.pieces[i]
+	}
+
 	g.halfMoveClock++
 	if g.player == BLACK {
 		g.fullMoveClock++
@@ -472,18 +480,18 @@ func (g *GameState) performMove(move Move, output *UndoMove) {
 	g.player = g.player.other()
 }
 
-func (g *GameState) performUndo(undo UndoMove) {
+func (g *GameState) undoUpdate(undo OldGameState, update BoardUpdate) {
 	g.player = undo.player
 	g.playerAndCastlingSideAllowed = undo.playerAndCastlingSideAllowed
 	g.enPassantTarget = undo.enPassantTarget
 	g.fullMoveClock = undo.fullMoveClock
 	g.halfMoveClock = undo.halfMoveClock
 
-	for i := undo.numPrevious - 1; i >= 0; i-- {
-		index := undo.previous[i].index
-		endPiece := undo.previous[i].piece
+	for i := update.num - 1; i >= 0; i-- {
+		index := update.indices[i]
+		piece := update.old[i]
 
-		g.board[index] = endPiece
+		g.board[index] = piece
 	}
 }
 func (g GameState) enemy() Player {

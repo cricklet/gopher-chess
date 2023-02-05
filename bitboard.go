@@ -958,11 +958,11 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 	}
 }
 
-func (b *Bitboards) performUndo(originalState *GameState, undo UndoMove) {
-	for i := undo.numPrevious - 1; i >= 0; i-- {
-		index := undo.previous[i].index
-		current := originalState.board[index]
-		previous := undo.previous[i].piece
+func (b *Bitboards) undoUpdate(update BoardUpdate) {
+	for i := update.num - 1; i >= 0; i-- {
+		index := update.indices[i]
+		current := update.pieces[i]
+		previous := update.old[i]
 
 		if current == XX {
 			if previous == XX {
@@ -987,13 +987,17 @@ func (b Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
 	b.generatePseudoMoves(g, potentialMoves)
 
 	for _, move := range *potentialMoves {
-		nextBitboards := b
-		nextBitboards.performMove(g, move)
+		update := BoardUpdate{}
+		SetupBoardUpdate(g, move, &update)
 
-		kingIndex := nextBitboards.players[player].pieces[KING].firstIndexOfOne()
-		if !playerIndexIsAttacked(player, kingIndex, nextBitboards.occupied, nextBitboards.players[enemy]) {
+		b.performMove(g, move)
+
+		kingIndex := b.players[player].pieces[KING].firstIndexOfOne()
+		if !playerIndexIsAttacked(player, kingIndex, b.occupied, b.players[enemy]) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
+
+		b.undoUpdate(update)
 	}
 
 	ReleaseMovesBuffer(potentialMoves)

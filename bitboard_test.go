@@ -994,25 +994,17 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 	b.generateLegalMoves(g, moves)
 	for _, move := range *moves {
 
-		undo := UndoMove{}
+		update := BoardUpdate{}
+		previous := OldGameState{}
 
-		// expectedBitboards := *b
-		// expectedState := *g
-
+		SetupBoardUpdate(g, move, &update)
 		b.performMove(g, move)
-		g.performMove(move, &undo)
+		g.performMove(move, update, &previous)
 
 		countUnderMove := countAndPerftForDepth(t, g, b, n-1, nil, nil)
 
-		b.performUndo(g, undo)
-		g.performUndo(undo)
-
-		// assert.Equal(t, expectedBitboards, *b)
-		// assert.Equal(t, expectedState.board, g.board)
-		// assert.Equal(t, expectedState.enPassantTarget, g.enPassantTarget)
-		// assert.Equal(t, expectedState.fullMoveClock, g.fullMoveClock)
-		// assert.Equal(t, expectedState.halfMoveClock, g.halfMoveClock)
-		// assert.Equal(t, expectedState.playerAndCastlingSideAllowed, g.playerAndCastlingSideAllowed)
+		b.undoUpdate(update)
+		g.undoUpdate(previous, update)
 
 		num += countUnderMove
 
@@ -1202,14 +1194,19 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 			totalInvalidMoves++
 		} else {
 			move := g.moveFromString(search.move)
-			undo := UndoMove{}
+
+			update := BoardUpdate{}
+			previous := OldGameState{}
+
+			SetupBoardUpdate(&g, move, &update)
+
 			b.performMove(&g, move)
-			g.performMove(move, &undo)
+			g.performMove(move, update, &previous)
 
 			nextString := g.fenString()
 
-			b.performUndo(&g, undo)
-			g.performUndo(undo)
+			b.undoUpdate(update)
+			g.undoUpdate(previous, update)
 
 			result = append(result, findInvalidMoves(t, nextString, maxDepth-1)...)
 		}
