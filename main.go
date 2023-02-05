@@ -307,10 +307,13 @@ const (
 
 var CASTLING_SIDES = [2]CastlingSide{KINGSIDE, QUEENSIDE}
 
-type Optional[T any] []T
+type Optional[T any] struct {
+	_hasValue bool
+	_t        T
+}
 
 func Some[T any](t T) Optional[T] {
-	return Optional[T]{t}
+	return Optional[T]{true, t}
 }
 
 func Empty[T any]() Optional[T] {
@@ -318,7 +321,7 @@ func Empty[T any]() Optional[T] {
 }
 
 func (o Optional[T]) IsEmpty() bool {
-	return len(o) == 0
+	return !o._hasValue
 }
 
 func (o Optional[T]) HasValue() bool {
@@ -326,7 +329,7 @@ func (o Optional[T]) HasValue() bool {
 }
 
 func (o Optional[T]) Value() T {
-	return o[0]
+	return o._t
 }
 
 type GameState struct {
