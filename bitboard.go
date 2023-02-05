@@ -196,14 +196,13 @@ var (
 	MASK_BLACK_STARTING_PAWNS = ^zerosForRange(ZERO_TO_SEVEN, SIXES)
 )
 
+var STARTING_PAWNS_FOR_PLAYER = [2]Bitboard{
+	MASK_WHITE_STARTING_PAWNS,
+	MASK_BLACK_STARTING_PAWNS,
+}
+
 func maskStartingPawnsForPlayer(player Player) Bitboard {
-	switch player {
-	case WHITE:
-		return MASK_WHITE_STARTING_PAWNS
-	case BLACK:
-		return MASK_BLACK_STARTING_PAWNS
-	}
-	panic(fmt.Sprintf("invalid player %v", player))
+	return STARTING_PAWNS_FOR_PLAYER[player]
 }
 
 var (

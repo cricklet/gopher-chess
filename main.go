@@ -125,15 +125,19 @@ func (p Piece) pieceType() PieceType {
 	return PIECE_TYPE_LOOKUP[p]
 }
 
-func (p Piece) player() Player {
-	if p >= WR && p <= WP {
-		return WHITE
+var PLAYER_FOR_PIECE [16]Player = func() [16]Player {
+	result := [16]Player{}
+	for i := WR; i <= WP; i++ {
+		result[i] = WHITE
 	}
-	if p >= BR && p <= BP {
-		return BLACK
+	for i := BR; i <= BP; i++ {
+		result[i] = BLACK
 	}
+	return result
+}()
 
-	panic("only call player() on a non-empty piece")
+func (p Piece) player() Player {
+	return PLAYER_FOR_PIECE[p]
 }
 
 type PieceType uint8
@@ -148,41 +152,28 @@ const (
 	INVALID
 )
 
-func (p PieceType) forPlayer(player Player) Piece {
-	switch player {
-	case WHITE:
-		switch p {
-		case ROOK:
-			return WR
-		case KNIGHT:
-			return WN
-		case BISHOP:
-			return WB
-		case KING:
-			return WK
-		case QUEEN:
-			return WQ
-		case PAWN:
-			return WP
-		}
-	case BLACK:
-		switch p {
-		case ROOK:
-			return BR
-		case KNIGHT:
-			return BN
-		case BISHOP:
-			return BB
-		case KING:
-			return BK
-		case QUEEN:
-			return BQ
-		case PAWN:
-			return BP
-		}
-	}
+var PIECE_FOR_PLAYER [2][8]Piece = func() [2][8]Piece {
+	result := [2][8]Piece{}
 
-	panic(fmt.Sprint("could not determine piece based on", player, p))
+	result[WHITE][ROOK] = WR
+	result[WHITE][KNIGHT] = WN
+	result[WHITE][BISHOP] = WB
+	result[WHITE][KING] = WK
+	result[WHITE][QUEEN] = WQ
+	result[WHITE][PAWN] = WP
+
+	result[BLACK][ROOK] = BR
+	result[BLACK][KNIGHT] = BN
+	result[BLACK][BISHOP] = BB
+	result[BLACK][KING] = BK
+	result[BLACK][QUEEN] = BQ
+	result[BLACK][PAWN] = BP
+
+	return result
+}()
+
+func (p PieceType) forPlayer(player Player) Piece {
+	return PIECE_FOR_PLAYER[player][p]
 }
 
 func pieceFromString(c rune) (Piece, error) {
