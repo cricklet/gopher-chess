@@ -518,6 +518,24 @@ func (b Bitboard) eachIndexOfOne(buffer *IndicesBuffer) *IndicesBuffer {
 	return buffer
 }
 
+func (b Bitboard) eachIndexOfOne2(callback func(int)) {
+	temp := b
+	for temp != 0 {
+		ls1 := temp.leastSignificantOne()
+		index := bits.OnesCount64(uint64(ls1 - 1))
+		callback(index)
+		temp = temp ^ ls1
+	}
+}
+
+func (b Bitboard) nextIndexOfOne() (int, Bitboard) {
+	ls1 := b.leastSignificantOne()
+	index := bits.OnesCount64(uint64(ls1 - 1))
+	b = b ^ ls1
+
+	return index, b
+}
+
 type ReusableBuffers struct {
 	startBuffer *IndicesBuffer
 	endBuffer   *IndicesBuffer
@@ -617,7 +635,7 @@ func generateJumpMovesByLookup(
 	return output
 }
 
-func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, enemyBitboards PlayerBitboards) bool {
+func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, enemyBitboards *PlayerBitboards) bool {
 	startBoard := singleBitboard(startIndex)
 
 	// Bishop attacks
@@ -680,9 +698,9 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	return attackers != 0
 }
 
-func (b Bitboards) dangerBoard(player Player) Bitboard {
+func (b *Bitboards) dangerBoard(player Player) Bitboard {
 	enemyPlayer := player.other()
-	enemyBoards := b.players[enemyPlayer]
+	enemyBoards := &b.players[enemyPlayer]
 	result := Bitboard(0)
 	for i := 0; i < 64; i++ {
 		if playerIndexIsAttacked(player, i, b.occupied, enemyBoards) {
@@ -752,10 +770,10 @@ func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T), fu
 
 var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = createPool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
-func (b Bitboards) generatePseudoMoves(g *GameState, moves *[]Move) {
+func (b *Bitboards) generatePseudoMoves(g *GameState, moves *[]Move) {
 	player := g.player
 	playerBoards := b.players[player]
-	enemyBoards := b.players[player.other()]
+	enemyBoards := &b.players[player.other()]
 
 	buffers := SetupBuffers()
 
@@ -972,7 +990,7 @@ func (b *Bitboards) undoUpdate(update BoardUpdate) {
 func (b *Bitboards) kingIsInCheck(player Player, enemy Player) bool {
 	kingBoard := b.players[player].pieces[KING]
 	kingIndex := kingBoard.firstIndexOfOne()
-	return playerIndexIsAttacked(player, kingIndex, b.occupied, b.players[enemy])
+	return playerIndexIsAttacked(player, kingIndex, b.occupied, &b.players[enemy])
 }
 
 func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {

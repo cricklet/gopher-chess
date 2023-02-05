@@ -350,7 +350,7 @@ func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool 
 	return absDiff(int(start.file), int(end.file)) == 1 && absDiff(int(start.rank), int(end.rank)) == 1
 }
 
-func (g GameState) moveFromString(s string) Move {
+func (g *GameState) moveFromString(s string) Move {
 	start := boardIndexFromString(s[0:2])
 	end := boardIndexFromString(s[2:4])
 
@@ -491,20 +491,20 @@ func (g *GameState) undoUpdate(undo OldGameState, update BoardUpdate) {
 		g.board[index] = piece
 	}
 }
-func (g GameState) enemy() Player {
+func (g *GameState) enemy() Player {
 	return g.player.other()
 }
 
-func (g GameState) whiteCanCastleKingside() bool {
+func (g *GameState) whiteCanCastleKingside() bool {
 	return g.playerAndCastlingSideAllowed[WHITE][KINGSIDE]
 }
-func (g GameState) whiteCanCastleQueenside() bool {
+func (g *GameState) whiteCanCastleQueenside() bool {
 	return g.playerAndCastlingSideAllowed[BLACK][QUEENSIDE]
 }
-func (g GameState) blackCanCastleKingside() bool {
+func (g *GameState) blackCanCastleKingside() bool {
 	return g.playerAndCastlingSideAllowed[WHITE][KINGSIDE]
 }
-func (g GameState) blackCanCastleQueenside() bool {
+func (g *GameState) blackCanCastleQueenside() bool {
 	return g.playerAndCastlingSideAllowed[BLACK][QUEENSIDE]
 }
 
@@ -543,7 +543,7 @@ func fenStringForEnPassant(enPassant Optional[FileRank]) string {
 	return enPassant.Value().string()
 }
 
-func (g GameState) fenString() string {
+func (g *GameState) fenString() string {
 	s := ""
 	for rank := 7; rank >= 0; rank-- {
 		numSpaces := 0

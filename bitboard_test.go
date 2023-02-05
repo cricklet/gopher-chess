@@ -1364,7 +1364,7 @@ func TestSliceVsArray(t *testing.T) {
 	defer profile.Start(profile.ProfilePath("./TestSliceVsArray")).Stop()
 	var wg sync.WaitGroup
 
-	competingThreads := 50
+	competingThreads := 25
 	allocationsPerThread := 99999
 	sliceProgress := progressbar.Default(int64(competingThreads*allocationsPerThread), "slice")
 	for t := 0; t < competingThreads; t++ {
@@ -1378,7 +1378,9 @@ func TestSliceVsArray(t *testing.T) {
 					*slice = append(*slice, debugValue)
 				}
 				ReleaseTestSlice(slice)
-				sliceProgress.Add(1)
+				if i%100 == 0 {
+					sliceProgress.Add(100)
+				}
 			}
 		}()
 	}
@@ -1397,7 +1399,9 @@ func TestSliceVsArray(t *testing.T) {
 					array.add(debugValue)
 				}
 				ReleaseTestArray(array)
-				arrayProgress.Add(1)
+				if i%100 == 0 {
+					arrayProgress.Add(100)
+				}
 			}
 		}()
 	}
@@ -1407,4 +1411,45 @@ func TestSliceVsArray(t *testing.T) {
 
 	fmt.Println("slices ", StatsTestSlice().string())
 	fmt.Println("array ", StatsTestArray().string())
+}
+
+func TestEachIndexOfOneCallbackVsRange(t *testing.T) {
+	defer profile.Start(profile.ProfilePath("./TestEachIndexOfOneCallbackVsRange")).Stop()
+
+	testNum := uint64(9999999)
+
+	buffer := GetIndicesBuffer()
+
+	bufferProgress := progressbar.Default(int64(testNum), "array")
+	for i := uint64(0); i < testNum; i++ {
+		for range *Bitboard(i).eachIndexOfOne(buffer) {
+		}
+		if i%1000 == 0 {
+			bufferProgress.Add(1000)
+		}
+	}
+	bufferProgress.Close()
+
+	var f = func(index int) {
+	}
+	callbackProgress := progressbar.Default(int64(testNum), "callback")
+	for i := uint64(0); i < testNum; i++ {
+		Bitboard(i).eachIndexOfOne2(f)
+		if i%1000 == 0 {
+			callbackProgress.Add(1000)
+		}
+	}
+	callbackProgress.Close()
+
+	manualProgress := progressbar.Default(int64(testNum), "manual")
+	for i := uint64(0); i < testNum; i++ {
+		temp := Bitboard(i)
+		for temp != 0 {
+			_, temp = temp.nextIndexOfOne()
+		}
+		if i%1000 == 0 {
+			manualProgress.Add(1000)
+		}
+	}
+	manualProgress.Close()
 }
