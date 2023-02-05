@@ -984,6 +984,10 @@ func TestGameStateCopyingIsDeep(t *testing.T) {
 type PerftMap map[string]int
 
 func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, progress *chan int, perft *PerftMap) int {
+	if b.kingIsInCheck(g.enemy(), g.player) {
+		return 0
+	}
+
 	if n == 0 {
 		return 1
 	}
@@ -991,15 +995,16 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 	num := 0
 
 	moves := GetMovesBuffer()
-	b.generateLegalMoves(g, moves)
-	for _, move := range *moves {
+	b.generatePseudoMoves(g, moves)
 
+	for _, move := range *moves {
 		update := BoardUpdate{}
 		previous := OldGameState{}
-
 		SetupBoardUpdate(g, move, &update)
+		RecordCurrentState(g, &previous)
+
 		b.performMove(g, move)
-		g.performMove(move, update, &previous)
+		g.performMove(move, update)
 
 		countUnderMove := countAndPerftForDepth(t, g, b, n-1, nil, nil)
 
@@ -1197,11 +1202,11 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 
 			update := BoardUpdate{}
 			previous := OldGameState{}
-
 			SetupBoardUpdate(&g, move, &update)
+			RecordCurrentState(&g, &previous)
 
 			b.performMove(&g, move)
-			g.performMove(move, update, &previous)
+			g.performMove(move, update)
 
 			nextString := g.fenString()
 

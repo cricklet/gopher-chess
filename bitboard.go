@@ -980,7 +980,12 @@ func (b *Bitboards) undoUpdate(update BoardUpdate) {
 	}
 }
 
-func (b Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
+func (b *Bitboards) kingIsInCheck(player Player, enemy Player) bool {
+	kingIndex := b.players[player].pieces[KING].firstIndexOfOne()
+	return playerIndexIsAttacked(player, kingIndex, b.occupied, b.players[enemy])
+}
+
+func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
 	player := g.player
 	enemy := g.enemy()
 	potentialMoves := GetMovesBuffer()
@@ -991,9 +996,7 @@ func (b Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
 		SetupBoardUpdate(g, move, &update)
 
 		b.performMove(g, move)
-
-		kingIndex := b.players[player].pieces[KING].firstIndexOfOne()
-		if !playerIndexIsAttacked(player, kingIndex, b.occupied, b.players[enemy]) {
+		if !b.kingIsInCheck(player, enemy) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 

@@ -456,13 +456,15 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) {
 	}
 }
 
-func (g *GameState) performMove(move Move, update BoardUpdate, output *OldGameState) {
+func RecordCurrentState(g *GameState, output *OldGameState) {
 	output.player = g.player
 	output.playerAndCastlingSideAllowed = g.playerAndCastlingSideAllowed
 	output.enPassantTarget = g.enPassantTarget
 	output.fullMoveClock = g.fullMoveClock
 	output.halfMoveClock = g.halfMoveClock
+}
 
+func (g *GameState) performMove(move Move, update BoardUpdate) {
 	startPiece := g.board[move.startIndex]
 	g.enPassantTarget = Empty[FileRank]()
 	if move.moveType == QUIET_MOVE && isPawnSkip(startPiece, move) {
