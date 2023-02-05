@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-type File uint8
-type Rank uint8
+type File uint
+type Rank uint
 
 func (f File) string() string {
 	return [8]string{
@@ -63,7 +63,7 @@ func fileRankFromString(s string) (FileRank, error) {
 	return FileRank{file, rank}, nil
 }
 
-type Player int
+type Player uint
 
 const (
 	WHITE Player = iota
@@ -85,7 +85,7 @@ func (p Player) other() Player {
 	return 1 - p
 }
 
-type Piece uint8
+type Piece uint
 
 const (
 	XX Piece = iota
@@ -121,6 +121,17 @@ var PIECE_TYPE_LOOKUP [16]PieceType = func() [16]PieceType {
 	return result
 }()
 
+func (p Piece) pieceType3() PieceType {
+	if p < BR {
+		return PieceType(p - WR)
+	}
+	return PieceType(p - BR)
+}
+
+func (p Piece) pieceType2() PieceType {
+	return PieceType((p - 1) % 6)
+}
+
 func (p Piece) pieceType() PieceType {
 	return PIECE_TYPE_LOOKUP[p]
 }
@@ -137,10 +148,17 @@ var PLAYER_FOR_PIECE [16]Player = func() [16]Player {
 }()
 
 func (p Piece) player() Player {
+	if p < BR {
+		return WHITE
+	}
+	return BLACK
+}
+
+func (p Piece) player2() Player {
 	return PLAYER_FOR_PIECE[p]
 }
 
-type PieceType uint8
+type PieceType uint
 
 const (
 	ROOK PieceType = iota

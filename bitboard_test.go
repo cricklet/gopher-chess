@@ -1487,3 +1487,34 @@ func TestIndexSingeVsDoubleArray(t *testing.T) {
 	doubleProgress.Close()
 
 }
+
+func TestPlayerFromPiece(t *testing.T) {
+	defer profile.Start(profile.ProfilePath("./TestPlayerFromPiece")).Stop()
+
+	testNum := 100000000
+
+	ifProgress := progressbar.Default(int64(testNum), "if")
+	for i := 0; i < testNum; i++ {
+		for j := 0; j <= int(BP); j++ {
+			piece := Piece(j)
+			_ = piece.player()
+		}
+		if i%1000 == 0 {
+			ifProgress.Add(1000)
+		}
+	}
+	ifProgress.Close()
+
+	lookupProgress := progressbar.Default(int64(testNum), "lookup")
+	for i := 0; i < testNum; i++ {
+		for j := 0; j <= int(BP); j++ {
+			piece := Piece(j)
+			_ = piece.player2()
+		}
+		if i%1000 == 0 {
+			lookupProgress.Add(1000)
+		}
+	}
+	lookupProgress.Close()
+
+}
