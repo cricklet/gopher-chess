@@ -110,7 +110,7 @@ func TestBitboardSetup(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, WN, WR,
 	}.AsBoardArray().string())
 
-	bitboards := setupBitboards(g)
+	bitboards := setupBitboards(&g)
 	assert.Equal(t, bitboards.occupied.string(), strings.Join([]string{
 		"11111111",
 		"11111111",
@@ -229,11 +229,11 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, WN, WR,
 	}.AsBoardArray().string())
 
-	bitboards := setupBitboards(g)
+	bitboards := setupBitboards(&g)
 
 	result := []string{}
 	moves := GetMovesBuffer()
-	bitboards.generatePseudoMoves(g, moves)
+	bitboards.generatePseudoMoves(&g, moves)
 	for _, move := range *moves {
 		result = append(result, move.string())
 	}
@@ -311,12 +311,12 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 
 	assert.Equal(t, g.enPassantTarget.Value().string(), "g6")
 
-	bitboards := setupBitboards(g)
+	bitboards := setupBitboards(&g)
 
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.generatePseudoMoves(g, moves)
+	bitboards.generatePseudoMoves(&g, moves)
 	for _, move := range *moves {
 		result = append(result, move.string())
 	}
@@ -527,12 +527,12 @@ func TestWhiteCastling(t *testing.T) {
 	assert.Equal(t, WHITE, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
-	bitboards := setupBitboards(g)
+	bitboards := setupBitboards(&g)
 
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.generatePseudoMoves(g, moves)
+	bitboards.generatePseudoMoves(&g, moves)
 	for _, move := range *moves {
 		result = append(result, move.string())
 	}
@@ -623,12 +623,12 @@ func TestBlackCastling(t *testing.T) {
 	assert.Equal(t, BLACK, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
-	bitboards := setupBitboards(g)
+	bitboards := setupBitboards(&g)
 
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.generatePseudoMoves(g, moves)
+	bitboards.generatePseudoMoves(&g, moves)
 	for _, move := range *moves {
 		result = append(result, move.string())
 	}
@@ -712,7 +712,7 @@ func TestAttackMap(t *testing.T) {
 	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := setupBitboards(g)
+	bitboards := setupBitboards(&g)
 
 	assert.Equal(t, strings.Join([]string{
 		"r   k  r",
@@ -811,7 +811,7 @@ func TestCheck(t *testing.T) {
 	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := setupBitboards(g)
+	bitboards := setupBitboards(&g)
 
 	assert.Equal(t, strings.Join([]string{
 		"r   k  r",
@@ -826,7 +826,7 @@ func TestCheck(t *testing.T) {
 
 	result := []string{}
 	moves := make([]Move, 0)
-	bitboards.generateLegalMoves(g, &moves)
+	bitboards.generateLegalMoves(&g, &moves)
 	for _, move := range moves {
 		result = append(result, move.string())
 	}
@@ -850,7 +850,7 @@ func TestPin(t *testing.T) {
 	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := setupBitboards(g)
+	bitboards := setupBitboards(&g)
 
 	assert.Equal(t, strings.Join([]string{
 		"     k  ",
@@ -865,7 +865,7 @@ func TestPin(t *testing.T) {
 
 	result := []string{}
 	moves := make([]Move, 0)
-	bitboards.generateLegalMoves(g, &moves)
+	bitboards.generateLegalMoves(&g, &moves)
 	for _, move := range moves {
 		result = append(result, move.string())
 	}
@@ -991,17 +991,17 @@ func countAndPerftForDepth(g GameState, b Bitboards, n int, progress *chan int, 
 	num := 0
 
 	moves := GetMovesBuffer()
-	b.generateLegalMoves(g, moves)
+	b.generateLegalMoves(&g, moves)
 	for _, move := range *moves {
 
 		// moves := make([]Move, 0, 256)
-		// b.generateLegalMoves(g, &moves)
+		// b.generateLegalMoves(&g, &moves)
 		// for _, move := range moves {
 
 		nextState := g
 		nextBoard := b
 
-		nextBoard.performMove(g, move)
+		nextBoard.performMove(&g, move)
 		nextState.performMove(move)
 
 		countUnderMove := countAndPerftForDepth(nextState, nextBoard, n-1, nil, nil)
@@ -1109,7 +1109,7 @@ func computeIncorrectPerftMoves(t *testing.T, s string, depth int) map[string]Pe
 
 	g, err := gamestateFromFenString(s)
 	assert.Nil(t, err)
-	b := setupBitboards(g)
+	b := setupBitboards(&g)
 	total, perft := CountAndPerftForDepthWithProgress(g, b, depth, expectedTotal)
 
 	result := make(map[string]PerftComparison)
@@ -1236,7 +1236,7 @@ func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 	for depth, expectedCount := range EXPECTED_COUNT {
 		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)
-		b := setupBitboards(g)
+		b := setupBitboards(&g)
 		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
@@ -1290,7 +1290,7 @@ func TestMovesAtDepth(t *testing.T) {
 	for depth, expectedCount := range EXPECTED_COUNT {
 		g, err := gamestateFromFenString(s)
 		assert.Nil(t, err)
-		b := setupBitboards(g)
+		b := setupBitboards(&g)
 		actualCount, _ := CountAndPerftForDepthWithProgress(g, b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)

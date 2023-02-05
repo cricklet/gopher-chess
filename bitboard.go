@@ -460,7 +460,7 @@ type Bitboards struct {
 	players  [2]PlayerBitboards
 }
 
-func setupBitboards(g GameState) Bitboards {
+func setupBitboards(g *GameState) Bitboards {
 	result := Bitboards{}
 	for i, piece := range g.board {
 		if piece == XX {
@@ -714,7 +714,9 @@ func (s PoolStats) string() string {
 }
 
 func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T), func() PoolStats) {
-	available := []*T{}
+	availableBuffer := [256]*T{}
+	startIndex := 0
+	endIndex := 0
 
 	lock := sync.Mutex{}
 
@@ -725,9 +727,10 @@ func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T), fu
 	var get = func() *T {
 		lock.Lock()
 
-		if len(available) > 0 {
-			result := available[0]
-			available = available[1:]
+		if endIndex != startIndex {
+			result := availableBuffer[startIndex]
+			startIndex = (startIndex + 1) % 256
+
 			lock.Unlock()
 
 			hits++
@@ -746,7 +749,8 @@ func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T), fu
 		reset(t)
 
 		lock.Lock()
-		available = append(available, t)
+		availableBuffer[endIndex] = t
+		endIndex = (endIndex + 1) % 256
 		lock.Unlock()
 	}
 
@@ -759,7 +763,7 @@ func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T), fu
 
 var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = createPool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
-func (b Bitboards) generatePseudoMoves(g GameState, moves *[]Move) {
+func (b Bitboards) generatePseudoMoves(g *GameState, moves *[]Move) {
 	player := g.player
 	playerBoards := b.players[player]
 	enemyBoards := b.players[player.other()]
@@ -903,7 +907,7 @@ func (b *Bitboards) setSquare(index int, piece Piece) {
 	b.players[player].pieces[pieceType] |= oneBitboard
 }
 
-func (b *Bitboards) performMove(originalState GameState, move Move) {
+func (b *Bitboards) performMove(originalState *GameState, move Move) {
 	startIndex := move.startIndex
 	endIndex := move.endIndex
 
@@ -954,7 +958,7 @@ func (b *Bitboards) performMove(originalState GameState, move Move) {
 	}
 }
 
-func (b Bitboards) generateLegalMoves(g GameState, legalMovesOutput *[]Move) {
+func (b Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
 	player := g.player
 	enemy := g.enemy()
 	potentialMoves := GetMovesBuffer()
