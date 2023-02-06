@@ -291,6 +291,10 @@ func reduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
 	return u
 }
 
+func OnesCount(b Bitboard) int {
+	return bits.OnesCount64(uint64(b))
+}
+
 func bitboardWithAllLocationsSet(locations []string) Bitboard {
 	return reduceSlice(
 		mapSlice(locations, boardIndexFromString),
@@ -1042,6 +1046,106 @@ func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
 	}
 
 	ReleaseMovesBuffer(potentialMoves)
+}
+
+type EvaluationBitboard struct {
+	multiplier int
+	b          Bitboard
+}
+
+func bitboardFromArray(lookup int, array [8][8]int) Bitboard {
+	b := Bitboard(0)
+	for i := 0; i < 8; i++ {
+		for j := 0; j < 8; j++ {
+			if array[i][j] == lookup {
+				index := (7-i)*8 + j
+				b |= singleBitboard(index)
+			}
+		}
+	}
+	return b
+}
+
+func evaluationsFromArray(array [8][8]int, scale int) []EvaluationBitboard {
+	result := []EvaluationBitboard{}
+	scores := map[int]bool{}
+	for i := 0; i < 8; i++ {
+		for j := 0; j < 8; j++ {
+			scores[array[i][j]] = true
+		}
+	}
+	for k := range scores {
+		eval := EvaluationBitboard{}
+		eval.multiplier = k * scale
+		eval.b = bitboardFromArray(k, array)
+		result = append(result, eval)
+	}
+	return result
+}
+
+func flipArray(array [8][8]int) [8][8]int {
+	result := [8][8]int{}
+	for i := 0; i < 8; i++ {
+		for j := 0; j < 8; j++ {
+			result[i][j] = array[7-i][j]
+		}
+	}
+	return result
+}
+
+func evaluationsPerPlayer(whiteOrientedEvalArray [8][8]int, scale int) [2][]EvaluationBitboard {
+	return [2][]EvaluationBitboard{
+		evaluationsFromArray(whiteOrientedEvalArray, scale),
+		evaluationsFromArray(flipArray(whiteOrientedEvalArray), scale),
+	}
+}
+
+var ROOK_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
+	{0, 0, 0, 0, 0, 0, 0, 0},
+	{1, 2, 2, 2, 2, 2, 2, 1},
+	{-1, 0, 0, 0, 0, 0, 0, -1},
+	{-1, 0, 0, 0, 0, 0, 0, -1},
+	{-1, 0, 0, 0, 0, 0, 0, -1},
+	{-1, 0, 0, 0, 0, 0, 0, -1},
+	{-1, 0, 0, 0, 0, 0, 0, -1},
+	{0, 0, 0, 2, 2, 0, 0, 0},
+}, 100)
+
+func evaluateDevelopment(b Bitboard, e []EvaluationBitboard) int {
+	result := 0
+	for _, eval := range e {
+		result += eval.multiplier * OnesCount(eval.b*b)
+	}
+	return result
+}
+
+func (b *Bitboards) evaluateDevelopment(player Player) int {
+	development := 0
+	development += evaluateDevelopment(b.players[player].pieces[ROOK], ROOK_EVALUATION_BITBOARDS[player])
+	return development
+}
+
+func (b *Bitboards) evaluate(player Player) int {
+	enemy := player.other()
+
+	pieceValues :=
+		500*OnesCount(b.players[player].pieces[ROOK]) +
+			300*OnesCount(b.players[player].pieces[KNIGHT]) +
+			350*OnesCount(b.players[player].pieces[BISHOP]) +
+			900*OnesCount(b.players[player].pieces[QUEEN]) +
+			100*OnesCount(b.players[player].pieces[PAWN])
+
+	enemyValues :=
+		500*OnesCount(b.players[enemy].pieces[ROOK]) +
+			300*OnesCount(b.players[enemy].pieces[KNIGHT]) +
+			350*OnesCount(b.players[enemy].pieces[BISHOP]) +
+			900*OnesCount(b.players[enemy].pieces[QUEEN]) +
+			100*OnesCount(b.players[enemy].pieces[PAWN])
+
+	developmentValues := b.evaluateDevelopment(player)
+	enemyDevelopmentValues := b.evaluateDevelopment(enemy)
+
+	return pieceValues + developmentValues - enemyValues - enemyDevelopmentValues
 }
 
 func moveFromString(s string, m MoveType) Move {
