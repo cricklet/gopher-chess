@@ -5,8 +5,8 @@ echo "position startpos"
 echo "go"
 sleep 1
 echo "stop"
-echo "position moves d2d4"
-echo "position moves d7d5"
+echo "position startpos moves d2d4"
+echo "position startpos moves d2d4 d7d5"
 echo "go"
 sleep 1
 echo "stop"
