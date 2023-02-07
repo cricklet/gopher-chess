@@ -96,10 +96,10 @@ func TestDirMasks(t *testing.T) {
 
 func TestBitboardSetup(t *testing.T) {
 	s := "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Equal(t, g.board.string(), NaturalBoardArray{
+	assert.Equal(t, g.Board.String(), NaturalBoardArray{
 		BR, BN, BB, BQ, BK, BB, BN, BR,
 		BP, BP, BP, BP, BP, BP, BP, BP,
 		XX, XX, XX, XX, XX, XX, XX, XX,
@@ -108,9 +108,9 @@ func TestBitboardSetup(t *testing.T) {
 		XX, XX, XX, XX, XX, XX, XX, XX,
 		WP, WP, WP, WP, XX, WP, WP, WP,
 		WR, WN, WB, WQ, WK, WB, WN, WR,
-	}.AsBoardArray().string())
+	}.AsBoardArray().String())
 
-	bitboards := setupBitboards(&g)
+	bitboards := SetupBitboards(&g)
 	assert.Equal(t, bitboards.occupied.string(), strings.Join([]string{
 		"11111111",
 		"11111111",
@@ -213,12 +213,34 @@ func TestBitRotation(t *testing.T) {
 	}, "\n"))
 }
 
-func TestGeneratePseudoMovesEarly(t *testing.T) {
-	s := "rnbqkbnr/pppp11pp/8/4pp2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 1 2"
-	g, err := gamestateFromFenString(s)
+func TestEvaluation(t *testing.T) {
+	s := "4k3/2R5/8/7r/8/r7/3R4/4K3 b - - 10 5"
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Equal(t, g.board.string(), NaturalBoardArray{
+	bitboards := SetupBitboards(&g)
+	assert.Equal(t, strings.Join([]string{
+		"    k   ",
+		"  R     ",
+		"        ",
+		"       r",
+		"        ",
+		"r       ",
+		"   R    ",
+		"    K   ",
+	}, "\n"), g.Board.String())
+
+	assert.Equal(t, bitboards.evaluateDevelopment(WHITE), 2*DEVELOPMENT_SCALE)
+	assert.Equal(t, bitboards.evaluateDevelopment(BLACK), -2*DEVELOPMENT_SCALE)
+
+}
+
+func TestGeneratePseudoMovesEarly(t *testing.T) {
+	s := "rnbqkbnr/pppp11pp/8/4pp2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 1 2"
+	g, err := GamestateFromFenString(s)
+	assert.Nil(t, err)
+
+	assert.Equal(t, g.Board.String(), NaturalBoardArray{
 		BR, BN, BB, BQ, BK, BB, BN, BR,
 		BP, BP, BP, BP, XX, XX, BP, BP,
 		XX, XX, XX, XX, XX, XX, XX, XX,
@@ -227,15 +249,15 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 		XX, XX, XX, XX, XX, XX, XX, XX,
 		WP, WP, WP, WP, XX, WP, WP, WP,
 		WR, WN, WB, WQ, WK, WB, WN, WR,
-	}.AsBoardArray().string())
+	}.AsBoardArray().String())
 
-	bitboards := setupBitboards(&g)
+	bitboards := SetupBitboards(&g)
 
 	result := []string{}
 	moves := GetMovesBuffer()
 	bitboards.generatePseudoMoves(&g, moves)
 	for _, move := range *moves {
-		result = append(result, move.string())
+		result = append(result, move.String())
 	}
 
 	expected := []string{
@@ -295,7 +317,7 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 
 func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 	s := "rnbqkbnr/pppp3p/8/4pPp1/8/5N2/PPPP1PPP/RNBQKB1R w KQkq g6 0 4"
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, NaturalBoardArray{
@@ -307,18 +329,18 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 		XX, XX, XX, XX, XX, WN, XX, XX,
 		WP, WP, WP, WP, XX, WP, WP, WP,
 		WR, WN, WB, WQ, WK, WB, XX, WR,
-	}.AsBoardArray().string(), g.board.string())
+	}.AsBoardArray().String(), g.Board.String())
 
 	assert.Equal(t, g.enPassantTarget.Value().string(), "g6")
 
-	bitboards := setupBitboards(&g)
+	bitboards := SetupBitboards(&g)
 
 	result := []string{}
 
 	moves := GetMovesBuffer()
 	bitboards.generatePseudoMoves(&g, moves)
 	for _, move := range *moves {
-		result = append(result, move.string())
+		result = append(result, move.String())
 	}
 
 	expected := []string{
@@ -520,21 +542,21 @@ func TestBlockerMasks(t *testing.T) {
 func TestWhiteCastling(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2N1BN2/PPP1QPPP/R3K2R w KQkq - 1 11"
 
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
 	assert.Equal(t, WHITE, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
-	bitboards := setupBitboards(&g)
+	bitboards := SetupBitboards(&g)
 
 	result := []string{}
 
 	moves := GetMovesBuffer()
 	bitboards.generatePseudoMoves(&g, moves)
 	for _, move := range *moves {
-		result = append(result, move.string())
+		result = append(result, move.String())
 	}
 
 	expected := []string{
@@ -616,21 +638,21 @@ func TestWhiteCastling(t *testing.T) {
 func TestBlackCastling(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2NQBN2/PPP2PPP/R3K2R b KQkq - 2 11"
 
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
 	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
 	assert.Equal(t, BLACK, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
-	bitboards := setupBitboards(&g)
+	bitboards := SetupBitboards(&g)
 
 	result := []string{}
 
 	moves := GetMovesBuffer()
 	bitboards.generatePseudoMoves(&g, moves)
 	for _, move := range *moves {
-		result = append(result, move.string())
+		result = append(result, move.String())
 	}
 
 	expected := []string{
@@ -709,10 +731,10 @@ func TestBlackCastling(t *testing.T) {
 func TestAttackMap(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2NQBN2/PPP2PPP/R3K2R b KQkq - 2 11"
 
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := setupBitboards(&g)
+	bitboards := SetupBitboards(&g)
 
 	assert.Equal(t, strings.Join([]string{
 		"r   k  r",
@@ -723,7 +745,7 @@ func TestAttackMap(t *testing.T) {
 		"  NQBN  ",
 		"PPP  PPP",
 		"R   K  R",
-	}, "\n"), g.board.string())
+	}, "\n"), g.Board.String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -808,10 +830,10 @@ func TestKnightMasks(t *testing.T) {
 func TestCheck(t *testing.T) {
 	s := "r3k2r/pp1bb3/3pPPQp/qBp1n1p1/6n1/2N1BN2/PPP2PPP/R3K2R b KQkq - 1 14"
 
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := setupBitboards(&g)
+	bitboards := SetupBitboards(&g)
 
 	assert.Equal(t, strings.Join([]string{
 		"r   k  r",
@@ -822,13 +844,13 @@ func TestCheck(t *testing.T) {
 		"  N BN  ",
 		"PPP  PPP",
 		"R   K  R",
-	}, "\n"), g.board.string())
+	}, "\n"), g.Board.String())
 
 	result := []string{}
 	moves := make([]Move, 0)
 	bitboards.generateLegalMoves(&g, &moves)
 	for _, move := range moves {
-		result = append(result, move.string())
+		result = append(result, move.String())
 	}
 
 	expected := []string{
@@ -847,10 +869,10 @@ func TestCheck(t *testing.T) {
 func TestPin(t *testing.T) {
 	s := "5k2/8/8/8/1q6/2N4p/2PK2pP/8 w - - 0 44"
 
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := setupBitboards(&g)
+	bitboards := SetupBitboards(&g)
 
 	assert.Equal(t, strings.Join([]string{
 		"     k  ",
@@ -861,13 +883,13 @@ func TestPin(t *testing.T) {
 		"  N    p",
 		"  PK  pP",
 		"        ",
-	}, "\n"), g.board.string())
+	}, "\n"), g.Board.String())
 
 	result := []string{}
 	moves := make([]Move, 0)
 	bitboards.generateLegalMoves(&g, &moves)
 	for _, move := range moves {
-		result = append(result, move.string())
+		result = append(result, move.String())
 	}
 
 	expected := []string{
@@ -959,23 +981,23 @@ func TestBitboardsCopyingIsDeep(t *testing.T) {
 
 func TestGameStateCopyingIsDeep(t *testing.T) {
 	b := GameState{}
-	b.board[0] = WQ
+	b.Board[0] = WQ
 	b.halfMoveClock = 9
 	b.playerAndCastlingSideAllowed[0][0] = true
 	b.playerAndCastlingSideAllowed[0][1] = false
 
 	c := b
-	c.board[0] = BQ
+	c.Board[0] = BQ
 	c.halfMoveClock = 11
 	c.playerAndCastlingSideAllowed[0][0] = false
 	c.playerAndCastlingSideAllowed[0][1] = true
 
-	assert.Equal(t, b.board[0], WQ)
+	assert.Equal(t, b.Board[0], WQ)
 	assert.Equal(t, b.halfMoveClock, 9)
 	assert.Equal(t, b.playerAndCastlingSideAllowed[0][0], true)
 	assert.Equal(t, b.playerAndCastlingSideAllowed[0][1], false)
 
-	assert.Equal(t, c.board[0], BQ)
+	assert.Equal(t, c.Board[0], BQ)
 	assert.Equal(t, c.halfMoveClock, 11)
 	assert.Equal(t, c.playerAndCastlingSideAllowed[0][0], false)
 	assert.Equal(t, c.playerAndCastlingSideAllowed[0][1], true)
@@ -1014,7 +1036,7 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 		num += countUnderMove
 
 		if perft != nil {
-			(*perft)[move.string()] = countUnderMove
+			(*perft)[move.String()] = countUnderMove
 		}
 		if progress != nil {
 			*progress <- num
@@ -1176,9 +1198,9 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 	result := []string{}
 	movesToSearch := []MoveToSearch{}
 
-	g, err := gamestateFromFenString(initialString)
+	g, err := GamestateFromFenString(initialString)
 	assert.Nil(t, err)
-	b := setupBitboards(&g)
+	b := SetupBitboards(&g)
 
 	for i := 1; i <= maxDepth; i++ {
 		incorrectMoves := computeIncorrectPerftMoves(t, &g, &b, i)
@@ -1260,9 +1282,9 @@ func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 	}
 
 	for depth, expectedCount := range EXPECTED_COUNT {
-		g, err := gamestateFromFenString(s)
+		g, err := GamestateFromFenString(s)
 		assert.Nil(t, err)
-		b := setupBitboards(&g)
+		b := SetupBitboards(&g)
 		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
@@ -1315,17 +1337,17 @@ func TestMovesAtDepth(t *testing.T) {
 
 	defer profile.Start(profile.ProfilePath("./TestMovesAtDepth")).Stop()
 	for depth, expectedCount := range EXPECTED_COUNT {
-		g, err := gamestateFromFenString(s)
+		g, err := GamestateFromFenString(s)
 		assert.Nil(t, err)
-		b := setupBitboards(&g)
+		b := SetupBitboards(&g)
 		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
 	}
 	for depth, expectedCount := range EXPECTED_COUNT {
-		g, err := gamestateFromFenString(s)
+		g, err := GamestateFromFenString(s)
 		assert.Nil(t, err)
-		b := setupBitboards(&g)
+		b := SetupBitboards(&g)
 		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)

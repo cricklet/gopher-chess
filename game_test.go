@@ -19,7 +19,7 @@ func TestBoardPrint(t *testing.T) {
 		XX, XX, XX, XX, XX, XX, XX, XX,
 	}
 
-	assert.Equal(t, b.string(), strings.Join([]string{
+	assert.Equal(t, b.String(), strings.Join([]string{
 		"        ",
 		"        ",
 		"        ",
@@ -36,22 +36,22 @@ func TestLocationDecoding(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{0, 0})
 
-	game, err := gamestateFromFenString("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
+	game, err := GamestateFromFenString("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
 	assert.Nil(t, err)
 
-	assert.Equal(t, pieceAtFileRank(game.board, location).string(), WR.string())
+	assert.Equal(t, pieceAtFileRank(game.Board, location).string(), WR.string())
 
 	location, err = fileRankFromString("e4")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{4, 3})
 
-	assert.Equal(t, pieceAtFileRank(game.board, location).string(), WP.string())
+	assert.Equal(t, pieceAtFileRank(game.Board, location).string(), WP.string())
 
 	location, err = fileRankFromString("d8")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{3, 7})
 
-	assert.Equal(t, pieceAtFileRank(game.board, location).string(), BQ.string())
+	assert.Equal(t, pieceAtFileRank(game.Board, location).string(), BQ.string())
 
 	location, err = fileRankFromString("a1")
 	assert.Nil(t, err)
@@ -72,10 +72,10 @@ func TestLocationDecoding(t *testing.T) {
 
 func TestNotationDecoding(t *testing.T) {
 	s := "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Equal(t, g.board.string(), NaturalBoardArray{
+	assert.Equal(t, g.Board.String(), NaturalBoardArray{
 		BR, BN, BB, BQ, BK, BB, BN, BR,
 		BP, BP, BP, BP, BP, BP, BP, BP,
 		XX, XX, XX, XX, XX, XX, XX, XX,
@@ -84,7 +84,7 @@ func TestNotationDecoding(t *testing.T) {
 		XX, XX, XX, XX, XX, XX, XX, XX,
 		WP, WP, WP, WP, XX, WP, WP, WP,
 		WR, WN, WB, WQ, WK, WB, WN, WR,
-	}.AsBoardArray().string())
+	}.AsBoardArray().String())
 
 	assert.Equal(t, g.player, BLACK)
 
@@ -103,10 +103,10 @@ func TestNotationDecoding(t *testing.T) {
 
 func TestNotationDecoding2(t *testing.T) {
 	s := "8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 w - - 99 50"
-	g, err := gamestateFromFenString(s)
+	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Equal(t, g.board, NaturalBoardArray{
+	assert.Equal(t, g.Board, NaturalBoardArray{
 		XX, XX, XX, XX, XX, XX, XX, XX,
 		XX, XX, XX, XX, XX, BK, XX, XX,
 		XX, XX, XX, BP, XX, XX, XX, XX,
@@ -127,4 +127,17 @@ func TestNotationDecoding2(t *testing.T) {
 
 	assert.Equal(t, g.halfMoveClock, 99)
 	assert.Equal(t, g.fullMoveClock, 50)
+}
+
+func TestUCI(t *testing.T) {
+	inputs := []string{
+		"isready",
+		"uci",
+		"position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+		"go",
+	}
+	r := Runner{}
+	for _, line := range inputs {
+		r.HandleInputAndReturnDone(line)
+	}
 }

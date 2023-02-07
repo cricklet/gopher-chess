@@ -1,10 +1,7 @@
 package chessgo
 
 import (
-	"bufio"
 	"fmt"
-	"os"
-	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -271,7 +268,7 @@ func (n NaturalBoardArray) AsBoardArray() BoardArray {
 	return b
 }
 
-func (b BoardArray) string() string {
+func (b BoardArray) String() string {
 	result := ""
 	for rank := 7; rank >= 0; rank-- {
 		row := b[rank*8 : (rank+1)*8]
@@ -342,7 +339,7 @@ func (o Optional[T]) Value() T {
 }
 
 type GameState struct {
-	board                        BoardArray
+	Board                        BoardArray
 	player                       Player
 	playerAndCastlingSideAllowed [2][2]bool
 	enPassantTarget              Optional[FileRank]
@@ -373,8 +370,8 @@ func (g *GameState) moveFromString(s string) Move {
 	end := boardIndexFromString(s[2:4])
 
 	var moveType MoveType
-	if g.board[end] == XX {
-		startPieceType := g.board[start].pieceType()
+	if g.Board[end] == XX {
+		startPieceType := g.Board[start].pieceType()
 		// either a quiet, castle, or en passant
 		if startPieceType == KING && absDiff(start, end) == 2 {
 			moveType = CASTLING_MOVE
@@ -424,12 +421,12 @@ type BoardUpdate struct {
 func (u *BoardUpdate) Add(g *GameState, index int, piece Piece) {
 	u.indices[u.num] = index
 	u.pieces[u.num] = piece
-	u.old[u.num] = g.board[index]
+	u.old[u.num] = g.Board[index]
 	u.num++
 }
 
 func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) {
-	startPiece := g.board[move.startIndex]
+	startPiece := g.Board[move.startIndex]
 
 	switch move.moveType {
 	case QUIET_MOVE:
@@ -458,7 +455,7 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) {
 	case CASTLING_MOVE:
 		{
 			rookStartIndex, rookEndIndex := rookMoveForCastle(move.startIndex, move.endIndex)
-			rookPiece := g.board[rookStartIndex]
+			rookPiece := g.Board[rookStartIndex]
 
 			output.Add(g, move.startIndex, XX)
 			output.Add(g, rookStartIndex, XX)
@@ -477,7 +474,7 @@ func RecordCurrentState(g *GameState, output *OldGameState) {
 }
 
 func (g *GameState) performMove(move Move, update BoardUpdate) {
-	startPiece := g.board[move.startIndex]
+	startPiece := g.Board[move.startIndex]
 
 	g.enPassantTarget = Empty[FileRank]()
 	if move.moveType == QUIET_MOVE && isPawnSkip(startPiece, move) {
@@ -485,7 +482,7 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 	}
 
 	for i := 0; i < update.num; i++ {
-		g.board[update.indices[i]] = update.pieces[i]
+		g.Board[update.indices[i]] = update.pieces[i]
 	}
 
 	g.halfMoveClock++
@@ -506,7 +503,7 @@ func (g *GameState) undoUpdate(undo OldGameState, update BoardUpdate) {
 		index := update.indices[i]
 		piece := update.old[i]
 
-		g.board[index] = piece
+		g.Board[index] = piece
 	}
 }
 func (g *GameState) enemy() Player {
@@ -567,7 +564,7 @@ func (g *GameState) fenString() string {
 		numSpaces := 0
 		for file := 0; file < 8; file++ {
 			index := boardIndexFromFileRank(FileRank{File(file), Rank(rank)})
-			piece := g.board[index]
+			piece := g.Board[index]
 			if piece == XX {
 				numSpaces++
 				continue
@@ -593,7 +590,7 @@ func (g *GameState) fenString() string {
 	return s
 }
 
-func gamestateFromFenString(s string) (GameState, error) {
+func GamestateFromFenString(s string) (GameState, error) {
 	ss := strings.Fields(s)
 	if len(ss) != 6 {
 		return GameState{}, fmt.Errorf("wrong num %v of fields in str '%v'", len(ss), s)
@@ -616,7 +613,7 @@ func gamestateFromFenString(s string) (GameState, error) {
 			fileIndex += File(indicesToSkip)
 		} else if p, err := pieceFromString(c); err == nil {
 			// note, we insert pieces into the board in inverse order so the 0th index refers to a1
-			game.board[boardIndexFromFileRank(FileRank{fileIndex, rankIndex})] = p
+			game.Board[boardIndexFromFileRank(FileRank{fileIndex, rankIndex})] = p
 			fileIndex++
 		} else {
 			return GameState{}, fmt.Errorf("unknown character '%v' in '%v'", c, s)
@@ -666,38 +663,42 @@ func gamestateFromFenString(s string) (GameState, error) {
 
 	return game, nil
 }
-
-func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println(string(debug.Stack()))
-		}
-	}()
-
-	var testFile File = 0
-	var testRank Rank = 1
-
-	scanner := bufio.NewScanner(os.Stdin)
-	done := false
-	for !done && scanner.Scan() {
-		input := scanner.Text()
-		if input == "uci" {
-			fmt.Println("name chess-go")
-			fmt.Println("id author Kenrick Rilee")
-			fmt.Println("uciok")
-		} else if input == "isready" {
-			fmt.Println("readyok")
-		} else if strings.HasPrefix(input, "go") {
-			fmt.Printf("bestmove %v%v%v%v\n", testFile, testRank, testFile, (testRank + 1))
-			testFile++
-		} else if input == "quit" {
-			done = true
-		}
-	}
-}
-
 func init() {
 	// defer profile.Start(profile.ProfilePath(".")).Stop()
 	// defer profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop()
 	initMagicTables()
+}
+
+type Runner struct {
+	g *GameState
+	b *Bitboards
+}
+
+func (r *Runner) HandleInputAndReturnDone(input string) bool {
+	if input == "uci" {
+		fmt.Println("name chess-go")
+		fmt.Println("id author Kenrick Rilee")
+		fmt.Println("uciok")
+	} else if input == "isready" {
+		fmt.Println("readyok")
+	} else if strings.HasPrefix(input, "position fen ") {
+		s := strings.TrimPrefix(input, "position fen ")
+		game, err := GamestateFromFenString(s)
+		if err != nil {
+			panic(fmt.Errorf("couldn't create game from %v", s))
+		}
+		r.g = &game
+
+		bitboards := SetupBitboards(r.g)
+		r.b = &bitboards
+	} else if strings.HasPrefix(input, "go") {
+		move := Search(r.g, r.b, 6)
+		if move.IsEmpty() {
+			panic(fmt.Errorf("failed to find move for %v ", r.g.Board.String()))
+		}
+		fmt.Printf("bestmove %v\n", move.Value().String())
+	} else if input == "quit" {
+		return true
+	}
+	return false
 }

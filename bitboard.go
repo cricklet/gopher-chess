@@ -451,9 +451,9 @@ type Bitboards struct {
 	players  [2]PlayerBitboards
 }
 
-func setupBitboards(g *GameState) Bitboards {
+func SetupBitboards(g *GameState) Bitboards {
 	result := Bitboards{}
-	for i, piece := range g.board {
+	for i, piece := range g.Board {
 		if piece == XX {
 			continue
 		}
@@ -952,7 +952,7 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 	startIndex := move.startIndex
 	endIndex := move.endIndex
 
-	startPiece := originalState.board[startIndex]
+	startPiece := originalState.Board[startIndex]
 
 	switch move.moveType {
 	case QUIET_MOVE:
@@ -963,7 +963,7 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 	case CAPTURE_MOVE:
 		{
 			// Remove captured piece
-			endPiece := originalState.board[endIndex]
+			endPiece := originalState.Board[endIndex]
 			b.clearSquare(endIndex, endPiece)
 
 			// Move the capturing piece
@@ -979,7 +979,7 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 			}
 
 			captureIndex := endIndex + OFFSETS[capturedBackwards]
-			capturePiece := originalState.board[captureIndex]
+			capturePiece := originalState.Board[captureIndex]
 
 			b.clearSquare(captureIndex, capturePiece)
 			b.clearSquare(startIndex, startPiece)
@@ -988,7 +988,7 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 	case CASTLING_MOVE:
 		{
 			rookStartIndex, rookEndIndex := rookMoveForCastle(startIndex, endIndex)
-			rookPiece := originalState.board[rookStartIndex]
+			rookPiece := originalState.Board[rookStartIndex]
 
 			b.clearSquare(startIndex, startPiece)
 			b.setSquare(endIndex, startPiece)
@@ -1100,6 +1100,8 @@ func evaluationsPerPlayer(whiteOrientedEvalArray [8][8]int, scale int) [2][]Eval
 	}
 }
 
+var DEVELOPMENT_SCALE = 50
+
 var ROOK_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{0, 0, 0, 0, 0, 0, 0, 0},
 	{1, 2, 2, 2, 2, 2, 2, 1},
@@ -1109,12 +1111,54 @@ var ROOK_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{0, 0, 0, 2, 2, 0, 0, 0},
-}, 100)
+}, DEVELOPMENT_SCALE)
+
+var PAWN_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
+	{0, 0, 0, 0, 0, 0, 0, 0},
+	{3, 3, 3, 4, 4, 3, 3, 3},
+	{2, 2, 2, 3, 3, 2, 2, 2},
+	{2, 2, 2, 3, 3, 2, 2, 2},
+	{1, 1, 1, 3, 3, 1, 1, 1},
+	{0, 0, 0, 2, 2, 0, 0, 0},
+	{0, 0, 0, 0, 0, 0, 0, 0},
+	{0, 0, 0, 0, 0, 0, 0, 0},
+}, DEVELOPMENT_SCALE)
+
+var BISHOP_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
+	{-1, -1, -1, -1, -1, -1, -1, -1},
+	{-1, 0, 0, 0, 0, 0, 0, -1},
+	{-1, 0, 1, 2, 2, 1, 0, -1},
+	{-1, 1, 1, 2, 2, 1, 1, -1},
+	{-1, 0, 2, 2, 2, 2, 0, -1},
+	{-1, 2, 2, 2, 2, 2, 2, -1},
+	{-1, 1, 0, 0, 0, 0, 1, -1},
+	{-1, -1, -1, -1, -1, -1, -1, -1},
+}, DEVELOPMENT_SCALE)
+var KNIGHT_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
+	{-2, -2, -2, -2, -2, -2, -2, -2},
+	{-2, -1, 0, 0, 0, 0, -1, -2},
+	{-2, 0, 1, 2, 2, 1, 0, -2},
+	{-2, 1, 2, 2, 2, 2, 1, -2},
+	{-2, 0, 2, 2, 2, 2, 0, -2},
+	{-2, 1, 1, 2, 2, 1, 1, -2},
+	{-2, -1, 0, 0, 0, 0, -1, -2},
+	{-2, -2, -2, -2, -2, -2, -2, -2},
+}, DEVELOPMENT_SCALE)
+var QUEEN_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
+	{-2, -2, -2, -1, -1, -2, -2, -2},
+	{-2, 0, 0, 0, 0, 0, 0, -2},
+	{-2, 0, 1, 1, 1, 1, 0, -2},
+	{-1, 0, 1, 1, 1, 1, 0, -1},
+	{0, 0, 1, 1, 1, 1, 0, 0},
+	{-2, 0, 1, 1, 1, 1, 0, -2},
+	{-2, 0, 1, 0, 0, 1, 0, -2},
+	{-2, -2, -2, -1, -1, -2, -2, -20},
+}, DEVELOPMENT_SCALE)
 
 func evaluateDevelopment(b Bitboard, e []EvaluationBitboard) int {
 	result := 0
 	for _, eval := range e {
-		result += eval.multiplier * OnesCount(eval.b*b)
+		result += eval.multiplier * OnesCount(eval.b&b)
 	}
 	return result
 }
@@ -1122,6 +1166,10 @@ func evaluateDevelopment(b Bitboard, e []EvaluationBitboard) int {
 func (b *Bitboards) evaluateDevelopment(player Player) int {
 	development := 0
 	development += evaluateDevelopment(b.players[player].pieces[ROOK], ROOK_EVALUATION_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[KNIGHT], KNIGHT_EVALUATION_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[BISHOP], BISHOP_EVALUATION_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[QUEEN], QUEEN_EVALUATION_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[PAWN], PAWN_EVALUATION_BITBOARDS[player])
 	return development
 }
 
@@ -1148,13 +1196,103 @@ func (b *Bitboards) evaluate(player Player) int {
 	return pieceValues + developmentValues - enemyValues - enemyDevelopmentValues
 }
 
+var INF int = 999999
+
+func evaluateSearch(g *GameState, b *Bitboards, bestScore int, ignoreScoresOver int, depth int) Optional[int] {
+	if b.kingIsInCheck(g.enemy(), g.player) {
+		return Empty[int]()
+	}
+
+	if depth == 0 {
+		return Some(b.evaluate(g.player))
+	}
+
+	ignoreCaptures := false
+	if depth == 1 {
+		ignoreCaptures = true
+	}
+
+	moves := GetMovesBuffer()
+	b.generatePseudoMoves(g, moves)
+
+	for _, move := range *moves {
+		if ignoreCaptures && move.moveType != CAPTURE_MOVE {
+			continue
+		}
+		update := BoardUpdate{}
+		previous := OldGameState{}
+		SetupBoardUpdate(g, move, &update)
+		RecordCurrentState(g, &previous)
+
+		b.performMove(g, move)
+		g.performMove(move, update)
+
+		enemyScore := evaluateSearch(g, b, -ignoreScoresOver, -bestScore, depth-1)
+
+		b.undoUpdate(update)
+		g.undoUpdate(previous, update)
+
+		if enemyScore.HasValue() {
+			currentScore := -enemyScore.Value()
+			if currentScore >= ignoreScoresOver {
+				return Some(ignoreScoresOver)
+			}
+
+			if currentScore > bestScore {
+				bestScore = currentScore
+			}
+		}
+	}
+
+	ReleaseMovesBuffer(moves)
+
+	return Some(bestScore)
+}
+
+func Search(g *GameState, b *Bitboards, depth int) Optional[Move] {
+	moves := GetMovesBuffer()
+	b.generatePseudoMoves(g, moves)
+
+	bestMove := Empty[Move]()
+	bestScore := -INF
+
+	for _, move := range *moves {
+		update := BoardUpdate{}
+		previous := OldGameState{}
+		SetupBoardUpdate(g, move, &update)
+		RecordCurrentState(g, &previous)
+
+		b.performMove(g, move)
+		g.performMove(move, update)
+
+		enemyScore := evaluateSearch(g, b, -INF, INF, depth)
+
+		b.undoUpdate(update)
+		g.undoUpdate(previous, update)
+
+		if enemyScore.HasValue() {
+			currentScore := -enemyScore.Value()
+			fmt.Println("searched", move.String(), "and found score", currentScore)
+
+			if currentScore > bestScore {
+				bestScore = currentScore
+				bestMove = Some(move)
+			}
+		} else {
+			fmt.Println("searched", move.String(), "and failed to find score")
+		}
+	}
+
+	return bestMove
+}
+
 func moveFromString(s string, m MoveType) Move {
 	first := s[0:2]
 	second := s[2:4]
 	return Move{m, boardIndexFromString(first), boardIndexFromString(second)}
 }
 
-func (m Move) string() string {
+func (m Move) String() string {
 	return stringFromBoardIndex(m.startIndex) + stringFromBoardIndex(m.endIndex)
 }
 
