@@ -28,7 +28,7 @@ func (r *Runner) HandleInputAndReturnDone(input string) bool {
 		bitboards := SetupBitboards(r.g)
 		r.b = &bitboards
 	} else if strings.HasPrefix(input, "go") {
-		move := Search(r.g, r.b, 6)
+		move := Search(r.g, r.b, 5)
 		if move.IsEmpty() {
 			panic(fmt.Errorf("failed to find move for %v ", r.g.Board.String()))
 		}

@@ -1,5 +1,7 @@
 package chess
 
+import "strings"
+
 type GameState struct {
 	Board                        BoardArray
 	player                       Player
@@ -7,6 +9,7 @@ type GameState struct {
 	enPassantTarget              Optional[FileRank]
 	halfMoveClock                int
 	fullMoveClock                int
+	moveHistoryForDebugging      []Move
 }
 
 type OldGameState struct {
@@ -23,6 +26,10 @@ type BoardUpdate struct {
 	num     int
 
 	old [4]Piece
+}
+
+func (g *GameState) HistoryString() string {
+	return strings.TrimSpace(strings.Join(mapSlice(g.moveHistoryForDebugging, func(m Move) string { return m.String() }), " "))
 }
 
 func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
@@ -145,6 +152,7 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 		g.fullMoveClock++
 	}
 	g.player = g.player.other()
+	g.moveHistoryForDebugging = append(g.moveHistoryForDebugging, move)
 }
 
 func (g *GameState) undoUpdate(undo OldGameState, update BoardUpdate) {
@@ -160,6 +168,8 @@ func (g *GameState) undoUpdate(undo OldGameState, update BoardUpdate) {
 
 		g.Board[index] = piece
 	}
+
+	g.moveHistoryForDebugging = g.moveHistoryForDebugging[:len(g.moveHistoryForDebugging)-1]
 }
 func (g *GameState) enemy() Player {
 	return g.player.other()

@@ -44,6 +44,7 @@ func generateWalkMovesWithMagic(
 	allOccupied Bitboard,
 	selfOccupied Bitboard,
 	magicTable MagicMoveTable,
+	onlyCaptures bool,
 	output []Move,
 ) []Move {
 	startIndex, tempPieces := 0, Bitboard(pieces)
@@ -60,7 +61,7 @@ func generateWalkMovesWithMagic(
 		quiet := potential & ^allOccupied
 		capture := potential & ^quiet
 
-		{
+		if !onlyCaptures {
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.nextIndexOfOne()
@@ -112,6 +113,7 @@ func generateJumpMovesByLookup(
 	allOccupied Bitboard,
 	selfOccupied Bitboard,
 	attackMasks [64]Bitboard,
+	onlyCaptures bool,
 	output []Move,
 ) []Move {
 	startIndex, tempPieces := 0, Bitboard(pieces)
@@ -124,7 +126,7 @@ func generateJumpMovesByLookup(
 		quiet := potential & ^allOccupied
 		capture := potential & ^quiet
 
-		{
+		if !onlyCaptures {
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.nextIndexOfOne()
@@ -147,6 +149,13 @@ func generateJumpMovesByLookup(
 var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = createPool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
 func (b *Bitboards) GeneratePseudoMoves(g *GameState, moves *[]Move) {
+	b.generatePseudoMovesInternal(g, moves, false /* onlyCaptures */)
+}
+func (b *Bitboards) GeneratePseudoCaptures(g *GameState, moves *[]Move) {
+	b.generatePseudoMovesInternal(g, moves, true /* onlyCaptures */)
+}
+
+func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onlyCaptures bool) {
 	player := g.player
 	playerBoards := b.players[player]
 	enemyBoards := &b.players[player.other()]
@@ -155,7 +164,7 @@ func (b *Bitboards) GeneratePseudoMoves(g *GameState, moves *[]Move) {
 		pushOffset := PAWN_PUSH_OFFSETS[player]
 
 		// generate one step
-		{
+		if !onlyCaptures {
 			potential := rotateTowardsIndex64(playerBoards.pieces[PAWN], pushOffset)
 			potential = potential & ^b.occupied
 
@@ -168,7 +177,7 @@ func (b *Bitboards) GeneratePseudoMoves(g *GameState, moves *[]Move) {
 		}
 
 		// generate skip step
-		{
+		if !onlyCaptures {
 			potential := playerBoards.pieces[PAWN]
 			potential = potential & maskStartingPawnsForPlayer(player)
 			potential = rotateTowardsIndex64(potential, pushOffset)
@@ -241,21 +250,21 @@ func (b *Bitboards) GeneratePseudoMoves(g *GameState, moves *[]Move) {
 		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NW, *moves)
 		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SW, *moves)
 
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[ROOK], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[BISHOP], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[ROOK], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[BISHOP], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, onlyCaptures, *moves)
 	}
 
 	{
 		// generate knight moves
-		*moves = generateJumpMovesByLookup(playerBoards.pieces[KNIGHT], b.occupied, playerBoards.occupied, KNIGHT_ATTACK_MASKS, *moves)
+		*moves = generateJumpMovesByLookup(playerBoards.pieces[KNIGHT], b.occupied, playerBoards.occupied, KNIGHT_ATTACK_MASKS, onlyCaptures, *moves)
 
 		// generate king moves
-		*moves = generateJumpMovesByLookup(playerBoards.pieces[KING], b.occupied, playerBoards.occupied, KING_ATTACK_MASKS, *moves)
+		*moves = generateJumpMovesByLookup(playerBoards.pieces[KING], b.occupied, playerBoards.occupied, KING_ATTACK_MASKS, onlyCaptures, *moves)
 	}
 
-	{
+	if !onlyCaptures {
 		// generate king castle
 		for _, castlingSide := range CASTLING_SIDES {
 			canCastle := true

@@ -4,27 +4,21 @@ import "fmt"
 
 var INF int = 999999
 
-func evaluateSearch(g *GameState, b *Bitboards, bestScore int, ignoreScoresOver int, depth int) Optional[int] {
+func evaluateCaptures(g *GameState, b *Bitboards, alpha int, beta int) Optional[int] {
 	if b.kingIsInCheck(g.enemy(), g.player) {
 		return Empty[int]()
 	}
 
-	if depth == 0 {
-		return Some(b.evaluate(g.player))
-	}
-
-	ignoreCaptures := false
-	if depth == 1 {
-		ignoreCaptures = true
-	}
-
 	moves := GetMovesBuffer()
-	b.GeneratePseudoMoves(g, moves)
+	b.GeneratePseudoCaptures(g, moves)
+
+	if len(*moves) == 0 {
+		score := b.evaluate(g.player)
+		ReleaseMovesBuffer(moves)
+		return Some(score)
+	}
 
 	for _, move := range *moves {
-		if ignoreCaptures && move.moveType != CAPTURE_MOVE {
-			continue
-		}
 		update := BoardUpdate{}
 		previous := OldGameState{}
 		SetupBoardUpdate(g, move, &update)
@@ -33,26 +27,82 @@ func evaluateSearch(g *GameState, b *Bitboards, bestScore int, ignoreScoresOver 
 		b.performMove(g, move)
 		g.performMove(move, update)
 
-		enemyScore := evaluateSearch(g, b, -ignoreScoresOver, -bestScore, depth-1)
+		enemyScore := evaluateCaptures(g, b,
+			-beta,
+			-alpha)
 
 		b.undoUpdate(update)
 		g.undoUpdate(previous, update)
 
 		if enemyScore.HasValue() {
 			currentScore := -enemyScore.Value()
-			if currentScore >= ignoreScoresOver {
-				return Some(ignoreScoresOver)
+			if currentScore >= beta {
+				return Some(beta)
 			}
 
-			if currentScore > bestScore {
-				bestScore = currentScore
+			if currentScore > alpha {
+				alpha = currentScore
 			}
 		}
 	}
 
 	ReleaseMovesBuffer(moves)
 
-	return Some(bestScore)
+	return Some(alpha)
+}
+
+func evaluateSearch(g *GameState, b *Bitboards, alpha int, beta int, depth int) Optional[int] {
+	if b.kingIsInCheck(g.enemy(), g.player) {
+		return Empty[int]()
+	}
+
+	if depth == 0 {
+		score := b.evaluate(g.player)
+		return Some(score)
+	}
+
+	moves := GetMovesBuffer()
+	b.GeneratePseudoMoves(g, moves)
+
+	for _, move := range *moves {
+		update := BoardUpdate{}
+		previous := OldGameState{}
+		SetupBoardUpdate(g, move, &update)
+		RecordCurrentState(g, &previous)
+
+		b.performMove(g, move)
+		g.performMove(move, update)
+
+		var enemyScore Optional[int]
+		if depth == 1 && move.moveType == CAPTURE_MOVE {
+			enemyScore = evaluateCaptures(g, b,
+				-beta,
+				-alpha)
+		} else {
+			enemyScore = evaluateSearch(g, b,
+				-beta,
+				-alpha,
+				depth-1)
+		}
+
+		b.undoUpdate(update)
+		g.undoUpdate(previous, update)
+
+		if enemyScore.HasValue() {
+			currentScore := -enemyScore.Value()
+			if currentScore >= beta {
+				return Some(beta)
+			}
+
+			if currentScore > alpha {
+				alpha = currentScore
+			}
+		}
+	}
+
+	ReleaseMovesBuffer(moves)
+
+	return Some(alpha)
 }
 
 func Search(g *GameState, b *Bitboards, depth int) Optional[Move] {
