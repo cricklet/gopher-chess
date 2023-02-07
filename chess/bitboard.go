@@ -1,56 +1,22 @@
 package chess
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/bits"
-	"math/rand"
-	"os"
-	"runtime"
 	"strings"
-	"sync"
 )
 
 type Bitboard uint64
 
-type Success bool
-
-func SingleUint8(indexFromTheRight int) uint8 {
-	return 1 << indexFromTheRight
+type PlayerBitboards struct {
+	occupied Bitboard
+	pieces   [6]Bitboard // indexed via PieceType
 }
 
-var ALL_ZEROS Bitboard = Bitboard(0)
-var ALL_ONES Bitboard = ^ALL_ZEROS
-
-func zerosForRange(fs []int, rs []int) Bitboard {
-	if len(fs) != len(rs) {
-		panic("slices have different length")
-	}
-
-	result := ALL_ONES
-	for i := 0; i < len(fs); i++ {
-		result &= ^singleBitboard(boardIndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
-	}
-	return result
+type Bitboards struct {
+	occupied Bitboard
+	players  [2]PlayerBitboards
 }
-
-var ReverseBitsCache = func() [256]uint8 {
-	result := [256]uint8{}
-	for i := uint8(0); ; i++ {
-		reversed := uint8(0)
-		for bit := 0; bit < 8; bit++ {
-			if i&SingleUint8(bit) > 0 {
-				reversed |= SingleUint8(7 - bit)
-			}
-		}
-		result[i] = reversed
-
-		if i == uint8(255) {
-			break
-		}
-	}
-	return result
-}()
 
 type Dir int
 
@@ -113,36 +79,6 @@ var KING_DIRS = []Dir{
 	SW,
 }
 
-var KNIGHT_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
-	result := [64]Bitboard{}
-
-	for i := 0; i < 64; i++ {
-		pieceBoard := singleBitboard(i)
-		for _, dir := range KNIGHT_DIRS {
-			potential := pieceBoard & PRE_MOVE_MASKS[dir]
-			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
-
-			result[i] |= potential
-		}
-	}
-	return result
-}()
-
-var KING_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
-	result := [64]Bitboard{}
-
-	for i := 0; i < 64; i++ {
-		pieceBoard := singleBitboard(i)
-		for _, dir := range KING_DIRS {
-			potential := pieceBoard & PRE_MOVE_MASKS[dir]
-			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
-
-			result[i] |= potential
-		}
-	}
-	return result
-}()
-
 const (
 	OFFSET_N int = 8
 	OFFSET_S int = -8
@@ -184,6 +120,9 @@ var PAWN_CAPTURE_OFFSETS = [2][2]int{
 		OFFSET_S + OFFSET_E, OFFSET_S + OFFSET_W,
 	},
 }
+
+var ALL_ZEROS Bitboard = Bitboard(0)
+var ALL_ONES Bitboard = ^ALL_ZEROS
 
 var ZEROS = []int{0, 0, 0, 0, 0, 0, 0, 0}
 var ONES = []int{1, 1, 1, 1, 1, 1, 1, 1}
@@ -269,41 +208,35 @@ func PremoveMaskFromOffset(offset int) Bitboard {
 	return PRE_MOVE_MASK_FROM_OFFSET[FORCE_POSITIVE_OFFSET+offset]
 }
 
-type CastlingRequirements struct {
-	empty Bitboard
-	safe  []int
-	move  Move
-}
+var KNIGHT_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
+	result := [64]Bitboard{}
 
-func mapSlice[T, U any](ts []T, f func(T) U) []U {
-	us := make([]U, len(ts))
-	for i := range ts {
-		us[i] = f(ts[i])
+	for i := 0; i < 64; i++ {
+		pieceBoard := singleBitboard(i)
+		for _, dir := range KNIGHT_DIRS {
+			potential := pieceBoard & PRE_MOVE_MASKS[dir]
+			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+
+			result[i] |= potential
+		}
 	}
-	return us
-}
+	return result
+}()
 
-func reduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
-	u := initial
-	for _, t := range ts {
-		u = f(u, t)
+var KING_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
+	result := [64]Bitboard{}
+
+	for i := 0; i < 64; i++ {
+		pieceBoard := singleBitboard(i)
+		for _, dir := range KING_DIRS {
+			potential := pieceBoard & PRE_MOVE_MASKS[dir]
+			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+
+			result[i] |= potential
+		}
 	}
-	return u
-}
-
-func OnesCount(b Bitboard) int {
-	return bits.OnesCount64(uint64(b))
-}
-
-func bitboardWithAllLocationsSet(locations []string) Bitboard {
-	return reduceSlice(
-		mapSlice(locations, boardIndexFromString),
-		0,
-		func(result Bitboard, index int) Bitboard {
-			return result | singleBitboard(index)
-		},
-	)
-}
+	return result
+}()
 
 var CASTLING_REQUIREMENTS = func() [2][2]CastlingRequirements {
 	result := [2][2]CastlingRequirements{}
@@ -367,26 +300,6 @@ func rookMoveForCastle(startIndex int, endIndex int) (int, int) {
 	panic(fmt.Sprint("unknown castling move", stringFromBoardIndex(startIndex), stringFromBoardIndex(endIndex)))
 }
 
-func reverseBits(n uint8) uint8 {
-	return ReverseBitsCache[n]
-}
-
-func shiftTowardsIndex0(b Bitboard, n int) Bitboard {
-	return b >> n
-}
-
-func shiftTowardsIndex64(b Bitboard, n int) Bitboard {
-	return b << n
-}
-
-func rotateTowardsIndex0(b Bitboard, n int) Bitboard {
-	return Bitboard(bits.RotateLeft64(uint64(b), -n))
-}
-
-func rotateTowardsIndex64(b Bitboard, n int) Bitboard {
-	return Bitboard(bits.RotateLeft64(uint64(b), n))
-}
-
 var SINGLE_BITBOARDS [64]Bitboard = func() [64]Bitboard {
 	result := [64]Bitboard{}
 	for i := 0; i < 64; i++ {
@@ -406,6 +319,76 @@ var SINGLE_BITBOARDS_ALLOWING_NEGATIVE_INDEX [64]Bitboard = func() [64]Bitboard 
 	}
 	return result
 }()
+
+func SingleUint8(indexFromTheRight int) uint8 {
+	return 1 << indexFromTheRight
+}
+
+func zerosForRange(fs []int, rs []int) Bitboard {
+	if len(fs) != len(rs) {
+		panic("slices have different length")
+	}
+
+	result := ALL_ONES
+	for i := 0; i < len(fs); i++ {
+		result &= ^singleBitboard(boardIndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
+	}
+	return result
+}
+
+var ReverseBitsCache = func() [256]uint8 {
+	result := [256]uint8{}
+	for i := uint8(0); ; i++ {
+		reversed := uint8(0)
+		for bit := 0; bit < 8; bit++ {
+			if i&SingleUint8(bit) > 0 {
+				reversed |= SingleUint8(7 - bit)
+			}
+		}
+		result[i] = reversed
+
+		if i == uint8(255) {
+			break
+		}
+	}
+	return result
+}()
+
+type CastlingRequirements struct {
+	empty Bitboard
+	safe  []int
+	move  Move
+}
+
+func OnesCount(b Bitboard) int {
+	return bits.OnesCount64(uint64(b))
+}
+
+func bitboardWithAllLocationsSet(locations []string) Bitboard {
+	return reduceSlice(
+		mapSlice(locations, boardIndexFromString),
+		0,
+		func(result Bitboard, index int) Bitboard {
+			return result | singleBitboard(index)
+		},
+	)
+}
+
+func shiftTowardsIndex0(b Bitboard, n int) Bitboard {
+	return b >> n
+}
+
+func shiftTowardsIndex64(b Bitboard, n int) Bitboard {
+	return b << n
+}
+
+func rotateTowardsIndex0(b Bitboard, n int) Bitboard {
+	return Bitboard(bits.RotateLeft64(uint64(b), -n))
+}
+
+func rotateTowardsIndex64(b Bitboard, n int) Bitboard {
+	return Bitboard(bits.RotateLeft64(uint64(b), n))
+}
 
 func (b Bitboard) String() string {
 	ranks := [8]string{}
@@ -441,16 +424,6 @@ func bitboardFromStrings(strings [8]string) Bitboard {
 	return b
 }
 
-type PlayerBitboards struct {
-	occupied Bitboard
-	pieces   [6]Bitboard // indexed via PieceType
-}
-
-type Bitboards struct {
-	occupied Bitboard
-	players  [2]PlayerBitboards
-}
-
 func SetupBitboards(g *GameState) Bitboards {
 	result := Bitboards{}
 	for i, piece := range g.Board {
@@ -471,21 +444,6 @@ func SetupBitboards(g *GameState) Bitboards {
 		}
 	}
 	return result
-}
-
-type MoveType int
-
-const (
-	QUIET_MOVE MoveType = iota
-	CAPTURE_MOVE
-	CASTLING_MOVE
-	EN_PASSANT_MOVE
-)
-
-type Move struct {
-	moveType   MoveType
-	startIndex int
-	endIndex   int
 }
 
 func (b Bitboard) leastSignificantOne() Bitboard {
@@ -538,393 +496,6 @@ func (b Bitboard) nextIndexOfOne() (int, Bitboard) {
 	b = b ^ ls1
 
 	return index, b
-}
-
-type ReusableIndicesBuffers struct {
-	startBuffer *IndicesBuffer
-	endBuffer   *IndicesBuffer
-}
-
-func SetupBuffers() ReusableIndicesBuffers {
-	return ReusableIndicesBuffers{GetIndicesBuffer(), GetIndicesBuffer()}
-}
-
-func (r ReusableIndicesBuffers) Release() {
-	ReleaseIndicesBuffer(r.startBuffer)
-	ReleaseIndicesBuffer(r.endBuffer)
-}
-
-func generateWalkMovesWithMagic(
-	pieces Bitboard,
-	allOccupied Bitboard,
-	selfOccupied Bitboard,
-	magicTable MagicMoveTable,
-	output []Move,
-) []Move {
-	startIndex, tempPieces := 0, Bitboard(pieces)
-	for tempPieces != 0 {
-		startIndex, tempPieces = tempPieces.nextIndexOfOne()
-
-		blockerBoard := magicTable.blockerMasks[startIndex] & allOccupied
-		magicValues := magicTable.magics[startIndex]
-		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
-
-		potential := magicTable.moves[startIndex][magicIndex]
-		potential = potential & ^selfOccupied
-
-		quiet := potential & ^allOccupied
-		capture := potential & ^quiet
-
-		{
-			endIndex, tempQuiet := 0, Bitboard(quiet)
-			for tempQuiet != 0 {
-				endIndex, tempQuiet = tempQuiet.nextIndexOfOne()
-				output = append(output, Move{QUIET_MOVE, startIndex, endIndex})
-			}
-		}
-		{
-			captureIndex, tempCapture := 0, Bitboard(capture)
-			for tempCapture != 0 {
-				captureIndex, tempCapture = tempCapture.nextIndexOfOne()
-
-				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex})
-			}
-		}
-	}
-
-	return output
-}
-
-func generateWalkBitboard(
-	pieceBoard Bitboard,
-	blockerBoard Bitboard,
-	dir Dir,
-	output Bitboard,
-) Bitboard {
-	mask := PRE_MOVE_MASKS[dir]
-	offset := OFFSETS[dir]
-
-	totalOffset := 0
-	potential := pieceBoard
-
-	for potential != 0 {
-		potential = rotateTowardsIndex64(potential&mask, offset)
-		totalOffset += offset
-
-		quiet := potential & ^blockerBoard
-		capture := potential & blockerBoard
-
-		output |= quiet | capture
-
-		potential = quiet
-	}
-
-	return output
-}
-
-func generateJumpMovesByLookup(
-	pieces Bitboard,
-	allOccupied Bitboard,
-	selfOccupied Bitboard,
-	attackMasks [64]Bitboard,
-	output []Move,
-) []Move {
-	startIndex, tempPieces := 0, Bitboard(pieces)
-	for tempPieces != 0 {
-		startIndex, tempPieces = tempPieces.nextIndexOfOne()
-
-		attackMask := attackMasks[startIndex]
-		potential := attackMask & ^selfOccupied
-
-		quiet := potential & ^allOccupied
-		capture := potential & ^quiet
-
-		{
-			endIndex, tempQuiet := 0, Bitboard(quiet)
-			for tempQuiet != 0 {
-				endIndex, tempQuiet = tempQuiet.nextIndexOfOne()
-				output = append(output, Move{QUIET_MOVE, startIndex, endIndex})
-			}
-		}
-		{
-			captureIndex, tempCapture := 0, Bitboard(capture)
-			for tempCapture != 0 {
-				captureIndex, tempCapture = tempCapture.nextIndexOfOne()
-
-				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex})
-			}
-		}
-	}
-
-	return output
-}
-
-func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, enemyBitboards *PlayerBitboards) bool {
-	startBoard := singleBitboard(startIndex)
-
-	// Bishop attacks
-	{
-		blockerBoard := BISHOP_MAGIC_TABLE.blockerMasks[startIndex] & occupied
-		magicValues := BISHOP_MAGIC_TABLE.magics[startIndex]
-		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
-
-		potential := BISHOP_MAGIC_TABLE.moves[startIndex][magicIndex]
-		potential = potential & (enemyBitboards.pieces[BISHOP] | enemyBitboards.pieces[QUEEN])
-
-		if potential != 0 {
-			return true
-		}
-	}
-	// Rook attacks
-	{
-		blockerBoard := ROOK_MAGIC_TABLE.blockerMasks[startIndex] & occupied
-		magicValues := ROOK_MAGIC_TABLE.magics[startIndex]
-		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
-
-		potential := ROOK_MAGIC_TABLE.moves[startIndex][magicIndex]
-		potential = potential & (enemyBitboards.pieces[ROOK] | enemyBitboards.pieces[QUEEN])
-
-		if potential != 0 {
-			return true
-		}
-	}
-
-	attackers := Bitboard(0)
-
-	// Pawn attacks
-	{
-		enemyPlayer := player.other()
-		enemyPawns := enemyBitboards.pieces[PAWN]
-		captureOffset0 := PAWN_CAPTURE_OFFSETS[enemyPlayer][0]
-		captureOffset1 := PAWN_CAPTURE_OFFSETS[enemyPlayer][1]
-		captureMask0 := enemyPawns & PremoveMaskFromOffset(captureOffset0)
-		captureMask1 := enemyPawns & PremoveMaskFromOffset(captureOffset1)
-
-		potential := rotateTowardsIndex64(captureMask0, captureOffset0)
-		potential |= rotateTowardsIndex64(captureMask1, captureOffset1)
-		potential &= startBoard
-		attackers |= potential
-	}
-	// Knight, king attacks
-	{
-		{
-			knightMask := KNIGHT_ATTACK_MASKS[startIndex]
-			potential := enemyBitboards.pieces[KNIGHT] & knightMask
-			attackers |= potential
-		}
-		{
-			kingMask := KING_ATTACK_MASKS[startIndex]
-			potential := enemyBitboards.pieces[KING] & kingMask
-			attackers |= potential
-		}
-	}
-
-	return attackers != 0
-}
-
-func (b *Bitboards) dangerBoard(player Player) Bitboard {
-	enemyPlayer := player.other()
-	enemyBoards := &b.players[enemyPlayer]
-	result := Bitboard(0)
-	for i := 0; i < 64; i++ {
-		if playerIndexIsAttacked(player, i, b.occupied, enemyBoards) {
-			result |= singleBitboard(i)
-		}
-	}
-	return result
-}
-
-type PoolStats struct {
-	creates int
-	resets  int
-	hits    int
-}
-
-func (s PoolStats) String() string {
-	return fmt.Sprint("creates: ", s.creates, ", resets: ", s.resets, ", hits: ", s.hits)
-}
-
-func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T), func() PoolStats) {
-	availableBuffer := [256]*T{}
-	startIndex := 0
-	endIndex := 0
-
-	lock := sync.Mutex{}
-
-	creates := 0
-	resets := 0
-	hits := 0
-
-	var get = func() *T {
-		lock.Lock()
-
-		if endIndex != startIndex {
-			result := availableBuffer[startIndex]
-			startIndex = (startIndex + 1) % 256
-
-			lock.Unlock()
-
-			hits++
-			return result
-		}
-
-		lock.Unlock()
-
-		creates++
-		result := create()
-		return &result
-	}
-
-	var release = func(t *T) {
-		resets++
-		reset(t)
-
-		lock.Lock()
-		availableBuffer[endIndex] = t
-		endIndex = (endIndex + 1) % 256
-		lock.Unlock()
-	}
-
-	var stats = func() PoolStats {
-		return PoolStats{creates, resets, hits}
-	}
-
-	return get, release, stats
-}
-
-var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = createPool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
-
-func (b *Bitboards) generatePseudoMoves(g *GameState, moves *[]Move) {
-	player := g.player
-	playerBoards := b.players[player]
-	enemyBoards := &b.players[player.other()]
-
-	{
-		pushOffset := PAWN_PUSH_OFFSETS[player]
-
-		// generate one step
-		{
-			potential := rotateTowardsIndex64(playerBoards.pieces[PAWN], pushOffset)
-			potential = potential & ^b.occupied
-
-			index, tempPotential := 0, Bitboard(potential)
-			for tempPotential != 0 {
-				index, tempPotential = tempPotential.nextIndexOfOne()
-
-				*moves = append(*moves, Move{QUIET_MOVE, index - pushOffset, index})
-			}
-		}
-
-		// generate skip step
-		{
-			potential := playerBoards.pieces[PAWN]
-			potential = potential & maskStartingPawnsForPlayer(player)
-			potential = rotateTowardsIndex64(potential, pushOffset)
-			potential = potential & ^b.occupied
-			potential = rotateTowardsIndex64(potential, pushOffset)
-			potential = potential & ^b.occupied
-
-			index, tempPotential := 0, Bitboard(potential)
-			for tempPotential != 0 {
-				index, tempPotential = tempPotential.nextIndexOfOne()
-
-				*moves = append(*moves, Move{QUIET_MOVE, index - 2*pushOffset, index})
-			}
-		}
-
-		// generate captures
-		{
-			for _, captureOffset := range PAWN_CAPTURE_OFFSETS[player] {
-				potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
-				potential = rotateTowardsIndex64(potential, captureOffset)
-				potential = potential & enemyBoards.occupied
-
-				index, tempPotential := 0, Bitboard(potential)
-				for tempPotential != 0 {
-					index, tempPotential = tempPotential.nextIndexOfOne()
-
-					*moves = append(*moves, Move{CAPTURE_MOVE, index - captureOffset, index})
-				}
-			}
-		}
-
-		// generate en-passant
-		{
-			if g.enPassantTarget.HasValue() {
-				enPassantBoard := singleBitboard(boardIndexFromFileRank(g.enPassantTarget.Value()))
-				for _, captureOffset := range []int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
-					potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
-					potential = rotateTowardsIndex64(potential, captureOffset)
-					potential = potential & enPassantBoard
-
-					index, tempPotential := 0, Bitboard(potential)
-					for tempPotential != 0 {
-						index, tempPotential = tempPotential.nextIndexOfOne()
-
-						*moves = append(*moves, Move{EN_PASSANT_MOVE, index - captureOffset, index})
-					}
-				}
-			}
-		}
-	}
-
-	{
-		// generate rook / bishop / queen moves
-		// *moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, N, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, S, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, E, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[ROOK], b.occupied, enemyBoards.occupied, W, *moves)
-
-		// *moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, NE, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, SE, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, NW, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[BISHOP], b.occupied, enemyBoards.occupied, SW, *moves)
-
-		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, N, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, S, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, E, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, W, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NE, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SE, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NW, *moves)
-		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SW, *moves)
-
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[ROOK], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[BISHOP], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, *moves)
-	}
-
-	{
-		// generate knight moves
-		*moves = generateJumpMovesByLookup(playerBoards.pieces[KNIGHT], b.occupied, playerBoards.occupied, KNIGHT_ATTACK_MASKS, *moves)
-
-		// generate king moves
-		*moves = generateJumpMovesByLookup(playerBoards.pieces[KING], b.occupied, playerBoards.occupied, KING_ATTACK_MASKS, *moves)
-	}
-
-	{
-		// generate king castle
-		for _, castlingSide := range CASTLING_SIDES {
-			canCastle := true
-			if g.playerAndCastlingSideAllowed[player][castlingSide] {
-				requirements := CASTLING_REQUIREMENTS[player][castlingSide]
-				if b.occupied&requirements.empty != 0 {
-					canCastle = false
-				}
-				for _, index := range requirements.safe {
-					if playerIndexIsAttacked(player, index, b.occupied, enemyBoards) {
-						canCastle = false
-						break
-					}
-				}
-
-				if canCastle {
-					*moves = append(*moves, requirements.move)
-				}
-			}
-		}
-	}
 }
 
 func (b *Bitboards) clearSquare(index int, piece Piece) {
@@ -1018,546 +589,5 @@ func (b *Bitboards) undoUpdate(update BoardUpdate) {
 				b.setSquare(index, previous)
 			}
 		}
-	}
-}
-
-func (b *Bitboards) kingIsInCheck(player Player, enemy Player) bool {
-	kingBoard := b.players[player].pieces[KING]
-	kingIndex := kingBoard.firstIndexOfOne()
-	return playerIndexIsAttacked(player, kingIndex, b.occupied, &b.players[enemy])
-}
-
-func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
-	player := g.player
-	enemy := g.enemy()
-	potentialMoves := GetMovesBuffer()
-	b.generatePseudoMoves(g, potentialMoves)
-
-	for _, move := range *potentialMoves {
-		update := BoardUpdate{}
-		SetupBoardUpdate(g, move, &update)
-
-		b.performMove(g, move)
-		if !b.kingIsInCheck(player, enemy) {
-			*legalMovesOutput = append(*legalMovesOutput, move)
-		}
-
-		b.undoUpdate(update)
-	}
-
-	ReleaseMovesBuffer(potentialMoves)
-}
-
-type EvaluationBitboard struct {
-	multiplier int
-	b          Bitboard
-}
-
-func bitboardFromArray(lookup int, array [8][8]int) Bitboard {
-	b := Bitboard(0)
-	for i := 0; i < 8; i++ {
-		for j := 0; j < 8; j++ {
-			if array[i][j] == lookup {
-				index := (7-i)*8 + j
-				b |= singleBitboard(index)
-			}
-		}
-	}
-	return b
-}
-
-func evaluationsFromArray(array [8][8]int, scale int) []EvaluationBitboard {
-	result := []EvaluationBitboard{}
-	scores := map[int]bool{}
-	for i := 0; i < 8; i++ {
-		for j := 0; j < 8; j++ {
-			scores[array[i][j]] = true
-		}
-	}
-	for k := range scores {
-		eval := EvaluationBitboard{}
-		eval.multiplier = k * scale
-		eval.b = bitboardFromArray(k, array)
-		result = append(result, eval)
-	}
-	return result
-}
-
-func flipArray(array [8][8]int) [8][8]int {
-	result := [8][8]int{}
-	for i := 0; i < 8; i++ {
-		for j := 0; j < 8; j++ {
-			result[i][j] = array[7-i][j]
-		}
-	}
-	return result
-}
-
-func evaluationsPerPlayer(whiteOrientedEvalArray [8][8]int, scale int) [2][]EvaluationBitboard {
-	return [2][]EvaluationBitboard{
-		evaluationsFromArray(whiteOrientedEvalArray, scale),
-		evaluationsFromArray(flipArray(whiteOrientedEvalArray), scale),
-	}
-}
-
-var DEVELOPMENT_SCALE = 50
-
-var ROOK_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
-	{0, 0, 0, 0, 0, 0, 0, 0},
-	{1, 2, 2, 2, 2, 2, 2, 1},
-	{-1, 0, 0, 0, 0, 0, 0, -1},
-	{-1, 0, 0, 0, 0, 0, 0, -1},
-	{-1, 0, 0, 0, 0, 0, 0, -1},
-	{-1, 0, 0, 0, 0, 0, 0, -1},
-	{-1, 0, 0, 0, 0, 0, 0, -1},
-	{0, 0, 0, 2, 2, 0, 0, 0},
-}, DEVELOPMENT_SCALE)
-
-var PAWN_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
-	{0, 0, 0, 0, 0, 0, 0, 0},
-	{3, 3, 3, 4, 4, 3, 3, 3},
-	{2, 2, 2, 3, 3, 2, 2, 2},
-	{2, 2, 2, 3, 3, 2, 2, 2},
-	{1, 1, 1, 3, 3, 1, 1, 1},
-	{0, 0, 0, 2, 2, 0, 0, 0},
-	{0, 0, 0, 0, 0, 0, 0, 0},
-	{0, 0, 0, 0, 0, 0, 0, 0},
-}, DEVELOPMENT_SCALE)
-
-var BISHOP_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
-	{-1, -1, -1, -1, -1, -1, -1, -1},
-	{-1, 0, 0, 0, 0, 0, 0, -1},
-	{-1, 0, 1, 2, 2, 1, 0, -1},
-	{-1, 1, 1, 2, 2, 1, 1, -1},
-	{-1, 0, 2, 2, 2, 2, 0, -1},
-	{-1, 2, 2, 2, 2, 2, 2, -1},
-	{-1, 1, 0, 0, 0, 0, 1, -1},
-	{-1, -1, -1, -1, -1, -1, -1, -1},
-}, DEVELOPMENT_SCALE)
-var KNIGHT_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
-	{-2, -2, -2, -2, -2, -2, -2, -2},
-	{-2, -1, 0, 0, 0, 0, -1, -2},
-	{-2, 0, 1, 2, 2, 1, 0, -2},
-	{-2, 1, 2, 2, 2, 2, 1, -2},
-	{-2, 0, 2, 2, 2, 2, 0, -2},
-	{-2, 1, 1, 2, 2, 1, 1, -2},
-	{-2, -1, 0, 0, 0, 0, -1, -2},
-	{-2, -2, -2, -2, -2, -2, -2, -2},
-}, DEVELOPMENT_SCALE)
-var QUEEN_EVALUATION_BITBOARDS = evaluationsPerPlayer([8][8]int{
-	{-2, -2, -2, -1, -1, -2, -2, -2},
-	{-2, 0, 0, 0, 0, 0, 0, -2},
-	{-2, 0, 1, 1, 1, 1, 0, -2},
-	{-1, 0, 1, 1, 1, 1, 0, -1},
-	{0, 0, 1, 1, 1, 1, 0, 0},
-	{-2, 0, 1, 1, 1, 1, 0, -2},
-	{-2, 0, 1, 0, 0, 1, 0, -2},
-	{-2, -2, -2, -1, -1, -2, -2, -20},
-}, DEVELOPMENT_SCALE)
-
-func evaluateDevelopment(b Bitboard, e []EvaluationBitboard) int {
-	result := 0
-	for _, eval := range e {
-		result += eval.multiplier * OnesCount(eval.b&b)
-	}
-	return result
-}
-
-func (b *Bitboards) evaluateDevelopment(player Player) int {
-	development := 0
-	development += evaluateDevelopment(b.players[player].pieces[ROOK], ROOK_EVALUATION_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[KNIGHT], KNIGHT_EVALUATION_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[BISHOP], BISHOP_EVALUATION_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[QUEEN], QUEEN_EVALUATION_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[PAWN], PAWN_EVALUATION_BITBOARDS[player])
-	return development
-}
-
-func (b *Bitboards) evaluate(player Player) int {
-	enemy := player.other()
-
-	pieceValues :=
-		500*OnesCount(b.players[player].pieces[ROOK]) +
-			300*OnesCount(b.players[player].pieces[KNIGHT]) +
-			350*OnesCount(b.players[player].pieces[BISHOP]) +
-			900*OnesCount(b.players[player].pieces[QUEEN]) +
-			100*OnesCount(b.players[player].pieces[PAWN])
-
-	enemyValues :=
-		500*OnesCount(b.players[enemy].pieces[ROOK]) +
-			300*OnesCount(b.players[enemy].pieces[KNIGHT]) +
-			350*OnesCount(b.players[enemy].pieces[BISHOP]) +
-			900*OnesCount(b.players[enemy].pieces[QUEEN]) +
-			100*OnesCount(b.players[enemy].pieces[PAWN])
-
-	developmentValues := b.evaluateDevelopment(player)
-	enemyDevelopmentValues := b.evaluateDevelopment(enemy)
-
-	return pieceValues + developmentValues - enemyValues - enemyDevelopmentValues
-}
-
-var INF int = 999999
-
-func evaluateSearch(g *GameState, b *Bitboards, bestScore int, ignoreScoresOver int, depth int) Optional[int] {
-	if b.kingIsInCheck(g.enemy(), g.player) {
-		return Empty[int]()
-	}
-
-	if depth == 0 {
-		return Some(b.evaluate(g.player))
-	}
-
-	ignoreCaptures := false
-	if depth == 1 {
-		ignoreCaptures = true
-	}
-
-	moves := GetMovesBuffer()
-	b.generatePseudoMoves(g, moves)
-
-	for _, move := range *moves {
-		if ignoreCaptures && move.moveType != CAPTURE_MOVE {
-			continue
-		}
-		update := BoardUpdate{}
-		previous := OldGameState{}
-		SetupBoardUpdate(g, move, &update)
-		RecordCurrentState(g, &previous)
-
-		b.performMove(g, move)
-		g.performMove(move, update)
-
-		enemyScore := evaluateSearch(g, b, -ignoreScoresOver, -bestScore, depth-1)
-
-		b.undoUpdate(update)
-		g.undoUpdate(previous, update)
-
-		if enemyScore.HasValue() {
-			currentScore := -enemyScore.Value()
-			if currentScore >= ignoreScoresOver {
-				return Some(ignoreScoresOver)
-			}
-
-			if currentScore > bestScore {
-				bestScore = currentScore
-			}
-		}
-	}
-
-	ReleaseMovesBuffer(moves)
-
-	return Some(bestScore)
-}
-
-func Search(g *GameState, b *Bitboards, depth int) Optional[Move] {
-	moves := GetMovesBuffer()
-	b.generatePseudoMoves(g, moves)
-
-	bestMove := Empty[Move]()
-	bestScore := -INF
-
-	for _, move := range *moves {
-		update := BoardUpdate{}
-		previous := OldGameState{}
-		SetupBoardUpdate(g, move, &update)
-		RecordCurrentState(g, &previous)
-
-		b.performMove(g, move)
-		g.performMove(move, update)
-
-		enemyScore := evaluateSearch(g, b, -INF, INF, depth)
-
-		b.undoUpdate(update)
-		g.undoUpdate(previous, update)
-
-		if enemyScore.HasValue() {
-			currentScore := -enemyScore.Value()
-			fmt.Println("searched", move.String(), "and found score", currentScore)
-
-			if currentScore > bestScore {
-				bestScore = currentScore
-				bestMove = Some(move)
-			}
-		} else {
-			fmt.Println("searched", move.String(), "and failed to find score")
-		}
-	}
-
-	return bestMove
-}
-
-func moveFromString(s string, m MoveType) Move {
-	first := s[0:2]
-	second := s[2:4]
-	return Move{m, boardIndexFromString(first), boardIndexFromString(second)}
-}
-
-func (m Move) String() string {
-	return stringFromBoardIndex(m.startIndex) + stringFromBoardIndex(m.endIndex)
-}
-
-func stringFromBoardIndex(index int) string {
-	return fileRankFromBoardIndex(index).String()
-}
-
-func generateBlockerMask(startIndex int, dirs []Dir) Bitboard {
-	result := Bitboard(0)
-	for _, dir := range dirs {
-		walk := generateWalkBitboard(singleBitboard(startIndex), Bitboard(0), dir, result)
-		result |= walk & PRE_MOVE_MASKS[dir]
-	}
-
-	result &= ^singleBitboard(startIndex)
-
-	return result
-}
-
-func generateBlockerBoard(blockerMask Bitboard, seed int) Bitboard {
-	result := Bitboard(0)
-
-	buffer := GetIndicesBuffer()
-	numBits := bits.OnesCount64(uint64(blockerMask))
-	for i := 0; i < numBits; i++ {
-		// If the bit at i is 1 in the seed...
-		if seed&(1<<i) != 0 {
-			// Find the ith one bit in blockerMask and set the corresponding bit to one in result.
-			for oneIndex, indexInBitboard := range *blockerMask.eachIndexOfOne(buffer) {
-				if oneIndex == i {
-					result |= singleBitboard(indexInBitboard)
-				}
-			}
-		}
-	}
-	ReleaseIndicesBuffer(buffer)
-
-	return result
-}
-
-type MoveBoardForBlockerBoard struct {
-	moveBoard    Bitboard
-	blockerBoard Bitboard
-}
-
-func generateMoveBoards(
-	pieceIndex int, blockerMask Bitboard, dirs []Dir,
-) [] /* OnesCount64(blockerMask) */ MoveBoardForBlockerBoard {
-	numBits := bits.OnesCount64(uint64(blockerMask))
-	numBlockerBoards := 1 << numBits
-
-	blockerBoards := make([]Bitboard, numBlockerBoards)
-	for seed := 0; seed < numBlockerBoards; seed++ {
-		blockerBoards[seed] = generateBlockerBoard(blockerMask, seed)
-	}
-
-	pieceBoard := singleBitboard(pieceIndex)
-
-	result := make([]MoveBoardForBlockerBoard, numBlockerBoards)
-	for seed, blockerBoard := range blockerBoards {
-		moves := Bitboard(0)
-		for _, dir := range dirs {
-			moves = generateWalkBitboard(pieceBoard, blockerBoard, dir, moves)
-		}
-
-		result[seed] = MoveBoardForBlockerBoard{moves, blockerBoard}
-	}
-	return result
-}
-
-func rand64() uint64 {
-	return uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
-}
-
-func mostlyZeroRand64() uint64 {
-	return rand64() & rand64() & rand64()
-}
-
-func magicIndex(magic uint64, blockerBoard Bitboard, bitsInIndex int) int {
-	mult := uint64(blockerBoard) * magic
-	shift := 64 - bitsInIndex
-	result := mult >> shift
-	return int(result)
-}
-
-var tmpCache = [1 << 12]Bitboard{}
-var tmpHit = [1 << 12]bool{}
-
-func magicIndexWorks(magic uint64, moves []MoveBoardForBlockerBoard, bitsInIndex int) bool {
-	for i := range tmpCache {
-		tmpCache[i] = 0
-	}
-	for i := range tmpHit {
-		tmpHit[i] = false
-	}
-	for _, move := range moves {
-		i := magicIndex(magic, move.blockerBoard, bitsInIndex)
-		if tmpHit[i] {
-			if tmpCache[i] != move.moveBoard {
-				return false
-			}
-		} else {
-			tmpCache[i] = move.moveBoard
-			tmpHit[i] = true
-		}
-	}
-
-	return true
-}
-
-func bitsRequiredForMagicIndex(magic uint64, moves []MoveBoardForBlockerBoard) (int, Success) {
-	success := Success(false)
-	bestBitsInIndex := 0
-
-	for bitsInIndex := 12; bitsInIndex > 0; bitsInIndex-- {
-		if magicIndexWorks(magic, moves, bitsInIndex) {
-			bestBitsInIndex = bitsInIndex
-			success = true
-		} else {
-			break
-		}
-	}
-
-	return bestBitsInIndex, success
-}
-
-func findBetterMagicValue(bestMagic MagicValue, moves []MoveBoardForBlockerBoard) MagicValue {
-	for i := 0; i < 1000; i++ {
-		magic := mostlyZeroRand64()
-		bitsInIndex, currentSuccess := bitsRequiredForMagicIndex(magic, moves)
-		if !currentSuccess {
-			continue
-		}
-
-		if bitsInIndex < bestMagic.BitsInMagicIndex {
-			bestMagic.Magic = magic
-			bestMagic.BitsInMagicIndex = bitsInIndex
-		}
-	}
-
-	return bestMagic
-}
-
-func generateMagicMoveTable(dirs []Dir, bestMagics [64]MagicValue, label string) MagicMoveTable {
-	result := MagicMoveTable{}
-
-	// bar := progressbar.Default(64, label)
-
-	for i := 0; i < 64; i++ {
-		blockerMask := generateBlockerMask(i, dirs)
-		result.blockerMasks[i] = blockerMask
-
-		moves := generateMoveBoards(i, blockerMask, dirs)
-
-		betterMagic := findBetterMagicValue(bestMagics[i], moves)
-		result.magics[i] = betterMagic
-
-		result.moves[i] = make([]Bitboard, 1<<betterMagic.BitsInMagicIndex)
-		for _, m := range moves {
-			magicIndex := magicIndex(betterMagic.Magic, m.blockerBoard, betterMagic.BitsInMagicIndex)
-			result.moves[i][magicIndex] = m.moveBoard
-		}
-
-		// bar.Add(1)
-	}
-
-	return result
-}
-
-type MagicValue struct {
-	Magic            uint64
-	BitsInMagicIndex int
-}
-
-type MagicMoveTable struct {
-	// Each of the 64 indices in the board has a magic-lookup precomputed.
-	// This is used to lookup a move based on the current occupancy of the
-	// board, eg:
-	// ROOK_MOVES[
-	//   (
-	//     ((occupancy & blockerMask) * magic)
-	//     >> (64 - numBits)
-	//   ) << previousBits
-	//  ]
-	magics       [64]MagicValue
-	blockerMasks [64]Bitboard
-	moves        [64][]Bitboard
-}
-
-func (m MagicValue) String() string {
-	return fmt.Sprintf("{%v, %v}", m.Magic, m.BitsInMagicIndex)
-}
-
-// We mask the occupancy with the blockerMask to get the blockerBoard.
-// Then we generate a magic index that gives a unique index that we use
-// to index the moves database.
-//  where
-
-var ROOK_BEST_MAGICS = [64]MagicValue{
-	{9331458498780872708, 12}, {4665729506550484992, 11}, {144126186415460480, 11}, {144124147393380420, 12}, {11565257037802111104, 11}, {144132788852099073, 11}, {360290736719004416, 11}, {72057871080096230, 12}, {4719913149124313312, 11}, {293156463157707144, 10}, {6917669902577307648, 10}, {140771923603456, 10}, {1162069475734979584, 10}, {9223935029758136344, 10}, {73465046232203520, 10}, {72198473260253312, 11}, {72207677412868132, 11}, {9160032444752128, 10}, {144256475856900105, 10}, {5193215519872860424, 10}, {159430394052612, 10}, {10523224031208014848, 10}, {864765895917076752, 10}, {600333755678852, 11}, {15832969587466384, 11}, {4503884168962050, 10}, {1161937501029400896, 10}, {5814147670840180754, 10}, {576645472412763136, 10}, {42786397639148544, 10}, {2315415374626029896, 10}, {10520549469173335296, 11}, {2317524495633481760, 11}, {360323223285399872, 10}, {9007474451424004, 10}, {5700005885121026, 10}, {10160261531204324352, 10}, {15016162516944359556, 10}, {17636813465603, 10}, {150026164885260370, 11}, {18015225290719265, 11}, {292736450217132032, 10}, {1333100674342224000, 10}, {1153484494829912080, 10}, {145243183935160356, 10}, {4648277800028340236, 10}, {18295882077241348, 10}, {148900299225235458, 11}, {2308517022067064960, 11}, {2666166164849787008, 10}, {10484947351389610496, 10}, {865113409641250944, 10}, {79164905423104, 10}, {598134445769894144, 10}, {8865384334336, 10}, {140741783341184, 11}, {11822236544142419985, 12}, {853358739210241, 11}, {2306689770606579907, 11}, {27305340485764105, 11}, {562958563547782, 12}, {576742261673689253, 11}, {563053041289474, 11}, {72061994248775234, 12},
-}
-var BISHOP_BEST_MAGICS = [64]MagicValue{
-	{1171237203947823488, 6}, {2308412585671671873, 5}, {7569428664312397952, 5}, {1155182929459020040, 5}, {883849190865657860, 5}, {23791370577911968, 5}, {4936090344850063874, 5}, {146649013763063808, 6}, {936753137990238992, 5}, {2278222469285378, 5}, {1196989970411233792, 5}, {324720985242599456, 5}, {5764660884244799536, 5}, {2394762130760320, 5}, {621497027822370952, 5}, {13981425596434489600, 5}, {27065647490015380, 5}, {5190404141385548160, 5}, {9605402366906400, 7}, {579851818030354560, 7}, {1190076210669946880, 7}, {73606260729094176, 7}, {63472633420988992, 5}, {144191067330330882, 5}, {9296115726568935426, 5}, {1153494350270302208, 5}, {2594293288496408642, 7}, {288533842569070752, 9}, {282097763762178, 9}, {12682493891987964224, 7}, {3413158987827720, 5}, {144257574865338502, 5}, {9227880378178601482, 5}, {578723650582085891, 5}, {563226173772032, 7}, {4611688219602845825, 9}, {577596552386969664, 9}, {784805039544846344, 7}, {4512990774821376, 5}, {13856521630425031561, 5}, {36187162681018624, 5}, {81208298082213924, 5}, {563370994700560, 7}, {598417927602305, 7}, {1733894656929825796, 7}, {9223935605837201536, 7}, {83396204645406928, 5}, {2594638672888348928, 5}, {4575136872169504, 5}, {1443143505936385, 5}, {288232576282804224, 5}, {2199569041456, 5}, {1181772762902036736, 5}, {582517344230309892, 5}, {4616194085424742402, 5}, {78814110179000972, 5}, {380572319064539168, 6}, {4625202317049012226, 5}, {109354164517619712, 5}, {18256567021373440, 5}, {1154047404782782976, 5}, {586593868780142848, 5}, {9223566169653444672, 5}, {4508038484721921, 6},
-}
-
-var ROOK_MAGIC_TABLE MagicMoveTable
-var BISHOP_MAGIC_TABLE MagicMoveTable
-
-func PrintMemUsage() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Printf("Alloc = %v KB", bToKb(m.Alloc))
-	fmt.Printf("\tTotalAlloc = %v KB", bToKb(m.TotalAlloc))
-	fmt.Printf("\tSys = %v KB", bToKb(m.Sys))
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
-}
-
-func bToKb(b uint64) uint64 {
-	return b / 1024
-}
-
-func initMagicTables() {
-	rookInput, err := os.ReadFile("../data/magics-for-rook.json")
-	if err == nil {
-		json.Unmarshal(rookInput, &ROOK_BEST_MAGICS)
-	}
-
-	bishopInput, err := os.ReadFile("../data/magics-for-bishop.json")
-	if err == nil {
-		json.Unmarshal(bishopInput, &BISHOP_BEST_MAGICS)
-	}
-
-	ROOK_MAGIC_TABLE = generateMagicMoveTable(ROOK_DIRS, ROOK_BEST_MAGICS, "rook magics ")
-	BISHOP_MAGIC_TABLE = generateMagicMoveTable(BISHOP_DIRS, BISHOP_BEST_MAGICS, "bishop magic")
-
-	lowestRookBits := 12
-	sumRookBits := 0
-	for _, m := range ROOK_MAGIC_TABLE.magics {
-		if m.BitsInMagicIndex < lowestRookBits {
-			lowestRookBits = m.BitsInMagicIndex
-		}
-		sumRookBits += m.BitsInMagicIndex
-	}
-
-	lowestBishopBits := 12
-	sumBishopBits := 0
-	for _, m := range BISHOP_MAGIC_TABLE.magics {
-		if m.BitsInMagicIndex < lowestBishopBits {
-			lowestBishopBits = m.BitsInMagicIndex
-		}
-		sumBishopBits += m.BitsInMagicIndex
-	}
-
-	// fmt.Println("rook bits for magic index: best", lowestRookBits, "average", sumRookBits/64.0)
-	// fmt.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
-
-	if rookOutput, err := json.Marshal(ROOK_BEST_MAGICS); err == nil {
-		os.WriteFile("../data/magics-for-rook.json", rookOutput, 0777)
-	} else {
-		panic("couldn't marshal rook magics")
-	}
-	if bishopOutput, err := json.Marshal(BISHOP_BEST_MAGICS); err == nil {
-		os.WriteFile("../data/magics-for-bishop.json", bishopOutput, 0777)
-	} else {
-		panic("couldn't marshal bishop magics")
 	}
 }

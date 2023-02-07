@@ -255,7 +255,7 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 
 	result := []string{}
 	moves := GetMovesBuffer()
-	bitboards.generatePseudoMoves(&g, moves)
+	bitboards.GeneratePseudoMoves(&g, moves)
 	for _, move := range *moves {
 		result = append(result, move.String())
 	}
@@ -338,7 +338,7 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.generatePseudoMoves(&g, moves)
+	bitboards.GeneratePseudoMoves(&g, moves)
 	for _, move := range *moves {
 		result = append(result, move.String())
 	}
@@ -554,7 +554,7 @@ func TestWhiteCastling(t *testing.T) {
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.generatePseudoMoves(&g, moves)
+	bitboards.GeneratePseudoMoves(&g, moves)
 	for _, move := range *moves {
 		result = append(result, move.String())
 	}
@@ -650,7 +650,7 @@ func TestBlackCastling(t *testing.T) {
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.generatePseudoMoves(&g, moves)
+	bitboards.GeneratePseudoMoves(&g, moves)
 	for _, move := range *moves {
 		result = append(result, move.String())
 	}
@@ -1017,7 +1017,7 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 	num := 0
 
 	moves := GetMovesBuffer()
-	b.generatePseudoMoves(g, moves)
+	b.GeneratePseudoMoves(g, moves)
 
 	for _, move := range *moves {
 		update := BoardUpdate{}
