@@ -407,7 +407,7 @@ var SINGLE_BITBOARDS_ALLOWING_NEGATIVE_INDEX [64]Bitboard = func() [64]Bitboard 
 	return result
 }()
 
-func (b Bitboard) string() string {
+func (b Bitboard) String() string {
 	ranks := [8]string{}
 	for rank := 0; rank < 8; rank++ {
 		bitsBefore := rank * 8
@@ -740,7 +740,7 @@ type PoolStats struct {
 	hits    int
 }
 
-func (s PoolStats) string() string {
+func (s PoolStats) String() string {
 	return fmt.Sprint("creates: ", s.creates, ", resets: ", s.resets, ", hits: ", s.hits)
 }
 
@@ -1297,7 +1297,7 @@ func (m Move) String() string {
 }
 
 func stringFromBoardIndex(index int) string {
-	return fileRankFromBoardIndex(index).string()
+	return fileRankFromBoardIndex(index).String()
 }
 
 func generateBlockerMask(startIndex int, dirs []Dir) Bitboard {
@@ -1482,7 +1482,7 @@ type MagicMoveTable struct {
 	moves        [64][]Bitboard
 }
 
-func (m MagicValue) string() string {
+func (m MagicValue) String() string {
 	return fmt.Sprintf("{%v, %v}", m.Magic, m.BitsInMagicIndex)
 }
 

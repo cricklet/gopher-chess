@@ -39,19 +39,19 @@ func TestLocationDecoding(t *testing.T) {
 	game, err := GamestateFromFenString("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
 	assert.Nil(t, err)
 
-	assert.Equal(t, pieceAtFileRank(game.Board, location).string(), WR.string())
+	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), WR.String())
 
 	location, err = fileRankFromString("e4")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{4, 3})
 
-	assert.Equal(t, pieceAtFileRank(game.Board, location).string(), WP.string())
+	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), WP.String())
 
 	location, err = fileRankFromString("d8")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{3, 7})
 
-	assert.Equal(t, pieceAtFileRank(game.Board, location).string(), BQ.string())
+	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), BQ.String())
 
 	location, err = fileRankFromString("a1")
 	assert.Nil(t, err)

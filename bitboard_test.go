@@ -16,7 +16,7 @@ import (
 )
 
 func TestSingleBoards(t *testing.T) {
-	assert.Equal(t, singleBitboard(63).string(), strings.Join([]string{
+	assert.Equal(t, singleBitboard(63).String(), strings.Join([]string{
 		"00000001",
 		"00000000",
 		"00000000",
@@ -26,7 +26,7 @@ func TestSingleBoards(t *testing.T) {
 		"00000000",
 		"00000000",
 	}, "\n"))
-	assert.Equal(t, singleBitboard(0).string(), strings.Join([]string{
+	assert.Equal(t, singleBitboard(0).String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -36,7 +36,7 @@ func TestSingleBoards(t *testing.T) {
 		"00000000",
 		"10000000",
 	}, "\n"))
-	assert.Equal(t, singleBitboard(7).string(), strings.Join([]string{
+	assert.Equal(t, singleBitboard(7).String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -49,7 +49,7 @@ func TestSingleBoards(t *testing.T) {
 }
 
 func TestAllOnes(t *testing.T) {
-	assert.Equal(t, ALL_ONES.string(), strings.Join([]string{
+	assert.Equal(t, ALL_ONES.String(), strings.Join([]string{
 		"11111111",
 		"11111111",
 		"11111111",
@@ -62,7 +62,7 @@ func TestAllOnes(t *testing.T) {
 }
 
 func TestDirMasks(t *testing.T) {
-	assert.Equal(t, PRE_MOVE_MASKS[N].string(), strings.Join([]string{
+	assert.Equal(t, PRE_MOVE_MASKS[N].String(), strings.Join([]string{
 		"00000000",
 		"11111111",
 		"11111111",
@@ -72,7 +72,7 @@ func TestDirMasks(t *testing.T) {
 		"11111111",
 		"11111111",
 	}, "\n"))
-	assert.Equal(t, PRE_MOVE_MASKS[NE].string(), strings.Join([]string{
+	assert.Equal(t, PRE_MOVE_MASKS[NE].String(), strings.Join([]string{
 		"00000000",
 		"11111110",
 		"11111110",
@@ -82,7 +82,7 @@ func TestDirMasks(t *testing.T) {
 		"11111110",
 		"11111110",
 	}, "\n"))
-	assert.Equal(t, PRE_MOVE_MASKS[SSW].string(), strings.Join([]string{
+	assert.Equal(t, PRE_MOVE_MASKS[SSW].String(), strings.Join([]string{
 		"01111111",
 		"01111111",
 		"01111111",
@@ -111,7 +111,7 @@ func TestBitboardSetup(t *testing.T) {
 	}.AsBoardArray().String())
 
 	bitboards := SetupBitboards(&g)
-	assert.Equal(t, bitboards.occupied.string(), strings.Join([]string{
+	assert.Equal(t, bitboards.occupied.String(), strings.Join([]string{
 		"11111111",
 		"11111111",
 		"00000000",
@@ -121,7 +121,7 @@ func TestBitboardSetup(t *testing.T) {
 		"11110111",
 		"11111111",
 	}, "\n"))
-	assert.Equal(t, bitboards.players[WHITE].occupied.string(), strings.Join([]string{
+	assert.Equal(t, bitboards.players[WHITE].occupied.String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -131,7 +131,7 @@ func TestBitboardSetup(t *testing.T) {
 		"11110111",
 		"11111111",
 	}, "\n"))
-	assert.Equal(t, bitboards.players[WHITE].pieces[PAWN].string(), strings.Join([]string{
+	assert.Equal(t, bitboards.players[WHITE].pieces[PAWN].String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -145,7 +145,7 @@ func TestBitboardSetup(t *testing.T) {
 
 func TestBitRotation(t *testing.T) {
 	board := singleBitboard(63)
-	assert.Equal(t, board.string(), strings.Join([]string{
+	assert.Equal(t, board.String(), strings.Join([]string{
 		"00000001",
 		"00000000",
 		"00000000",
@@ -157,7 +157,7 @@ func TestBitRotation(t *testing.T) {
 	}, "\n"))
 
 	board = rotateTowardsIndex0(board, 3)
-	assert.Equal(t, board.string(), strings.Join([]string{
+	assert.Equal(t, board.String(), strings.Join([]string{
 		"00001000",
 		"00000000",
 		"00000000",
@@ -168,7 +168,7 @@ func TestBitRotation(t *testing.T) {
 		"00000000",
 	}, "\n"))
 	board = rotateTowardsIndex0(board, 60)
-	assert.Equal(t, board.string(), strings.Join([]string{
+	assert.Equal(t, board.String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -179,7 +179,7 @@ func TestBitRotation(t *testing.T) {
 		"10000000",
 	}, "\n"))
 	board = rotateTowardsIndex0(board, 3)
-	assert.Equal(t, board.string(), strings.Join([]string{
+	assert.Equal(t, board.String(), strings.Join([]string{
 		"00000100",
 		"00000000",
 		"00000000",
@@ -190,7 +190,7 @@ func TestBitRotation(t *testing.T) {
 		"00000000",
 	}, "\n"))
 	board = rotateTowardsIndex64(board, 3)
-	assert.Equal(t, board.string(), strings.Join([]string{
+	assert.Equal(t, board.String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -201,7 +201,7 @@ func TestBitRotation(t *testing.T) {
 		"10000000",
 	}, "\n"))
 	board = rotateTowardsIndex64(board, -3)
-	assert.Equal(t, board.string(), strings.Join([]string{
+	assert.Equal(t, board.String(), strings.Join([]string{
 		"00000100",
 		"00000000",
 		"00000000",
@@ -331,7 +331,7 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, XX, WR,
 	}.AsBoardArray().String(), g.Board.String())
 
-	assert.Equal(t, g.enPassantTarget.Value().string(), "g6")
+	assert.Equal(t, g.enPassantTarget.Value().String(), "g6")
 
 	bitboards := SetupBitboards(&g)
 
@@ -401,7 +401,7 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 
 func TestEachIndexOfOne(t *testing.T) {
 	board := singleBitboard(63) | singleBitboard(3) | singleBitboard(5) | singleBitboard(30)
-	assert.Equal(t, board.string(), strings.Join([]string{
+	assert.Equal(t, board.String(), strings.Join([]string{
 		"00000001",
 		"00000000",
 		"00000000",
@@ -435,7 +435,7 @@ func TestStringFromBoardIndex(t *testing.T) {
 			panic(err)
 		}
 
-		assert.Equal(t, fileRank.string(), str)
+		assert.Equal(t, fileRank.String(), str)
 
 		i := boardIndexFromString(str)
 		j := boardIndexFromFileRank(fileRank)
@@ -455,8 +455,8 @@ func TestBitboardFromStrings(t *testing.T) {
 			"00000000",
 			"00000000",
 			"00000000",
-		}).string(),
-		singleBitboard(boardIndexFromString("c7")).string())
+		}).String(),
+		singleBitboard(boardIndexFromString("c7")).String())
 }
 
 func TestBlockerMasks(t *testing.T) {
@@ -470,8 +470,8 @@ func TestBlockerMasks(t *testing.T) {
 			"00001000",
 			"01110110",
 			"00000000",
-		}).string(),
-		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("e2")].string())
+		}).String(),
+		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("e2")].String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -483,8 +483,8 @@ func TestBlockerMasks(t *testing.T) {
 			"00010000",
 			"00010000",
 			"00000000",
-		}).string(),
-		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("d5")].string())
+		}).String(),
+		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("d5")].String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -496,8 +496,8 @@ func TestBlockerMasks(t *testing.T) {
 			"10000000",
 			"10000000",
 			"01111110",
-		}).string(),
-		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("a1")].string())
+		}).String(),
+		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("a1")].String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -509,8 +509,8 @@ func TestBlockerMasks(t *testing.T) {
 			"01000100",
 			"00000010",
 			"00000000",
-		}).string(),
-		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("d5")].string())
+		}).String(),
+		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("d5")].String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -522,8 +522,8 @@ func TestBlockerMasks(t *testing.T) {
 			"00100000",
 			"01000000",
 			"00000000",
-		}).string(),
-		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("a1")].string())
+		}).String(),
+		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("a1")].String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -535,8 +535,8 @@ func TestBlockerMasks(t *testing.T) {
 			"00000100",
 			"00000010",
 			"00000000",
-		}).string(),
-		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("h1")].string())
+		}).String(),
+		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("h1")].String())
 }
 
 func TestWhiteCastling(t *testing.T) {
@@ -757,8 +757,8 @@ func TestAttackMap(t *testing.T) {
 			"10100000",
 			"10000000",
 			"00000000",
-		}).string(),
-		bitboards.dangerBoard(WHITE).string())
+		}).String(),
+		bitboards.dangerBoard(WHITE).String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -770,8 +770,8 @@ func TestAttackMap(t *testing.T) {
 			"11111111",
 			"10111101",
 			"01111110",
-		}).string(),
-		bitboards.dangerBoard(BLACK).string())
+		}).String(),
+		bitboards.dangerBoard(BLACK).String())
 }
 
 func TestKnightMasks(t *testing.T) {
@@ -785,8 +785,8 @@ func TestKnightMasks(t *testing.T) {
 			"01000000",
 			"00100000",
 			"00000000",
-		}).string(),
-		KNIGHT_ATTACK_MASKS[boardIndexFromString("a1")].string())
+		}).String(),
+		KNIGHT_ATTACK_MASKS[boardIndexFromString("a1")].String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -798,8 +798,8 @@ func TestKnightMasks(t *testing.T) {
 			"00100010",
 			"00010100",
 			"00000000",
-		}).string(),
-		KNIGHT_ATTACK_MASKS[boardIndexFromString("e4")].string())
+		}).String(),
+		KNIGHT_ATTACK_MASKS[boardIndexFromString("e4")].String())
 
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
@@ -811,8 +811,8 @@ func TestKnightMasks(t *testing.T) {
 			"00000100",
 			"00000000",
 			"00000100",
-		}).string(),
-		KNIGHT_ATTACK_MASKS[boardIndexFromString("h2")].string())
+		}).String(),
+		KNIGHT_ATTACK_MASKS[boardIndexFromString("h2")].String())
 	assert.Equal(t,
 		bitboardFromStrings([8]string{
 			"00000000",
@@ -823,8 +823,8 @@ func TestKnightMasks(t *testing.T) {
 			"00000000",
 			"00000000",
 			"00000000",
-		}).string(),
-		KNIGHT_ATTACK_MASKS[boardIndexFromString("h8")].string())
+		}).String(),
+		KNIGHT_ATTACK_MASKS[boardIndexFromString("h8")].String())
 }
 
 func TestCheck(t *testing.T) {
@@ -1168,7 +1168,7 @@ type MoveToSearch struct {
 	initial string
 }
 
-func (p PerftComparison) string() string {
+func (p PerftComparison) String() string {
 	switch p {
 	case MOVE_IS_INVALID:
 		return "invalid"
@@ -1179,12 +1179,12 @@ func (p PerftComparison) string() string {
 	case COUNT_TOO_LOW:
 		return "low"
 	}
-	panic(fmt.Sprint("unknown issue", p))
+	panic(fmt.Sprint("unknown issue"))
 }
 
-func (m MoveToSearch) string() string {
+func (m MoveToSearch) String() string {
 	return fmt.Sprintf("%v %v at \"%v\"",
-		m.issue.string(),
+		m.issue.String(),
 		m.move,
 		m.initial,
 	)
@@ -1217,7 +1217,7 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 			break
 		}
 		if search.issue == MOVE_IS_INVALID || search.issue == MOVE_IS_MISSING {
-			result = append(result, search.string())
+			result = append(result, search.String())
 			totalInvalidMoves++
 		} else {
 			move := g.moveFromString(search.move)
@@ -1353,8 +1353,8 @@ func TestMovesAtDepth(t *testing.T) {
 		assert.Equal(t, expectedCount, actualCount)
 	}
 
-	fmt.Println("indices pool ", StatsIndicesBuffer().string())
-	fmt.Println("move pool ", StatsMoveBuffer().string())
+	fmt.Println("indices pool ", StatsIndicesBuffer().String())
+	fmt.Println("move pool ", StatsMoveBuffer().String())
 }
 
 type TestSlice []int
@@ -1431,8 +1431,8 @@ func TestSliceVsArray(t *testing.T) {
 	wg.Wait()
 	arrayProgress.Close()
 
-	fmt.Println("slices ", StatsTestSlice().string())
-	fmt.Println("array ", StatsTestArray().string())
+	fmt.Println("slices ", StatsTestSlice().String())
+	fmt.Println("array ", StatsTestArray().String())
 }
 
 func TestEachIndexOfOneCallbackVsRange(t *testing.T) {

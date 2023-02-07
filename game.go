@@ -9,12 +9,12 @@ import (
 type File uint
 type Rank uint
 
-func (f File) string() string {
+func (f File) String() string {
 	return [8]string{
 		"a", "b", "c", "d", "e", "f", "g", "h",
 	}[f]
 }
-func (r Rank) string() string {
+func (r Rank) String() string {
 	return [8]string{
 		"1", "2", "3", "4", "5", "6", "7", "8",
 	}[r]
@@ -41,8 +41,8 @@ type FileRank struct {
 	rank Rank
 }
 
-func (v FileRank) string() string {
-	return v.file.string() + v.rank.string()
+func (v FileRank) String() string {
+	return v.file.String() + v.rank.String()
 }
 
 func fileRankFromString(s string) (FileRank, error) {
@@ -222,7 +222,7 @@ func pieceFromString(c rune) (Piece, error) {
 	}
 }
 
-func (p Piece) string() string {
+func (p Piece) String() string {
 	return []string{
 		" ",
 		"R",
@@ -273,7 +273,7 @@ func (b BoardArray) String() string {
 	for rank := 7; rank >= 0; rank-- {
 		row := b[rank*8 : (rank+1)*8]
 		for _, p := range row {
-			result += p.string()
+			result += p.String()
 		}
 		if rank != 0 {
 			result += "\n"
@@ -555,7 +555,7 @@ func fenStringForEnPassant(enPassant Optional[FileRank]) string {
 	if enPassant.IsEmpty() {
 		return "-"
 	}
-	return enPassant.Value().string()
+	return enPassant.Value().String()
 }
 
 func (g *GameState) fenString() string {
@@ -573,7 +573,7 @@ func (g *GameState) fenString() string {
 				s += fmt.Sprint(numSpaces)
 				numSpaces = 0
 			}
-			s += piece.string()
+			s += piece.String()
 		}
 		if numSpaces > 0 {
 			s += fmt.Sprint(numSpaces)
