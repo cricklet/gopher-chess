@@ -1,4 +1,4 @@
-package chessgo
+package chess
 
 import (
 	"encoding/json"
@@ -1516,12 +1516,12 @@ func bToKb(b uint64) uint64 {
 }
 
 func initMagicTables() {
-	rookInput, err := os.ReadFile("magics-for-rook.json")
+	rookInput, err := os.ReadFile("../data/magics-for-rook.json")
 	if err == nil {
 		json.Unmarshal(rookInput, &ROOK_BEST_MAGICS)
 	}
 
-	bishopInput, err := os.ReadFile("magics-for-bishop.json")
+	bishopInput, err := os.ReadFile("../data/magics-for-bishop.json")
 	if err == nil {
 		json.Unmarshal(bishopInput, &BISHOP_BEST_MAGICS)
 	}
@@ -1551,12 +1551,12 @@ func initMagicTables() {
 	// fmt.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
 
 	if rookOutput, err := json.Marshal(ROOK_BEST_MAGICS); err == nil {
-		os.WriteFile("magics-for-rook.json", rookOutput, 0777)
+		os.WriteFile("../data/magics-for-rook.json", rookOutput, 0777)
 	} else {
 		panic("couldn't marshal rook magics")
 	}
 	if bishopOutput, err := json.Marshal(BISHOP_BEST_MAGICS); err == nil {
-		os.WriteFile("magics-for-bishop.json", bishopOutput, 0777)
+		os.WriteFile("../data/magics-for-bishop.json", bishopOutput, 0777)
 	} else {
 		panic("couldn't marshal bishop magics")
 	}

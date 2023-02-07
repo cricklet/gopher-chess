@@ -1,4 +1,4 @@
-package chessgo
+package chess
 
 import (
 	"strings"

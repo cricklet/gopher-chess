@@ -1,4 +1,4 @@
-package chessgo
+package chess
 
 import (
 	"fmt"
@@ -1335,7 +1335,7 @@ func TestMovesAtDepth(t *testing.T) {
 		// 3195901860,
 	}
 
-	defer profile.Start(profile.ProfilePath("./TestMovesAtDepth")).Stop()
+	defer profile.Start(profile.ProfilePath("../data/TestMovesAtDepth")).Stop()
 	for depth, expectedCount := range EXPECTED_COUNT {
 		g, err := GamestateFromFenString(s)
 		assert.Nil(t, err)
@@ -1383,7 +1383,7 @@ var GetTestArray, ReleaseTestArray, StatsTestArray = createPool(
 )
 
 func TestSliceVsArray(t *testing.T) {
-	defer profile.Start(profile.ProfilePath("./TestSliceVsArray")).Stop()
+	defer profile.Start(profile.ProfilePath("../data/TestSliceVsArray")).Stop()
 	var wg sync.WaitGroup
 
 	competingThreads := 25
@@ -1436,7 +1436,7 @@ func TestSliceVsArray(t *testing.T) {
 }
 
 func TestEachIndexOfOneCallbackVsRange(t *testing.T) {
-	defer profile.Start(profile.ProfilePath("./TestEachIndexOfOneCallbackVsRange")).Stop()
+	defer profile.Start(profile.ProfilePath("../data/TestEachIndexOfOneCallbackVsRange")).Stop()
 
 	testNum := uint64(9999999)
 
@@ -1477,7 +1477,7 @@ func TestEachIndexOfOneCallbackVsRange(t *testing.T) {
 }
 
 func TestIndexSingeVsDoubleArray(t *testing.T) {
-	defer profile.Start(profile.ProfilePath("./TestEachIndexOfOneCallbackVsRange")).Stop()
+	defer profile.Start(profile.ProfilePath("../data/TestEachIndexOfOneCallbackVsRange")).Stop()
 
 	double := [64][64]int{}
 	single := [64 * 64]int{}
@@ -1511,7 +1511,7 @@ func TestIndexSingeVsDoubleArray(t *testing.T) {
 }
 
 func TestPlayerFromPiece(t *testing.T) {
-	defer profile.Start(profile.ProfilePath("./TestPlayerFromPiece")).Stop()
+	defer profile.Start(profile.ProfilePath("../data/TestPlayerFromPiece")).Stop()
 
 	testNum := 100000000
 

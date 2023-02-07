@@ -6,7 +6,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/cricklet/chessgo"
+	chessgo "github.com/cricklet/chessgo/chess"
 )
 
 func main() {

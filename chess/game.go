@@ -1,4 +1,4 @@
-package chessgo
+package chess
 
 import (
 	"fmt"
@@ -664,8 +664,8 @@ func GamestateFromFenString(s string) (GameState, error) {
 	return game, nil
 }
 func init() {
-	// defer profile.Start(profile.ProfilePath(".")).Stop()
-	// defer profile.Start(profile.MemProfile, profile.ProfilePath(".")).Stop()
+	// defer profile.Start(profile.ProfilePath("../data")).Stop()
+	// defer profile.Start(profile.MemProfile, profile.ProfilePath("../data")).Stop()
 	initMagicTables()
 }
 
