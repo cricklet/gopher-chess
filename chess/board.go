@@ -126,16 +126,16 @@ var PIECE_TYPE_LOOKUP [16]PieceType = func() [16]PieceType {
 	return result
 }()
 
-func (p Piece) pieceType3() PieceType {
-	if p < BR {
-		return PieceType(p - WR)
-	}
-	return PieceType(p - BR)
-}
+// func (p Piece) pieceType3() PieceType {
+// 	if p < BR {
+// 		return PieceType(p - WR)
+// 	}
+// 	return PieceType(p - BR)
+// }
 
-func (p Piece) pieceType2() PieceType {
-	return PieceType((p - 1) % 6)
-}
+// func (p Piece) pieceType2() PieceType {
+// 	return PieceType((p - 1) % 6)
+// }
 
 func (p Piece) pieceType() PieceType {
 	return PIECE_TYPE_LOOKUP[p]
@@ -187,9 +187,9 @@ var PIECE_FOR_PLAYER [2][8]Piece = func() [2][8]Piece {
 	return result
 }()
 
-func (p PieceType) forPlayer(player Player) Piece {
-	return PIECE_FOR_PLAYER[player][p]
-}
+// func (p PieceType) forPlayer(player Player) Piece {
+// 	return PIECE_FOR_PLAYER[player][p]
+// }
 
 func pieceFromString(c rune) (Piece, error) {
 	switch c {
@@ -248,9 +248,9 @@ func (p Piece) isBlack() bool {
 	return p <= BP && p >= BR
 }
 
-func (p Piece) isEmpty() bool {
-	return p == XX
-}
+// func (p Piece) isEmpty() bool {
+// 	return p == XX
+// }
 
 type BoardArray [64]Piece
 

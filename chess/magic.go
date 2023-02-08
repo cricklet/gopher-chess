@@ -3,6 +3,7 @@ package chess
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/bits"
 	"math/rand"
 	"os"
@@ -75,8 +76,8 @@ func initMagicTables() {
 		sumBishopBits += m.BitsInMagicIndex
 	}
 
-	// fmt.Println("rook bits for magic index: best", lowestRookBits, "average", sumRookBits/64.0)
-	// fmt.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
+	// log.Println("rook bits for magic index: best", lowestRookBits, "average", sumRookBits/64.0)
+	// log.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
 
 	if rookOutput, err := json.Marshal(ROOK_BEST_MAGICS); err == nil {
 		os.WriteFile("../data/magics-for-rook.json", rookOutput, 0777)
@@ -95,7 +96,10 @@ func rand64() uint64 {
 }
 
 func mostlyZeroRand64() uint64 {
-	return rand64() & rand64() & rand64()
+	x := rand64()
+	y := rand64()
+	z := rand64()
+	return x & y & z
 }
 
 func magicIndex(magic uint64, blockerBoard Bitboard, bitsInIndex int) int {
@@ -197,10 +201,10 @@ func PrintMemUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Printf("Alloc = %v KB\n", bToKb(m.Alloc))
-	fmt.Printf("\tTotalAlloc = %v KB\n", bToKb(m.TotalAlloc))
-	fmt.Printf("\tSys = %v KB\n", bToKb(m.Sys))
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+	log.Printf("Alloc = %v KB\n", bToKb(m.Alloc))
+	log.Printf("\tTotalAlloc = %v KB\n", bToKb(m.TotalAlloc))
+	log.Printf("\tSys = %v KB\n", bToKb(m.Sys))
+	log.Printf("\tNumGC = %v\n", m.NumGC)
 }
 
 func bToKb(b uint64) uint64 {

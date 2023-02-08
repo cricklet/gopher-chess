@@ -1,8 +1,6 @@
 package chess
 
 import (
-	"fmt"
-	"log"
 	"time"
 
 	"github.com/pkg/profile"
@@ -120,7 +118,7 @@ func evaluateSearch(g *GameState, b *Bitboards, alpha int, beta int, depth int) 
 	return Some(alpha), totalSearched
 }
 
-func Search(g *GameState, b *Bitboards, depth int) Optional[Move] {
+func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move] {
 	defer profile.Start(profile.ProfilePath("../data/Search")).Stop()
 
 	moves := GetMovesBuffer()
@@ -150,14 +148,14 @@ func Search(g *GameState, b *Bitboards, depth int) Optional[Move] {
 
 		if enemyScore.HasValue() {
 			currentScore := -enemyScore.Value()
-			log.Println(i, "/", len(*moves), "searched", numSearched, "under", move.String(), "and found score", currentScore)
+			logger.Println(i, "/", len(*moves), "searched", numSearched, "under", move.String(), "and found score", currentScore)
 
 			if currentScore > bestScore {
 				bestScore = currentScore
 				bestMove = Some(move)
 			}
 		} else {
-			log.Println("searched", move.String(), "and and failed to find score")
+			logger.Println("searched", move.String(), "and and failed to find score")
 		}
 	}
 
@@ -174,7 +172,7 @@ func Search(g *GameState, b *Bitboards, depth int) Optional[Move] {
 
 	for i := 0; i < len(PLY_COUNTS); i++ {
 		if totalSearched < PLY_COUNTS[i] {
-			fmt.Println("searched", totalSearched, "nodes in", time.Now().Sub(startTime), ", which is less than a perft of ply", i, "(", PLY_COUNTS[i], ")")
+			logger.Println("searched", totalSearched, "nodes in", time.Since(startTime), ", ~ perft of ply", i, "(", PLY_COUNTS[i], ")")
 			break
 		}
 	}

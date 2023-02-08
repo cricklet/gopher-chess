@@ -45,6 +45,20 @@ func (u MessageFromWeb) String() string {
 	}
 	return "MessageFromWeb unknown"
 }
+
+type LogForwarding struct {
+	writeCallback func(message string)
+}
+
+func (l *LogForwarding) Println(v ...any) {
+	l.writeCallback(fmt.Sprintln(v...))
+}
+func (l *LogForwarding) Printf(format string, v ...any) {
+	l.writeCallback(fmt.Sprintf(format, v...))
+}
+func (l *LogForwarding) Print(v ...any) {
+	l.writeCallback(fmt.Sprint(v...))
+}
 func serve() {
 	var upgrader = websocket.Upgrader{}
 
@@ -56,8 +70,18 @@ func serve() {
 			panic(err)
 		}
 
+		runner.Logger = &LogForwarding{
+			func(message string) {
+				bytes, err := json.Marshal([]string{message})
+				if err != nil {
+					panic(err)
+				}
+				c.WriteMessage(websocket.TextMessage, bytes)
+			},
+		}
+
 		var sendUpdateToWeb = func(result UpdateToWeb) {
-			log.Println("sending", result)
+			runner.Logger.Println("sending", result)
 			bytes, err := json.Marshal(result)
 			if err != nil {
 				panic(err)
@@ -68,7 +92,7 @@ func serve() {
 		var handleMessageFromWeb = func(bytes []byte) {
 			var message MessageFromWeb
 			json.Unmarshal(bytes, &message)
-			log.Println("received", message)
+			runner.Logger.Println("received", message)
 
 			var update UpdateToWeb
 
@@ -96,7 +120,7 @@ func serve() {
 				bestMoveString := chessgo.FindInSlice(runner.HandleInput("go"), func(v string) bool {
 					return strings.HasPrefix(v, "bestmove ")
 				})
-				log.Println("found move", bestMoveString)
+				runner.Logger.Println("found move", bestMoveString)
 				if bestMoveString.HasValue() {
 					runner.PerformMoveFromString(
 						strings.TrimPrefix(bestMoveString.Value(), "bestmove "))
@@ -118,7 +142,7 @@ func serve() {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				log.Printf("Error: %v", err)
+				runner.Logger.Printf("Error: %v", err)
 				break
 			} else {
 				handleMessageFromWeb(message)
@@ -133,6 +157,7 @@ func serve() {
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("../static")))
 	http.Handle("/", router)
 	http.ListenAndServe(":8002", router)
+
 }
 
 func main() {

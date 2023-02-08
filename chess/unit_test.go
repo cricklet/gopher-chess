@@ -2,6 +2,7 @@ package chess
 
 import (
 	"fmt"
+	"log"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -146,7 +147,7 @@ func TestUCI(t *testing.T) {
 	}
 	r := Runner{}
 	for _, line := range inputs {
-		fmt.Println(r.HandleInput(line))
+		log.Println(r.HandleInput(line))
 	}
 }
 
@@ -1040,59 +1041,59 @@ func TestPin(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-type X struct {
-	a []int
-	b [2]int
-	c int
-}
+// type X struct {
+// 	a []int
+// 	b [2]int
+// 	c int
+// }
 
-func (x X) updateValue(v int) {
-	x.a[0] = v
-	x.a[1] = v
-	x.b[0] = v
-	x.b[1] = v
-	x.c = v
-}
+// func (x X) updateValue(v int) {
+// 	x.a[0] = v
+// 	x.a[1] = v
+// 	x.b[0] = v
+// 	x.b[1] = v
+// 	x.c = v // lint:ignore SA4005
+// }
 
-func (x *X) updatePointer(v int) {
-	x.a[0] = v
-	x.a[1] = v
-	x.b[0] = v
-	x.b[1] = v
-	x.c = v
-}
+// func (x *X) updatePointer(v int) {
+// 	x.a[0] = v
+// 	x.a[1] = v
+// 	x.b[0] = v
+// 	x.b[1] = v
+// 	x.c = v
+// }
 
-func updateValueX(x X, v int) {
-	x.a[0] = v
-	x.a[1] = v
-	x.b[0] = v
-	x.b[1] = v
-	x.c = v
-}
+// func updateValueX(x X, v int) {
+// 	x.a[0] = v
+// 	x.a[1] = v
+// 	x.b[0] = v
+// 	x.b[1] = v
+// 	x.c = v
+// }
 
-func updatePointerX(x *X, v int) {
-	x.a[0] = v
-	x.a[1] = v
-	x.b[0] = v
-	x.b[1] = v
-	x.c = v
-}
+// func updatePointerX(x *X, v int) {
+// 	x.a[0] = v
+// 	x.a[1] = v
+// 	x.b[0] = v
+// 	x.b[1] = v
+// 	x.c = v
+// }
 
-func TestArraysArePassedByReference(t *testing.T) {
-	x := X{[]int{1, 1}, [2]int{1, 1}, 1}
+// func TestArraysArePassedByReference(t *testing.T) {
+// 	x := X{[]int{1, 1}, [2]int{1, 1}, 1}
 
-	x.updateValue(9)
-	assert.Equal(t, X{[]int{9, 9}, [2]int{1, 1}, 1}, x)
+// 	x.updateValue(9)
+// 	assert.Equal(t, X{[]int{9, 9}, [2]int{1, 1}, 1}, x)
 
-	updateValueX(x, 99)
-	assert.Equal(t, X{[]int{99, 99}, [2]int{1, 1}, 1}, x)
+// 	updateValueX(x, 99)
+// 	assert.Equal(t, X{[]int{99, 99}, [2]int{1, 1}, 1}, x)
 
-	x.updatePointer(999)
-	assert.Equal(t, X{[]int{999, 999}, [2]int{999, 999}, 999}, x)
+// 	x.updatePointer(999)
+// 	assert.Equal(t, X{[]int{999, 999}, [2]int{999, 999}, 999}, x)
 
-	updatePointerX(&x, 9999)
-	assert.Equal(t, X{[]int{9999, 9999}, [2]int{9999, 9999}, 9999}, x)
-}
+// 	updatePointerX(&x, 9999)
+// 	assert.Equal(t, X{[]int{9999, 9999}, [2]int{9999, 9999}, 9999}, x)
+// }
 
 func TestBitboardsCopyingIsDeep(t *testing.T) {
 	b := Bitboards{}
@@ -1209,8 +1210,8 @@ func CountAndPerftForDepthWithProgress(t *testing.T, g *GameState, b *Bitboards,
 
 	if progressBar != nil {
 		progressBar.Close()
-		fmt.Println("             |", time.Now().Sub(startTime))
-		fmt.Println()
+		log.Println("             |", time.Since(startTime))
+		log.Println()
 	}
 
 	return result, perft
@@ -1283,7 +1284,7 @@ func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth 
 			result[move] = COUNT_TOO_LOW
 		}
 	}
-	for expectedMove, _ := range expectedPerft {
+	for expectedMove := range expectedPerft {
 		_, ok := perft[expectedMove]
 		if ok == false {
 			result[expectedMove] = MOVE_IS_MISSING
@@ -1314,7 +1315,7 @@ func (p PerftComparison) String() string {
 	case COUNT_TOO_LOW:
 		return "low"
 	}
-	panic(fmt.Sprint("unknown issue"))
+	panic("unknown issue")
 }
 
 func (m MoveToSearch) String() string {
@@ -1488,8 +1489,8 @@ func TestMovesAtDepth(t *testing.T) {
 		assert.Equal(t, expectedCount, actualCount)
 	}
 
-	fmt.Println("indices pool ", StatsIndicesBuffer().String())
-	fmt.Println("move pool ", StatsMoveBuffer().String())
+	log.Println("indices pool ", StatsIndicesBuffer().String())
+	log.Println("move pool ", StatsMoveBuffer().String())
 }
 
 type TestSlice []int
@@ -1508,9 +1509,10 @@ func (xs *TestArray) add(x int) {
 	xs._values[xs.size] = x
 	xs.size++
 }
-func (xs *TestArray) get(i int) int {
-	return xs._values[i]
-}
+
+// func (xs *TestArray) get(i int) int {
+// 	return xs._values[i]
+// }
 
 var GetTestArray, ReleaseTestArray, StatsTestArray = createPool(
 	func() TestArray { return TestArray{} },
@@ -1566,8 +1568,8 @@ func TestSliceVsArray(t *testing.T) {
 	wg.Wait()
 	arrayProgress.Close()
 
-	fmt.Println("slices ", StatsTestSlice().String())
-	fmt.Println("array ", StatsTestArray().String())
+	log.Println("slices ", StatsTestSlice().String())
+	log.Println("array ", StatsTestArray().String())
 }
 
 func TestEachIndexOfOneCallbackVsRange(t *testing.T) {

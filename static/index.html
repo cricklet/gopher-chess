@@ -1,81 +1,131 @@
 <style>
-
     @media (prefers-color-scheme: dark) {
-    body {
-        background-color: #333;
-    }
-    .dark {background-color: #555;}
-    .light {background-color: #777;}
+        body {
+            background-color: #333;
+        }
+
+        .dark {
+            background-color: #555;
+        }
+
+        .light {
+            background-color: #777;
+        }
     }
 
     @media (prefers-color-scheme: light) {
-    body {
-        background-color: #eee;
+        body {
+            background-color: #eee;
+        }
+
+        .dark {
+            background-color: #777;
+        }
+
+        .light {
+            background-color: #aaa;
+        }
     }
-    .dark {background-color: #777;}
-    .light {background-color: #aaa;}
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+        height: 100%;
     }
 
     #container {
-        height: 100%;
-        width: 100%;
         display: flex;
+        height: 100%;
+        width: fit-content;
         align-items: center;
-        justify-content: center;
-        flex-direction: column;
+        flex-direction: row;
+        padding: 20px;
     }
+
+    #board {
+        width:fit-content;
+    }
+
+    #logs {
+        display: flex;
+        align-items:flex-start;
+        flex-direction: column-reverse;
+        padding: 20px;
+        width: 100%;
+        height: 100%;
+        font-family:monospace;
+        overflow:scroll;
+    }
+
     .row {
         font-size: 4rem;
         height: 1em;
-        display:flex;
+        display: flex;
     }
-    span {
-        display: inline-block;
-        text-align: center;
-        grid-area:1/1;
-    }
-    .square{
-        cursor:default;
+
+    .square {
+        cursor: default;
         display: grid;
         width: 1em;
         height: 1em;
         line-height: 1em;
     }
+
+    span {
+        display: inline-block;
+        text-align: center;
+        grid-area: 1/1;
+    }
+
     .backdrop {
         width: 1em;
         height: 1em;
     }
+
     .backdrop.selected:hover {
-        cursor:pointer;
+        cursor: pointer;
         backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
         -webkit-backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
     }
+
     .backdrop.potential:hover {
-        cursor:pointer;
+        cursor: pointer;
         backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
         -webkit-backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
     }
+
     .backdrop.selectable:hover {
-        cursor:pointer;
+        cursor: pointer;
         backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
         -webkit-backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
     }
+
     .potentialCircle {
         z-index: 9;
         pointer-events: none;
     }
+
     .potentialCircle.white {
-        filter:invert(90%);
+        filter: invert(90%);
     }
+
     .potentialCircle::after {
         content: "⬤";
         font-size: 0.4em;
     }
+
     .piece.white {
-        filter:invert(80%);
+        filter: invert(80%);
     }
+
     .piece {
-        width: 1em; height: 1em;
+        width: 1em;
+        height: 1em;
         background-origin: content-box;
         background-repeat: no-repeat;
         background-position: center;
@@ -85,25 +135,30 @@
         stroke-width: 1px;
         pointer-events: none;
     }
+
     .rook {
         background-image: url('chess-rook-solid.svg');
     }
+
     .king {
         background-image: url('chess-king-solid.svg');
     }
+
     .knight {
         background-image: url('chess-knight-solid.svg');
     }
+
     .pawn {
         background-image: url('chess-pawn-solid.svg');
     }
+
     .queen {
         background-image: url('chess-queen-solid.svg');
     }
+
     .bishop {
         background-image: url('chess-bishop-solid.svg');
     }
-
 </style>
 <script>
     PIECE_CLASS_MAP = {
@@ -175,10 +230,10 @@
             indicesToSkip = parseInt(c)
             if (!isNaN(indicesToSkip)) {
                 fileIndex += indicesToSkip
-                continue  
+                continue
             }
             board[fileIndex][rankIndex] = c
-            fileIndex ++
+            fileIndex++
         }
 
         return board
@@ -195,7 +250,7 @@
                 })
                 return
             }
-            
+
             if (c != " " && PLAYER_PIECE_MAP[player].has(c)) {
                 if (!fileRankMatches(file, rank, selectedFileRank)) {
                     send({
@@ -209,15 +264,15 @@
             })
         }
 
-        const containerEl = document.getElementById('container')
-        containerEl.innerHTML = ''
+        const boardEl = document.getElementById('board')
+        boardEl.innerHTML = ''
 
-        for (let rank = 7; rank >= 0; rank --) {
+        for (let rank = 7; rank >= 0; rank--) {
             const rowEl = document.createElement('div')
             rowEl.classList.add('row')
-            containerEl.appendChild(rowEl)
+            boardEl.appendChild(rowEl)
 
-            for (let file = 0; file < 8; file ++) {
+            for (let file = 0; file < 8; file++) {
                 const c = board[file][rank]
                 const spanEl = document.createElement('span')
                 spanEl.classList.add('square')
@@ -225,7 +280,7 @@
                 if ((file + rank) % 2 == 1) spanEl.classList.add('dark')
                 else spanEl.classList.add('light')
 
-                spanEl.onclick=() => click(file, rank)
+                spanEl.onclick = () => click(file, rank)
 
                 if (selectedFileRank && selectedFileRank[0] == file && selectedFileRank[1] == rank) {
                     const backdropEl = document.createElement('span')
@@ -276,12 +331,12 @@
         socket.send(message)
     }
 
-    document.addEventListener("DOMContentLoaded", () => { 
+    document.addEventListener("DOMContentLoaded", () => {
         document.body.addEventListener('keydown', () => {
             if (selectedFileRank) {
-                send({Selection: ""})
+                send({ Selection: "" })
             } else {
-                send({Rewind: 1})
+                send({ Rewind: 1 })
             }
         })
 
@@ -290,28 +345,35 @@
             if (fen == 'startpos' || fen.length < 1) {
                 fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
             }
-            send({NewFen: fen})
+            send({ NewFen: fen })
         };
 
         socket.onmessage = event => {
             data = JSON.parse(event.data)
             console.log('received', data)
-
-            board = parseFenBoardString(data.FenBoardString)
-            selectedFileRank = data.Selection ? fileRankFromString(data.Selection) : null
-
-            let availableMovesArray = data.PossibleMoves ? data.PossibleMoves.map(v => fileRankFromString(v)) : null
-            availableMoves = {}
-            for (const [file, rank] of availableMovesArray || []) {
-                if (!availableMoves[file]) {
-                    availableMoves[file] = {}
+            if (Array.isArray(data)) {
+                for (const line of data) {
+                    const textEl = document.createElement('div')
+                    textEl.innerText = line
+                    document.getElementById("logs").prepend(textEl)
                 }
-                availableMoves[file][rank] = true
+            } else {
+                board = parseFenBoardString(data.FenBoardString)
+                selectedFileRank = data.Selection ? fileRankFromString(data.Selection) : null
+
+                let availableMovesArray = data.PossibleMoves ? data.PossibleMoves.map(v => fileRankFromString(v)) : null
+                availableMoves = {}
+                for (const [file, rank] of availableMovesArray || []) {
+                    if (!availableMoves[file]) {
+                        availableMoves[file] = {}
+                    }
+                    availableMoves[file][rank] = true
+                }
+
+                player = data.Player
+
+                update()
             }
-
-            player = data.Player
-
-            update()
         }
 
         socket.onclose = event => {
@@ -322,4 +384,7 @@
         };
     })
 </script>
-<div id="container"></div>
+<div id="container">
+    <div id="board"></div>
+    <div id="logs"></div>
+</div>

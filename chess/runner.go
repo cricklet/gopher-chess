@@ -11,6 +11,8 @@ type Runner struct {
 
 	startPos string
 	history  []HistoryValue
+
+	Logger Logger
 }
 
 type HistoryValue struct {
@@ -112,9 +114,7 @@ func parseMoves(input string) []string {
 	result := []string{}
 	if strings.Contains(input, " moves ") {
 		fields := strings.Fields(strings.SplitN(input, " moves ", 2)[1])
-		for _, f := range fields {
-			result = append(result, f)
-		}
+		result = append(result, fields...)
 	}
 	return result
 }
@@ -144,7 +144,7 @@ func (r *Runner) HandleInput(input string) []string {
 			r.PerformMoves(position.fen, position.moves)
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move := Search(r.g, r.b, 3)
+		move := Search(r.g, r.b, 3, r.Logger)
 		if move.IsEmpty() {
 			panic(fmt.Errorf("failed to find move for %v ", r.g.Board.String()))
 		}
