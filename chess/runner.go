@@ -26,8 +26,8 @@ func (r *Runner) IsNew() bool {
 func (r *Runner) LastHistory() *HistoryValue {
 	return &r.history[len(r.history)-1]
 }
-func (r *Runner) Rewind(historyLength int) {
-	for len(r.history) > historyLength {
+func (r *Runner) Rewind(num int) {
+	for i := 0; i < MinInt(num, len(r.history)); i++ {
 		h := r.history[len(r.history)-1]
 		r.b.undoUpdate(h.update)
 		r.g.undoUpdate(h.previous, h.update)
@@ -59,7 +59,7 @@ func (r *Runner) PerformMoves(startPos string, moves []string) {
 	startIndex := 0
 	for i := 0; i < len(moves); i++ {
 		if r.history[i].move.String() != moves[i] {
-			r.Rewind(i)
+			r.Rewind(len(moves) - i)
 			startIndex = 0
 			break
 		}
@@ -144,7 +144,7 @@ func (r *Runner) HandleInput(input string) []string {
 			r.PerformMoves(position.fen, position.moves)
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move := Search(r.g, r.b, 4)
+		move := Search(r.g, r.b, 3)
 		if move.IsEmpty() {
 			panic(fmt.Errorf("failed to find move for %v ", r.g.Board.String()))
 		}
@@ -153,7 +153,7 @@ func (r *Runner) HandleInput(input string) []string {
 	return result
 }
 
-func (r *Runner) MovesForSelection(selection string) []string {
+func (r *Runner) MovesForSelection(selection string) []FileRank {
 	selectionFileRank, err := FileRankFromString(selection)
 	if err != nil {
 		panic(fmt.Errorf("failed to parse selection %v", err))
@@ -163,12 +163,18 @@ func (r *Runner) MovesForSelection(selection string) []string {
 	legalMoves := []Move{}
 	r.b.generateLegalMoves(r.g, &legalMoves)
 
-	moves := filterSlice(legalMoves, func(m Move) bool {
+	moves := FilterSlice(legalMoves, func(m Move) bool {
 		return m.startIndex == selectionIndex
 	})
-	return mapSlice(moves, func(m Move) string { return m.String() })
+	return MapSlice(moves, func(m Move) FileRank {
+		return FileRankFromIndex(m.endIndex)
+	})
 }
 
 func (r *Runner) FenBoardString() string {
 	return r.g.Board.fenString()
+}
+
+func (r *Runner) Player() Player {
+	return r.g.player
 }

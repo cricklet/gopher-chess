@@ -19,6 +19,7 @@ type UpdateToWeb struct {
 	FenBoardString string
 	Selection      string
 	PossibleMoves  []string
+	Player         string // white / black
 }
 
 func (u UpdateToWeb) String() string {
@@ -29,6 +30,7 @@ type MessageFromWeb struct {
 	NewFen    *string
 	Selection *string
 	Move      *string
+	Rewind    *int
 }
 
 func (u MessageFromWeb) String() string {
@@ -70,35 +72,45 @@ func serve() {
 
 			var update UpdateToWeb
 
-			var responses []string
-
 			if message.NewFen != nil {
 				for _, command := range []string{
 					"isready",
 					"uci",
 					"ucinewgame",
 					fmt.Sprintf("position fen %v", *message.NewFen),
-					"go",
-					"stop",
 				} {
 					runner.HandleInput(command)
 				}
 			} else if message.Selection != nil {
-				update.Selection = *message.Selection
-				moves := runner.MovesForSelection(*message.Selection)
-				update.PossibleMoves = moves
+				if *message.Selection != "" {
+					update.Selection = *message.Selection
+					update.PossibleMoves = chessgo.MapSlice(
+						runner.MovesForSelection(*message.Selection),
+						func(v chessgo.FileRank) string {
+							return v.String()
+						})
+				}
 			} else if message.Move != nil {
 				runner.PerformMoveFromString(*message.Move)
-			}
 
-			for _, r := range responses {
-				if strings.HasPrefix(r, "bestmove ") {
-					m := strings.TrimPrefix(r, "bestmove ")
-					runner.PerformMoveFromString(m)
+				bestMoveString := chessgo.FindInSlice(runner.HandleInput("go"), func(v string) bool {
+					return strings.HasPrefix(v, "bestmove ")
+				})
+				log.Println("found move", bestMoveString)
+				if bestMoveString.HasValue() {
+					runner.PerformMoveFromString(
+						strings.TrimPrefix(bestMoveString.Value(), "bestmove "))
 				}
+			} else if message.Rewind != nil {
+				runner.Rewind(*message.Rewind)
 			}
 
 			update.FenBoardString = runner.FenBoardString()
+			if runner.Player() == chessgo.WHITE {
+				update.Player = "white"
+			} else {
+				update.Player = "black"
+			}
 			sendUpdateToWeb(update)
 		}
 
@@ -133,6 +145,7 @@ func main() {
 
 	args := os.Args[1:]
 	if args[0] == "serve" {
+		log.Println("starting webserver")
 		serve()
 	} else {
 		r := chessgo.Runner{}

@@ -1,7 +1,21 @@
 <style>
+
+    @media (prefers-color-scheme: dark) {
+    body {
+        background-color: #333;
+    }
+    .dark {background-color: #555;}
+    .light {background-color: #777;}
+    }
+
+    @media (prefers-color-scheme: light) {
     body {
         background-color: #eee;
     }
+    .dark {background-color: #777;}
+    .light {background-color: #aaa;}
+    }
+
     #container {
         height: 100%;
         width: 100%;
@@ -10,8 +24,6 @@
         justify-content: center;
         flex-direction: column;
     }
-    .danger.dark {background-color: #dacaca;}
-    .danger.light {background-color: #faeaea;}
     .row {
         font-size: 4rem;
         height: 1em;
@@ -29,28 +41,38 @@
         height: 1em;
         line-height: 1em;
     }
-    .dark {background-color: #777;}
-    .light {background-color: #aaa;}
-    .selected.dark {background-color: #88a}
-    .selected.light {background-color: #bbd}
-    .dark:has(.potential):hover {background-color: #779;}
-    .light:has(.potential):hover {background-color: #aac;}
-    .potential {
-        z-index: 9;
+    .backdrop {
+        width: 1em;
+        height: 1em;
     }
-    .potential.white {
+    .backdrop.selected:hover {
+        cursor:pointer;
+        backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
+        -webkit-backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
+    }
+    .backdrop.potential:hover {
+        cursor:pointer;
+        backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
+        -webkit-backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
+    }
+    .backdrop.selectable:hover {
+        cursor:pointer;
+        backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
+        -webkit-backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
+    }
+    .potentialCircle {
+        z-index: 9;
+        pointer-events: none;
+    }
+    .potentialCircle.white {
         filter:invert(90%);
     }
-    .potential::after {
+    .potentialCircle::after {
         content: "⬤";
         font-size: 0.4em;
     }
-    .potential {cursor:pointer;}
-    .clickable {cursor:pointer;}
-    .dark.clickable:hover {background-color: #779;}
-    .light.clickable:hover {background-color: #aac;}
     .piece.white {
-        filter:invert(90%);
+        filter:invert(80%);
     }
     .piece {
         width: 1em; height: 1em;
@@ -59,6 +81,9 @@
         background-position: center;
         padding: 4px;
         box-sizing: border-box;
+        stroke: #646464;
+        stroke-width: 1px;
+        pointer-events: none;
     }
     .rook {
         background-image: url('chess-rook-solid.svg');
@@ -81,30 +106,25 @@
 
 </style>
 <script>
-    function click(i, j) {
-        
-    }
-
     PIECE_CLASS_MAP = {
-        'r': ['b', 'rook'],
-        'n': ['b', 'knight'],
-        'b': ['b', 'bishop'],
-        'q': ['b', 'queen'],
-        'k': ['b', 'king'],
-        'p': ['b', 'pawn'],
-        'R': ['w', 'rook'],
-        'N': ['w', 'knight'],
-        'B': ['w', 'bishop'],
-        'Q': ['w', 'queen'],
-        'K': ['w', 'king'],
-        'P': ['w', 'pawn'],
+        'r': ['black', 'rook'],
+        'n': ['black', 'knight'],
+        'b': ['black', 'bishop'],
+        'q': ['black', 'queen'],
+        'k': ['black', 'king'],
+        'p': ['black', 'pawn'],
+        'R': ['white', 'rook'],
+        'N': ['white', 'knight'],
+        'B': ['white', 'bishop'],
+        'Q': ['white', 'queen'],
+        'K': ['white', 'king'],
+        'P': ['white', 'pawn'],
     }
 
     PLAYER_PIECE_MAP = {
-        'w': new Set(['R', 'N', 'B', 'Q', 'K', 'P']),
-        'b': new Set(['r', 'n', 'b', 'q', 'k', 'p'])
+        'white': new Set(['R', 'N', 'B', 'Q', 'K', 'P']),
+        'black': new Set(['r', 'n', 'b', 'q', 'k', 'p'])
     }
-
 
     function rankFromChar(c) {
         return parseInt(c) - 1
@@ -114,8 +134,20 @@
         return ["a", "b", "c", "d", "e", "f", "g", "h",].indexOf(c)
     }
 
+    function fileRankMatches(file, rank, location) {
+        if (!location) {
+            return false
+        }
+        return file == location[0] && rank == location[1]
+    }
+
+
     function fileRankFromString(location) {
         return [fileFromChar(location[0]), rankFromChar(location[1])]
+    }
+
+    function fileRankToString(file, rank) {
+        return ["a", "b", "c", "d", "e", "f", "g", "h",][file] + (rank + 1)
     }
 
     function parseFenBoardString(fen) {
@@ -152,72 +184,106 @@
         return board
     }
 
-    async function update(board, selectedFileRank, player, availableMoves) {
-        console.log(availableMoves)
+    let board, selectedFileRank, player, availableMoves
+
+    async function update() {
+        function click(file, rank) {
+            const c = board[file][rank]
+            if (availableMoves && availableMoves[file] && availableMoves[file][rank]) {
+                send({
+                    Move: fileRankToString(...selectedFileRank) + fileRankToString(file, rank)
+                })
+                return
+            }
+            
+            if (c != " " && PLAYER_PIECE_MAP[player].has(c)) {
+                if (!fileRankMatches(file, rank, selectedFileRank)) {
+                    send({
+                        Selection: fileRankToString(file, rank)
+                    })
+                    return
+                }
+            }
+            send({
+                Selection: ""
+            })
+        }
+
         const containerEl = document.getElementById('container')
         containerEl.innerHTML = ''
 
-        for (const [rank, row] of board.entries()) {
+        for (let rank = 7; rank >= 0; rank --) {
             const rowEl = document.createElement('div')
             rowEl.classList.add('row')
             containerEl.appendChild(rowEl)
 
-            for (const [file, c] of row.entries()) {
+            for (let file = 0; file < 8; file ++) {
+                const c = board[file][rank]
                 const spanEl = document.createElement('span')
                 spanEl.classList.add('square')
 
-                if ((rank + file) % 2 == 1) spanEl.classList.add('dark')
+                if ((file + rank) % 2 == 1) spanEl.classList.add('dark')
                 else spanEl.classList.add('light')
 
-                spanEl.onclick=() => click(rank, file)
+                spanEl.onclick=() => click(file, rank)
 
-                if (selectedFileRank && selectedFileRank[1] == rank && selectedFileRank[0] == file) {
-                    spanEl.classList.add('selected')
+                if (selectedFileRank && selectedFileRank[0] == file && selectedFileRank[1] == rank) {
+                    const backdropEl = document.createElement('span')
+                    backdropEl.classList.add('selected')
+                    backdropEl.classList.add('backdrop')
+                    spanEl.appendChild(backdropEl)
                 }
-                
+
                 const pieceClasses = PIECE_CLASS_MAP[c]
                 if (pieceClasses) {
+                    if (PLAYER_PIECE_MAP[player].has(c) && selectedFileRank == null) {
+                        const backdropEl = document.createElement('span')
+                        backdropEl.classList.add('selectable')
+                        backdropEl.classList.add('backdrop')
+                        spanEl.appendChild(backdropEl)
+                    }
+
                     const pieceEl = document.createElement('span')
                     for (const c of pieceClasses) {
                         pieceEl.classList.add(c)
                     }
                     pieceEl.classList.add('piece')
-
                     spanEl.appendChild(pieceEl)
-
-                    if (PLAYER_PIECE_MAP[player].has(c) && selectedFileRank == null) {
-                        spanEl.classList.add('clickable')
-                    }
                 }
+                if (availableMoves && availableMoves[file] && availableMoves[file][rank]) {
+                    const backdropEl = document.createElement('span')
+                    backdropEl.classList.add('potential')
+                    backdropEl.classList.add('backdrop')
+                    spanEl.appendChild(backdropEl)
 
-                if (availableMoves[file] && availableMoves[file][rank]) {
-                    const potentialEl = document.createElement('span')
-                    potentialEl.classList.add('potential')
-                    potentialEl.classList.add(player)
-                    spanEl.appendChild(potentialEl)
+                    const potentialCircle = document.createElement('span')
+                    potentialCircle.classList.add('potentialCircle')
+                    potentialCircle.classList.add(player)
+                    spanEl.appendChild(potentialCircle)
+
+                    spanEl.classList.add('potential')
                 }
                 rowEl.appendChild(spanEl)
             }
         }
     }
 
+    let socket = new WebSocket("ws://0.0.0.0:8002/ws");
+
+    function send(obj) {
+        const message = JSON.stringify(obj)
+        console.log("sending", message)
+        socket.send(message)
+    }
+
     document.addEventListener("DOMContentLoaded", () => { 
         document.body.addEventListener('keydown', () => {
-            // We will send:
-            // {
-            //   "selection": ".."
-            //   "move": ".."
-            // }
-
+            if (selectedFileRank) {
+                send({Selection: ""})
+            } else {
+                send({Rewind: 1})
+            }
         })
-        
-        let socket = new WebSocket("ws://0.0.0.0:8002/ws");
-
-        function send(obj) {
-            const message = JSON.stringify(obj)
-            console.log("sending", message)
-            socket.send(message)
-        }
 
         socket.onopen = () => {
             let fen = window.location.pathname.slice(1)
@@ -229,13 +295,23 @@
 
         socket.onmessage = event => {
             data = JSON.parse(event.data)
-            let board = parseFenBoardString(data.FenBoardString)
-            update(board, null, 'w', [])
+            console.log('received', data)
 
-            console.log(board)
-            // Have the server send:
-            // position <fen-string>
-            // history e2e4 e5e7
+            board = parseFenBoardString(data.FenBoardString)
+            selectedFileRank = data.Selection ? fileRankFromString(data.Selection) : null
+
+            let availableMovesArray = data.PossibleMoves ? data.PossibleMoves.map(v => fileRankFromString(v)) : null
+            availableMoves = {}
+            for (const [file, rank] of availableMovesArray || []) {
+                if (!availableMoves[file]) {
+                    availableMoves[file] = {}
+                }
+                availableMoves[file][rank] = true
+            }
+
+            player = data.Player
+
+            update()
         }
 
         socket.onclose = event => {

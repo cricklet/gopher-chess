@@ -2,7 +2,7 @@ package chess
 
 type Success bool
 
-func mapSlice[T, U any](ts []T, f func(T) U) []U {
+func MapSlice[T, U any](ts []T, f func(T) U) []U {
 	us := make([]U, len(ts))
 	for i := range ts {
 		us[i] = f(ts[i])
@@ -10,8 +10,8 @@ func mapSlice[T, U any](ts []T, f func(T) U) []U {
 	return us
 }
 
-func filterSlice[T any](ts []T, f func(T) bool) []T {
-	filtered := make([]T, len(ts))
+func FilterSlice[T any](ts []T, f func(T) bool) []T {
+	filtered := []T{}
 	for i := range ts {
 		if f(ts[i]) {
 			filtered = append(filtered, ts[i])
@@ -19,8 +19,16 @@ func filterSlice[T any](ts []T, f func(T) bool) []T {
 	}
 	return filtered
 }
+func FindInSlice[T any](ts []T, f func(T) bool) Optional[T] {
+	for i := range ts {
+		if f(ts[i]) {
+			return Some(ts[i])
+		}
+	}
+	return Empty[T]()
+}
 
-func reduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
+func ReduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
 	u := initial
 	for _, t := range ts {
 		u = f(u, t)
@@ -62,6 +70,13 @@ func absDiff(x int, y int) int {
 		return y - x
 	}
 	return x - y
+}
+
+func MinInt(x int, y int) int {
+	if x < y {
+		return x
+	}
+	return y
 }
 
 func flipArray(array [8][8]int) [8][8]int {

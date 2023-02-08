@@ -30,7 +30,7 @@ type BoardUpdate struct {
 
 func (g *GameState) HistoryString() string {
 	return strings.TrimSpace(strings.Join(
-		mapSlice(g.moveHistoryForDebugging, func(m Move) string { return m.String() }), " "))
+		MapSlice(g.moveHistoryForDebugging, func(m Move) string { return m.String() }), " "))
 }
 
 func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
