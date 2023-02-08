@@ -11,6 +11,13 @@
         .light {
             background-color: #777;
         }
+
+        .piece.white {
+            filter: invert(80%);
+        }
+        #logs {
+            color: #eee;
+        }
     }
 
     @media (prefers-color-scheme: light) {
@@ -24,6 +31,10 @@
 
         .light {
             background-color: #aaa;
+        }
+
+        .piece.white {
+            filter: invert(90%);
         }
     }
 
@@ -119,9 +130,6 @@
         font-size: 0.4em;
     }
 
-    .piece.white {
-        filter: invert(80%);
-    }
 
     .piece {
         width: 1em;
