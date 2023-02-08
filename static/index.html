@@ -86,45 +86,92 @@
     }
 
     PIECE_CLASS_MAP = {
-        'r': ['black', 'rook'],
-        'n': ['black', 'knight'],
-        'b': ['black', 'bishop'],
-        'q': ['black', 'queen'],
-        'k': ['black', 'king'],
-        'p': ['black', 'pawn'],
-        'R': ['white', 'rook'],
-        'N': ['white', 'knight'],
-        'B': ['white', 'bishop'],
-        'Q': ['white', 'queen'],
-        'K': ['white', 'king'],
-        'P': ['white', 'pawn'],
+        'r': ['b', 'rook'],
+        'n': ['b', 'knight'],
+        'b': ['b', 'bishop'],
+        'q': ['b', 'queen'],
+        'k': ['b', 'king'],
+        'p': ['b', 'pawn'],
+        'R': ['w', 'rook'],
+        'N': ['w', 'knight'],
+        'B': ['w', 'bishop'],
+        'Q': ['w', 'queen'],
+        'K': ['w', 'king'],
+        'P': ['w', 'pawn'],
     }
 
     PLAYER_PIECE_MAP = {
-        'white': new Set(['R', 'N', 'B', 'Q', 'K', 'P']),
-        'black': new Set(['r', 'n', 'b', 'q', 'k', 'p'])
+        'w': new Set(['R', 'N', 'B', 'Q', 'K', 'P']),
+        'b': new Set(['r', 'n', 'b', 'q', 'k', 'p'])
     }
 
-    async function update_html(board, selection, player, availableMoves) {
+
+    function rankFromChar(c) {
+        return parseInt(c) - 1
+    }
+
+    function fileFromChar(c) {
+        return ["a", "b", "c", "d", "e", "f", "g", "h",].indexOf(c)
+    }
+
+    function fileRankFromString(location) {
+        return [fileFromChar(location[0]), rankFromChar(location[1])]
+    }
+
+    function parseFenBoardString(fen) {
+        let board = [
+            [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+            [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+            [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+            [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+            [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+            [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+            [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+            [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
+        ]
+        let rankIndex = 7
+        let fileIndex = 0
+        for (let c of fen) {
+            if (c == '/') {
+                if (fileIndex != 8) {
+                    throw Error("couldn't parse " + fen)
+                }
+                rankIndex--
+                fileIndex = 0
+                continue
+            }
+            indicesToSkip = parseInt(c)
+            if (!isNaN(indicesToSkip)) {
+                fileIndex += indicesToSkip
+                continue  
+            }
+            board[fileIndex][rankIndex] = c
+            fileIndex ++
+        }
+
+        return board
+    }
+
+    async function update(board, selectedFileRank, player, availableMoves) {
         console.log(availableMoves)
         const containerEl = document.getElementById('container')
         containerEl.innerHTML = ''
 
-        for (const [i, row] of board.entries()) {
+        for (const [rank, row] of board.entries()) {
             const rowEl = document.createElement('div')
             rowEl.classList.add('row')
             containerEl.appendChild(rowEl)
 
-            for (const [j, c] of row.entries()) {
+            for (const [file, c] of row.entries()) {
                 const spanEl = document.createElement('span')
                 spanEl.classList.add('square')
 
-                if ((i + j) % 2 == 1) spanEl.classList.add('dark')
+                if ((rank + file) % 2 == 1) spanEl.classList.add('dark')
                 else spanEl.classList.add('light')
 
-                spanEl.onclick=() => click(i, j)
+                spanEl.onclick=() => click(rank, file)
 
-                if (selection && selection[0] == i && selection[1] == j) {
+                if (selectedFileRank && selectedFileRank[1] == rank && selectedFileRank[0] == file) {
                     spanEl.classList.add('selected')
                 }
                 
@@ -138,12 +185,12 @@
 
                     spanEl.appendChild(pieceEl)
 
-                    if (PLAYER_PIECE_MAP[player].has(c) && selection == null) {
+                    if (PLAYER_PIECE_MAP[player].has(c) && selectedFileRank == null) {
                         spanEl.classList.add('clickable')
                     }
                 }
 
-                if (availableMoves[i] && availableMoves[i][j]) {
+                if (availableMoves[file] && availableMoves[file][rank]) {
                     const potentialEl = document.createElement('span')
                     potentialEl.classList.add('potential')
                     potentialEl.classList.add(player)
@@ -156,20 +203,42 @@
 
     document.addEventListener("DOMContentLoaded", () => { 
         document.body.addEventListener('keydown', () => {
-        })
+            // We will send:
+            // {
+            //   "selection": ".."
+            //   "move": ".."
+            // }
 
+        })
         
         let socket = new WebSocket("ws://0.0.0.0:8002/ws");
-        console.log("Attempting Connection...");
+
+        function send(obj) {
+            const message = JSON.stringify(obj)
+            console.log("sending", message)
+            socket.send(message)
+        }
 
         socket.onopen = () => {
-            console.log("Successfully Connected");
-            socket.send("Hi From the Client!")
+            let fen = window.location.pathname.slice(1)
+            if (fen == 'startpos' || fen.length < 1) {
+                fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+            }
+            send({NewFen: fen})
         };
-        
+
+        socket.onmessage = event => {
+            data = JSON.parse(event.data)
+            let board = parseFenBoardString(data.FenBoardString)
+            update(board, null, 'w', [])
+
+            console.log(board)
+            // Have the server send:
+            // position <fen-string>
+            // history e2e4 e5e7
+        }
+
         socket.onclose = event => {
-            console.log("Socket Closed Connection: ", event);
-            socket.send("Client Closed!")
         };
 
         socket.onerror = error => {

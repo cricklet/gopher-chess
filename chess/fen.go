@@ -41,13 +41,13 @@ func fenStringForEnPassant(enPassant Optional[FileRank]) string {
 	return enPassant.Value().String()
 }
 
-func (g *GameState) fenString() string {
+func (b *BoardArray) fenString() string {
 	s := ""
 	for rank := 7; rank >= 0; rank-- {
 		numSpaces := 0
 		for file := 0; file < 8; file++ {
-			index := boardIndexFromFileRank(FileRank{File(file), Rank(rank)})
-			piece := g.Board[index]
+			index := IndexFromFileRank(FileRank{File(file), Rank(rank)})
+			piece := b[index]
 			if piece == XX {
 				numSpaces++
 				continue
@@ -61,9 +61,17 @@ func (g *GameState) fenString() string {
 		if numSpaces > 0 {
 			s += fmt.Sprint(numSpaces)
 		}
-		s += "/"
+		if rank != 0 {
+			s += "/"
+		}
 	}
-	s += fmt.Sprintf(" %v %v %v %v %v",
+	return s
+}
+
+func (g *GameState) fenString() string {
+	s := ""
+	s += fmt.Sprintf("%v %v %v %v %v %v",
+		g.Board.fenString(),
 		g.player.fenString(),
 		fenStringForCastlingAllowed(g.playerAndCastlingSideAllowed),
 		fenStringForEnPassant(g.enPassantTarget),
@@ -96,7 +104,7 @@ func GamestateFromFenString(s string) (GameState, error) {
 			fileIndex += File(indicesToSkip)
 		} else if p, err := pieceFromString(c); err == nil {
 			// note, we insert pieces into the board in inverse order so the 0th index refers to a1
-			game.Board[boardIndexFromFileRank(FileRank{fileIndex, rankIndex})] = p
+			game.Board[IndexFromFileRank(FileRank{fileIndex, rankIndex})] = p
 			fileIndex++
 		} else {
 			return GameState{}, fmt.Errorf("unknown character '%v' in '%v'", c, s)
@@ -126,7 +134,7 @@ func GamestateFromFenString(s string) (GameState, error) {
 
 	if enPassantTargetString == "-" {
 		game.enPassantTarget = Empty[FileRank]()
-	} else if enPassantTarget, err := fileRankFromString(enPassantTargetString); err == nil {
+	} else if enPassantTarget, err := FileRankFromString(enPassantTargetString); err == nil {
 		game.enPassantTarget = Some(enPassantTarget)
 	} else {
 		return GameState{}, fmt.Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)

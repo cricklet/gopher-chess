@@ -1,6 +1,6 @@
 package chess
 
-import "fmt"
+import "log"
 
 var INF int = 999999
 
@@ -128,14 +128,14 @@ func Search(g *GameState, b *Bitboards, depth int) Optional[Move] {
 
 		if enemyScore.HasValue() {
 			currentScore := -enemyScore.Value()
-			Log(fmt.Sprintf("searched", move.String(), "and found score", currentScore))
+			log.Println("searched", move.String(), "and found score", currentScore)
 
 			if currentScore > bestScore {
 				bestScore = currentScore
 				bestMove = Some(move)
 			}
 		} else {
-			Log(fmt.Sprintf("searched", move.String(), "and failed to find score"))
+			log.Println("searched", move.String(), "and and failed to find score")
 		}
 	}
 

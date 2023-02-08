@@ -10,6 +10,16 @@ func mapSlice[T, U any](ts []T, f func(T) U) []U {
 	return us
 }
 
+func filterSlice[T any](ts []T, f func(T) bool) []T {
+	filtered := make([]T, len(ts))
+	for i := range ts {
+		if f(ts[i]) {
+			filtered = append(filtered, ts[i])
+		}
+	}
+	return filtered
+}
+
 func reduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
 	u := initial
 	for _, t := range ts {

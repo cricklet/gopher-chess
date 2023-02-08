@@ -47,6 +47,10 @@ func (r *Runner) PerformMove(move Move) {
 	r.g.performMove(move, h.update)
 }
 
+func (r *Runner) PerformMoveFromString(s string) {
+	r.PerformMove(r.g.moveFromString(s))
+}
+
 func (r *Runner) PerformMoves(startPos string, moves []string) {
 	if r.startPos != startPos {
 		panic("please use ucinewgame")
@@ -119,18 +123,19 @@ func parsePosition(input string) Position {
 	return Position{parseFen(input), parseMoves(input)}
 }
 
-func (r *Runner) HandleInputAndReturnDone(input string) bool {
+func (r *Runner) HandleInput(input string) []string {
+	result := []string{}
 	if input == "uci" {
-		fmt.Println("id name chessgo 1")
-		fmt.Println("id author Kenrick Rilee")
-		fmt.Println("uciok")
+		result = append(result, "id name chessgo 1")
+		result = append(result, "id author Kenrick Rilee")
+		result = append(result, "uciok")
 	} else if input == "ucinewgame" {
 		r.g = nil
 		r.b = nil
 		r.startPos = ""
 		r.history = []HistoryValue{}
 	} else if input == "isready" {
-		fmt.Println("readyok")
+		result = append(result, "readyok")
 	} else if strings.HasPrefix(input, "position ") {
 		position := parsePosition(input)
 		if r.IsNew() {
@@ -143,9 +148,27 @@ func (r *Runner) HandleInputAndReturnDone(input string) bool {
 		if move.IsEmpty() {
 			panic(fmt.Errorf("failed to find move for %v ", r.g.Board.String()))
 		}
-		fmt.Printf("bestmove %v\n", move.Value().String())
-	} else if input == "quit" {
-		return true
+		result = append(result, fmt.Sprintf("bestmove %v", move.Value().String()))
 	}
-	return false
+	return result
+}
+
+func (r *Runner) MovesForSelection(selection string) []string {
+	selectionFileRank, err := FileRankFromString(selection)
+	if err != nil {
+		panic(fmt.Errorf("failed to parse selection %v", err))
+	}
+	selectionIndex := IndexFromFileRank(selectionFileRank)
+
+	legalMoves := []Move{}
+	r.b.generateLegalMoves(r.g, &legalMoves)
+
+	moves := filterSlice(legalMoves, func(m Move) bool {
+		return m.startIndex == selectionIndex
+	})
+	return mapSlice(moves, func(m Move) string { return m.String() })
+}
+
+func (r *Runner) FenBoardString() string {
+	return r.g.Board.fenString()
 }

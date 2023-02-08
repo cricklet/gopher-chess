@@ -40,7 +40,7 @@ func TestBoardPrint(t *testing.T) {
 }
 
 func TestLocationDecoding(t *testing.T) {
-	location, err := fileRankFromString("a1")
+	location, err := FileRankFromString("a1")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{0, 0})
 
@@ -49,33 +49,33 @@ func TestLocationDecoding(t *testing.T) {
 
 	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), WR.String())
 
-	location, err = fileRankFromString("e4")
+	location, err = FileRankFromString("e4")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{4, 3})
 
 	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), WP.String())
 
-	location, err = fileRankFromString("d8")
+	location, err = FileRankFromString("d8")
 	assert.Nil(t, err)
 	assert.Equal(t, location, FileRank{3, 7})
 
 	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), BQ.String())
 
-	location, err = fileRankFromString("a1")
+	location, err = FileRankFromString("a1")
 	assert.Nil(t, err)
-	assert.Equal(t, boardIndexFromFileRank(location), 0)
+	assert.Equal(t, IndexFromFileRank(location), 0)
 
-	location, err = fileRankFromString("h1")
+	location, err = FileRankFromString("h1")
 	assert.Nil(t, err)
-	assert.Equal(t, boardIndexFromFileRank(location), 7)
+	assert.Equal(t, IndexFromFileRank(location), 7)
 
-	location, err = fileRankFromString("a8")
+	location, err = FileRankFromString("a8")
 	assert.Nil(t, err)
-	assert.Equal(t, boardIndexFromFileRank(location), 56)
+	assert.Equal(t, IndexFromFileRank(location), 56)
 
-	location, err = fileRankFromString("h8")
+	location, err = FileRankFromString("h8")
 	assert.Nil(t, err)
-	assert.Equal(t, boardIndexFromFileRank(location), 63)
+	assert.Equal(t, IndexFromFileRank(location), 63)
 }
 
 func TestNotationDecoding(t *testing.T) {
@@ -96,7 +96,7 @@ func TestNotationDecoding(t *testing.T) {
 
 	assert.Equal(t, g.player, BLACK)
 
-	expectedLocation, err := fileRankFromString("e3")
+	expectedLocation, err := FileRankFromString("e3")
 	assert.Nil(t, err)
 	assert.Equal(t, g.enPassantTarget.Value(), expectedLocation)
 
@@ -146,7 +146,7 @@ func TestUCI(t *testing.T) {
 	}
 	r := Runner{}
 	for _, line := range inputs {
-		r.HandleInputAndReturnDone(line)
+		fmt.Println(r.HandleInput(line))
 	}
 }
 
@@ -565,7 +565,7 @@ func TestEachIndexOfOne(t *testing.T) {
 
 func TestStringFromBoardIndex(t *testing.T) {
 	for _, str := range []string{"a4", "c2", "h7"} {
-		fileRank, err := fileRankFromString(str)
+		fileRank, err := FileRankFromString(str)
 		if err != nil {
 			panic(err)
 		}
@@ -573,7 +573,7 @@ func TestStringFromBoardIndex(t *testing.T) {
 		assert.Equal(t, fileRank.String(), str)
 
 		i := boardIndexFromString(str)
-		j := boardIndexFromFileRank(fileRank)
+		j := IndexFromFileRank(fileRank)
 		assert.Equal(t, str, stringFromBoardIndex(i))
 		assert.Equal(t, str, stringFromBoardIndex(j))
 	}

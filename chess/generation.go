@@ -212,7 +212,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 		// generate en-passant
 		{
 			if g.enPassantTarget.HasValue() {
-				enPassantBoard := singleBitboard(boardIndexFromFileRank(g.enPassantTarget.Value()))
+				enPassantBoard := singleBitboard(IndexFromFileRank(g.enPassantTarget.Value()))
 				for _, captureOffset := range []int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
 					potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
 					potential = rotateTowardsIndex64(potential, captureOffset)

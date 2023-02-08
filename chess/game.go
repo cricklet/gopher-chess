@@ -29,7 +29,8 @@ type BoardUpdate struct {
 }
 
 func (g *GameState) HistoryString() string {
-	return strings.TrimSpace(strings.Join(mapSlice(g.moveHistoryForDebugging, func(m Move) string { return m.String() }), " "))
+	return strings.TrimSpace(strings.Join(
+		mapSlice(g.moveHistoryForDebugging, func(m Move) string { return m.String() }), " "))
 }
 
 func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
@@ -37,8 +38,8 @@ func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool 
 		return false
 	}
 
-	start := fileRankFromBoardIndex(startIndex)
-	end := fileRankFromBoardIndex(endIndex)
+	start := FileRankFromIndex(startIndex)
+	end := FileRankFromIndex(endIndex)
 
 	return absDiff(int(start.file), int(end.file)) == 1 && absDiff(int(start.rank), int(end.rank)) == 1
 }
@@ -140,7 +141,7 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 
 	g.enPassantTarget = Empty[FileRank]()
 	if move.moveType == QUIET_MOVE && isPawnSkip(startPiece, move) {
-		g.enPassantTarget = Some(fileRankFromBoardIndex(enPassantTarget(move)))
+		g.enPassantTarget = Some(FileRankFromIndex(enPassantTarget(move)))
 	}
 
 	for i := 0; i < update.num; i++ {

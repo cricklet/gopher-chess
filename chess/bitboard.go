@@ -331,7 +331,7 @@ func zerosForRange(fs []int, rs []int) Bitboard {
 
 	result := ALL_ONES
 	for i := 0; i < len(fs); i++ {
-		result &= ^singleBitboard(boardIndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
+		result &= ^singleBitboard(IndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
 	}
 	return result
 }
@@ -416,7 +416,7 @@ func bitboardFromStrings(strings [8]string) Bitboard {
 	for inverseRank, line := range strings {
 		for file, c := range line {
 			if c == '1' {
-				index := boardIndexFromFileRank(FileRank{File(file), Rank(7 - inverseRank)})
+				index := IndexFromFileRank(FileRank{File(file), Rank(7 - inverseRank)})
 				b |= singleBitboard(index)
 			}
 		}

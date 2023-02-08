@@ -75,14 +75,14 @@ func fileFromChar(c byte) (File, error) {
 }
 
 func stringFromBoardIndex(index int) string {
-	return fileRankFromBoardIndex(index).String()
+	return FileRankFromIndex(index).String()
 }
 
 func (v FileRank) String() string {
 	return v.file.String() + v.rank.String()
 }
 
-func fileRankFromString(s string) (FileRank, error) {
+func FileRankFromString(s string) (FileRank, error) {
 	if len(s) != 2 {
 		return FileRank{}, fmt.Errorf("invalid location %v", s)
 	}
@@ -283,25 +283,25 @@ func (b BoardArray) String() string {
 }
 
 func pieceAtFileRank(board BoardArray, location FileRank) Piece {
-	return board[boardIndexFromFileRank(location)]
+	return board[IndexFromFileRank(location)]
 }
 
-func boardIndexFromFileRank(location FileRank) int {
+func IndexFromFileRank(location FileRank) int {
 	return int(location.rank)*8 + int(location.file)
 }
 
-func fileRankFromBoardIndex(index int) FileRank {
+func FileRankFromIndex(index int) FileRank {
 	f := File(index & 0b111)
 	r := Rank(index >> 3)
 	return FileRank{f, r}
 }
 
 func boardIndexFromString(s string) int {
-	location, err := fileRankFromString(s)
+	location, err := FileRankFromString(s)
 	if err != nil {
 		panic(err)
 	}
-	return boardIndexFromFileRank(location)
+	return IndexFromFileRank(location)
 }
 
 type CastlingSide int
