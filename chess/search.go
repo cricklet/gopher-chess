@@ -128,14 +128,14 @@ func Search(g *GameState, b *Bitboards, depth int) Optional[Move] {
 
 		if enemyScore.HasValue() {
 			currentScore := -enemyScore.Value()
-			fmt.Println("searched", move.String(), "and found score", currentScore)
+			Log(fmt.Sprintf("searched", move.String(), "and found score", currentScore))
 
 			if currentScore > bestScore {
 				bestScore = currentScore
 				bestMove = Some(move)
 			}
 		} else {
-			fmt.Println("searched", move.String(), "and failed to find score")
+			Log(fmt.Sprintf("searched", move.String(), "and failed to find score"))
 		}
 	}
 

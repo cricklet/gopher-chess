@@ -197,10 +197,10 @@ func PrintMemUsage() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Printf("Alloc = %v KB", bToKb(m.Alloc))
-	fmt.Printf("\tTotalAlloc = %v KB", bToKb(m.TotalAlloc))
-	fmt.Printf("\tSys = %v KB", bToKb(m.Sys))
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+	Log(fmt.Sprint("Alloc = %v KB", bToKb(m.Alloc)))
+	Log(fmt.Sprint("\tTotalAlloc = %v KB", bToKb(m.TotalAlloc)))
+	Log(fmt.Sprint("\tSys = %v KB", bToKb(m.Sys)))
+	Log(fmt.Sprint("\tNumGC = %v\n", m.NumGC))
 }
 
 func bToKb(b uint64) uint64 {

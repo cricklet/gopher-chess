@@ -98,7 +98,7 @@ func parseFen(input string) string {
 	if strings.HasPrefix(s, "fen ") {
 		s = strings.TrimPrefix(s, "fen ")
 		return strings.Split(s, " moves ")[0]
-	} else if strings.HasPrefix(s, "startpos ") {
+	} else if strings.HasPrefix(s, "startpos") {
 		return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 	}
 
@@ -121,7 +121,7 @@ func parsePosition(input string) Position {
 
 func (r *Runner) HandleInputAndReturnDone(input string) bool {
 	if input == "uci" {
-		fmt.Println("name chess-go")
+		fmt.Println("id name chessgo 1")
 		fmt.Println("id author Kenrick Rilee")
 		fmt.Println("uciok")
 	} else if input == "ucinewgame" {
@@ -139,7 +139,7 @@ func (r *Runner) HandleInputAndReturnDone(input string) bool {
 			r.PerformMoves(position.fen, position.moves)
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move := Search(r.g, r.b, 5)
+		move := Search(r.g, r.b, 4)
 		if move.IsEmpty() {
 			panic(fmt.Errorf("failed to find move for %v ", r.g.Board.String()))
 		}

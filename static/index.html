@@ -1,0 +1,180 @@
+<style>
+    body {
+        background-color: #eee;
+    }
+    #container {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+    .danger.dark {background-color: #dacaca;}
+    .danger.light {background-color: #faeaea;}
+    .row {
+        font-size: 4rem;
+        height: 1em;
+        display:flex;
+    }
+    span {
+        display: inline-block;
+        text-align: center;
+        grid-area:1/1;
+    }
+    .square{
+        cursor:default;
+        display: grid;
+        width: 1em;
+        height: 1em;
+        line-height: 1em;
+    }
+    .dark {background-color: #777;}
+    .light {background-color: #aaa;}
+    .selected.dark {background-color: #88a}
+    .selected.light {background-color: #bbd}
+    .dark:has(.potential):hover {background-color: #779;}
+    .light:has(.potential):hover {background-color: #aac;}
+    .potential {
+        z-index: 9;
+    }
+    .potential.white {
+        filter:invert(90%);
+    }
+    .potential::after {
+        content: "⬤";
+        font-size: 0.4em;
+    }
+    .potential {cursor:pointer;}
+    .clickable {cursor:pointer;}
+    .dark.clickable:hover {background-color: #779;}
+    .light.clickable:hover {background-color: #aac;}
+    .piece.white {
+        filter:invert(90%);
+    }
+    .piece {
+        width: 1em; height: 1em;
+        background-origin: content-box;
+        background-repeat: no-repeat;
+        background-position: center;
+        padding: 4px;
+        box-sizing: border-box;
+    }
+    .rook {
+        background-image: url('chess-rook-solid.svg');
+    }
+    .king {
+        background-image: url('chess-king-solid.svg');
+    }
+    .knight {
+        background-image: url('chess-knight-solid.svg');
+    }
+    .pawn {
+        background-image: url('chess-pawn-solid.svg');
+    }
+    .queen {
+        background-image: url('chess-queen-solid.svg');
+    }
+    .bishop {
+        background-image: url('chess-bishop-solid.svg');
+    }
+
+</style>
+<script>
+    function click(i, j) {
+        
+    }
+
+    PIECE_CLASS_MAP = {
+        'r': ['black', 'rook'],
+        'n': ['black', 'knight'],
+        'b': ['black', 'bishop'],
+        'q': ['black', 'queen'],
+        'k': ['black', 'king'],
+        'p': ['black', 'pawn'],
+        'R': ['white', 'rook'],
+        'N': ['white', 'knight'],
+        'B': ['white', 'bishop'],
+        'Q': ['white', 'queen'],
+        'K': ['white', 'king'],
+        'P': ['white', 'pawn'],
+    }
+
+    PLAYER_PIECE_MAP = {
+        'white': new Set(['R', 'N', 'B', 'Q', 'K', 'P']),
+        'black': new Set(['r', 'n', 'b', 'q', 'k', 'p'])
+    }
+
+    async function update_html(board, selection, player, availableMoves) {
+        console.log(availableMoves)
+        const containerEl = document.getElementById('container')
+        containerEl.innerHTML = ''
+
+        for (const [i, row] of board.entries()) {
+            const rowEl = document.createElement('div')
+            rowEl.classList.add('row')
+            containerEl.appendChild(rowEl)
+
+            for (const [j, c] of row.entries()) {
+                const spanEl = document.createElement('span')
+                spanEl.classList.add('square')
+
+                if ((i + j) % 2 == 1) spanEl.classList.add('dark')
+                else spanEl.classList.add('light')
+
+                spanEl.onclick=() => click(i, j)
+
+                if (selection && selection[0] == i && selection[1] == j) {
+                    spanEl.classList.add('selected')
+                }
+                
+                const pieceClasses = PIECE_CLASS_MAP[c]
+                if (pieceClasses) {
+                    const pieceEl = document.createElement('span')
+                    for (const c of pieceClasses) {
+                        pieceEl.classList.add(c)
+                    }
+                    pieceEl.classList.add('piece')
+
+                    spanEl.appendChild(pieceEl)
+
+                    if (PLAYER_PIECE_MAP[player].has(c) && selection == null) {
+                        spanEl.classList.add('clickable')
+                    }
+                }
+
+                if (availableMoves[i] && availableMoves[i][j]) {
+                    const potentialEl = document.createElement('span')
+                    potentialEl.classList.add('potential')
+                    potentialEl.classList.add(player)
+                    spanEl.appendChild(potentialEl)
+                }
+                rowEl.appendChild(spanEl)
+            }
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => { 
+        document.body.addEventListener('keydown', () => {
+        })
+
+        
+        let socket = new WebSocket("ws://0.0.0.0:8002/ws");
+        console.log("Attempting Connection...");
+
+        socket.onopen = () => {
+            console.log("Successfully Connected");
+            socket.send("Hi From the Client!")
+        };
+        
+        socket.onclose = event => {
+            console.log("Socket Closed Connection: ", event);
+            socket.send("Client Closed!")
+        };
+
+        socket.onerror = error => {
+            console.log("Socket Error: ", error);
+        };
+    })
+</script>
+<div id="container"></div>
