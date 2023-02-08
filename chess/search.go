@@ -8,7 +8,7 @@ import (
 
 var INF int = 999999
 
-func evaluateCaptures(g *GameState, b *Bitboards, alpha int, beta int) (Optional[int], int) {
+func evaluateCaptures(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillAvoidIfBetterThan int) (Optional[int], int) {
 	if b.kingIsInCheck(g.enemy(), g.player) {
 		return Empty[int](), 1
 	}
@@ -36,8 +36,8 @@ func evaluateCaptures(g *GameState, b *Bitboards, alpha int, beta int) (Optional
 		g.performMove(move, update)
 
 		enemyScore, numSearched := evaluateCaptures(g, b,
-			-beta,
-			-alpha)
+			-enemyWillAvoidIfBetterThan,
+			-bestScoreSoFar)
 		totalSearched += numSearched
 
 		b.undoUpdate(update)
@@ -45,20 +45,20 @@ func evaluateCaptures(g *GameState, b *Bitboards, alpha int, beta int) (Optional
 
 		if enemyScore.HasValue() {
 			currentScore := -enemyScore.Value()
-			if currentScore >= beta {
-				return Some(beta), totalSearched
+			if currentScore >= enemyWillAvoidIfBetterThan {
+				return Some(enemyWillAvoidIfBetterThan), totalSearched
 			}
 
-			if currentScore > alpha {
-				alpha = currentScore
+			if currentScore > bestScoreSoFar {
+				bestScoreSoFar = currentScore
 			}
 		}
 	}
 
-	return Some(alpha), totalSearched
+	return Some(bestScoreSoFar), totalSearched
 }
 
-func evaluateSearch(g *GameState, b *Bitboards, alpha int, beta int, depth int) (Optional[int], int) {
+func evaluateSearch(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillAvoidIfBetterThan int, depth int) (Optional[int], int) {
 	if b.kingIsInCheck(g.enemy(), g.player) {
 		return Empty[int](), 1
 	}
@@ -90,12 +90,12 @@ func evaluateSearch(g *GameState, b *Bitboards, alpha int, beta int, depth int) 
 		var numSearched int
 		if depth == 1 && move.moveType == CAPTURE_MOVE {
 			enemyScore, numSearched = evaluateCaptures(g, b,
-				-beta,
-				-alpha)
+				-enemyWillAvoidIfBetterThan,
+				-bestScoreSoFar)
 		} else {
 			enemyScore, numSearched = evaluateSearch(g, b,
-				-beta,
-				-alpha,
+				-enemyWillAvoidIfBetterThan,
+				-bestScoreSoFar,
 				depth-1)
 		}
 		totalSearched += numSearched
@@ -105,17 +105,17 @@ func evaluateSearch(g *GameState, b *Bitboards, alpha int, beta int, depth int) 
 
 		if enemyScore.HasValue() {
 			currentScore := -enemyScore.Value()
-			if currentScore >= beta {
-				return Some(beta), totalSearched
+			if currentScore >= enemyWillAvoidIfBetterThan {
+				return Some(enemyWillAvoidIfBetterThan), totalSearched
 			}
 
-			if currentScore > alpha {
-				alpha = currentScore
+			if currentScore > bestScoreSoFar {
+				bestScoreSoFar = currentScore
 			}
 		}
 	}
 
-	return Some(alpha), totalSearched
+	return Some(bestScoreSoFar), totalSearched
 }
 
 func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move] {
