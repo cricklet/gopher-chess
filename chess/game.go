@@ -62,7 +62,7 @@ func (g *GameState) moveFromString(s string) Move {
 	} else {
 		moveType = CAPTURE_MOVE
 	}
-	return Move{moveType, start, end}
+	return Move{moveType, start, end, Empty[int]()}
 }
 
 func isPawnSkip(startPiece Piece, move Move) bool {

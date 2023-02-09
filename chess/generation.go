@@ -1,5 +1,9 @@
 package chess
 
+import (
+	"sort"
+)
+
 type MoveType int
 
 const (
@@ -13,6 +17,7 @@ type Move struct {
 	moveType   MoveType
 	startIndex int
 	endIndex   int
+	evaluation Optional[int]
 }
 
 type ReusableIndicesBuffers struct {
@@ -32,7 +37,7 @@ func (r ReusableIndicesBuffers) Release() {
 func moveFromString(s string, m MoveType) Move {
 	first := s[0:2]
 	second := s[2:4]
-	return Move{m, boardIndexFromString(first), boardIndexFromString(second)}
+	return Move{m, boardIndexFromString(first), boardIndexFromString(second), Empty[int]()}
 }
 
 func (m Move) String() string {
@@ -65,7 +70,7 @@ func generateWalkMovesWithMagic(
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.nextIndexOfOne()
-				output = append(output, Move{QUIET_MOVE, startIndex, endIndex})
+				output = append(output, Move{QUIET_MOVE, startIndex, endIndex, Empty[int]()})
 			}
 		}
 		{
@@ -73,7 +78,7 @@ func generateWalkMovesWithMagic(
 			for tempCapture != 0 {
 				captureIndex, tempCapture = tempCapture.nextIndexOfOne()
 
-				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex})
+				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex, Empty[int]()})
 			}
 		}
 	}
@@ -130,7 +135,7 @@ func generateJumpMovesByLookup(
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.nextIndexOfOne()
-				output = append(output, Move{QUIET_MOVE, startIndex, endIndex})
+				output = append(output, Move{QUIET_MOVE, startIndex, endIndex, Empty[int]()})
 			}
 		}
 		{
@@ -138,7 +143,7 @@ func generateJumpMovesByLookup(
 			for tempCapture != 0 {
 				captureIndex, tempCapture = tempCapture.nextIndexOfOne()
 
-				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex})
+				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex, Empty[int]()})
 			}
 		}
 	}
@@ -150,6 +155,28 @@ var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = createPool(func() []Mo
 
 func (b *Bitboards) GeneratePseudoMoves(g *GameState, moves *[]Move) {
 	b.generatePseudoMovesInternal(g, moves, false /* onlyCaptures */)
+}
+func (b *Bitboards) GenerateSortedPseudoMoves(g *GameState, moves *[]Move) {
+	b.GeneratePseudoMoves(g, moves)
+
+	for i := range *moves {
+		(*moves)[i].evaluation = Some((*moves)[i].Evaluate(g))
+	}
+
+	sort.SliceStable(*moves, func(i, j int) bool {
+		return (*moves)[i].evaluation.Value() > (*moves)[j].evaluation.Value()
+	})
+}
+func (b *Bitboards) GenerateSortedPseudoCaptures(g *GameState, moves *[]Move) {
+	b.GeneratePseudoCaptures(g, moves)
+
+	for i := range *moves {
+		(*moves)[i].evaluation = Some((*moves)[i].Evaluate(g))
+	}
+
+	sort.SliceStable(*moves, func(i, j int) bool {
+		return (*moves)[i].evaluation.Value() > (*moves)[j].evaluation.Value()
+	})
 }
 func (b *Bitboards) GeneratePseudoCaptures(g *GameState, moves *[]Move) {
 	b.generatePseudoMovesInternal(g, moves, true /* onlyCaptures */)
@@ -172,7 +199,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 			for tempPotential != 0 {
 				index, tempPotential = tempPotential.nextIndexOfOne()
 
-				*moves = append(*moves, Move{QUIET_MOVE, index - pushOffset, index})
+				*moves = append(*moves, Move{QUIET_MOVE, index - pushOffset, index, Empty[int]()})
 			}
 		}
 
@@ -189,7 +216,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 			for tempPotential != 0 {
 				index, tempPotential = tempPotential.nextIndexOfOne()
 
-				*moves = append(*moves, Move{QUIET_MOVE, index - 2*pushOffset, index})
+				*moves = append(*moves, Move{QUIET_MOVE, index - 2*pushOffset, index, Empty[int]()})
 			}
 		}
 
@@ -204,7 +231,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 				for tempPotential != 0 {
 					index, tempPotential = tempPotential.nextIndexOfOne()
 
-					*moves = append(*moves, Move{CAPTURE_MOVE, index - captureOffset, index})
+					*moves = append(*moves, Move{CAPTURE_MOVE, index - captureOffset, index, Empty[int]()})
 				}
 			}
 		}
@@ -222,7 +249,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 					for tempPotential != 0 {
 						index, tempPotential = tempPotential.nextIndexOfOne()
 
-						*moves = append(*moves, Move{EN_PASSANT_MOVE, index - captureOffset, index})
+						*moves = append(*moves, Move{EN_PASSANT_MOVE, index - captureOffset, index, Empty[int]()})
 					}
 				}
 			}

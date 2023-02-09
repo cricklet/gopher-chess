@@ -17,7 +17,7 @@ func evaluateCaptures(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillA
 	defer func() {
 		ReleaseMovesBuffer(moves)
 	}()
-	b.GeneratePseudoCaptures(g, moves)
+	b.GenerateSortedPseudoCaptures(g, moves)
 
 	if len(*moves) == 0 {
 		score := b.evaluate(g.player)
@@ -73,7 +73,7 @@ func evaluateSearch(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillAvo
 		ReleaseMovesBuffer(moves)
 	}()
 
-	b.GeneratePseudoMoves(g, moves)
+	b.GenerateSortedPseudoMoves(g, moves)
 
 	totalSearched := 0
 
@@ -122,10 +122,10 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move]
 	defer profile.Start(profile.ProfilePath("../data/Search")).Stop()
 
 	moves := GetMovesBuffer()
-	b.GeneratePseudoMoves(g, moves)
+	b.GenerateSortedPseudoMoves(g, moves)
 
-	bestMove := Empty[Move]()
-	bestScore := -INF
+	bestMoveSoFar := Empty[Move]()
+	bestScoreSoFar := -INF
 
 	totalSearched := 0
 
@@ -140,7 +140,8 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move]
 		b.performMove(g, move)
 		g.performMove(move, update)
 
-		enemyScore, numSearched := evaluateSearch(g, b, -INF, INF, depth)
+		enemyScore, numSearched := evaluateSearch(g, b,
+			-INF, INF, depth)
 		totalSearched += numSearched
 
 		b.undoUpdate(update)
@@ -150,9 +151,12 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move]
 			currentScore := -enemyScore.Value()
 			logger.Println(i, "/", len(*moves), "searched", numSearched, "under", move.String(), "and found score", currentScore)
 
-			if currentScore > bestScore {
-				bestScore = currentScore
-				bestMove = Some(move)
+			// if currentScore >= enemyWillAvoidIfBetterThan {
+			// 	enemyWillAvoidIfBetterThan = currentScore
+			// } else
+			if currentScore > bestScoreSoFar {
+				bestScoreSoFar = currentScore
+				bestMoveSoFar = Some(move)
 			}
 		} else {
 			logger.Println("searched", move.String(), "and and failed to find score")
@@ -177,5 +181,5 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move]
 		}
 	}
 
-	return bestMove
+	return bestMoveSoFar
 }

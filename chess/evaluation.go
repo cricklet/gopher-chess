@@ -60,6 +60,21 @@ var QUEEN_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{-2, -2, -2, -1, -1, -2, -2, -20},
 }, DEVELOPMENT_SCALE)
 
+var NULL_DEVELOPMENT_BITBOARDS = [2][]EvaluationBitboard{
+	{},
+	{},
+}
+
+var DEVELOPMENT_BITBOARDS = [][2][]EvaluationBitboard{
+	ROOK_DEVELOPMENT_BITBOARDS,
+	KNIGHT_DEVELOPMENT_BITBOARDS,
+	BISHOP_DEVELOPMENT_BITBOARDS,
+	NULL_DEVELOPMENT_BITBOARDS,
+	QUEEN_DEVELOPMENT_BITBOARDS,
+	PAWN_DEVELOPMENT_BITBOARDS,
+	NULL_DEVELOPMENT_BITBOARDS,
+}
+
 func bitboardFromArray(lookup int, array [8][8]int) Bitboard {
 	b := Bitboard(0)
 	for i := 0; i < 8; i++ {
@@ -136,4 +151,34 @@ func (b *Bitboards) evaluate(player Player) int {
 	enemyDevelopmentValues := b.evaluateDevelopment(enemy)
 
 	return pieceValues + developmentValues - enemyValues - enemyDevelopmentValues
+}
+
+var PIECE_SCORES = []int{
+	500,
+	300,
+	350,
+	0,
+	900,
+	100,
+	0,
+}
+
+func (g *GameState) pieceScore(index int) int {
+	return PIECE_SCORES[g.Board[index].pieceType()]
+}
+
+func (m *Move) Evaluate(g *GameState) int {
+	score := 0
+	if m.moveType == CAPTURE_MOVE {
+		score += g.pieceScore(m.endIndex) - g.pieceScore(m.startIndex)
+	}
+	if m.moveType == EN_PASSANT_MOVE {
+		score += 100
+	}
+
+	score += evaluateDevelopment(
+		singleBitboard(m.endIndex),
+		DEVELOPMENT_BITBOARDS[g.Board[m.startIndex].pieceType()][g.player])
+
+	return score
 }
