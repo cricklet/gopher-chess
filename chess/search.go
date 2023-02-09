@@ -151,9 +151,6 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move]
 			currentScore := -enemyScore.Value()
 			logger.Println(i, "/", len(*moves), "searched", numSearched, "under", move.String(), "and found score", currentScore)
 
-			// if currentScore >= enemyWillAvoidIfBetterThan {
-			// 	enemyWillAvoidIfBetterThan = currentScore
-			// } else
 			if currentScore > bestScoreSoFar {
 				bestScoreSoFar = currentScore
 				bestMoveSoFar = Some(move)
