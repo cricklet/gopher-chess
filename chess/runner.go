@@ -144,7 +144,7 @@ func (r *Runner) HandleInput(input string) []string {
 			r.PerformMoves(position.fen, position.moves)
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move := Search(r.g, r.b, 3, r.Logger)
+		move := Search(r.g, r.b, 4, r.Logger)
 		if move.IsEmpty() {
 			panic(fmt.Errorf("failed to find move for %v ", r.g.Board.String()))
 		}
