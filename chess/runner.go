@@ -79,7 +79,7 @@ func (r *Runner) SetupPosition(position Position) {
 
 	game, err := GamestateFromFenString(position.fen)
 	if err != nil {
-		panic(fmt.Errorf("couldn't create game from %v", position))
+		panic(fmt.Errorf("couldn't create game from %v, %v", position, err))
 	}
 	r.g = &game
 
@@ -171,8 +171,8 @@ func (r *Runner) MovesForSelection(selection string) []FileRank {
 	})
 }
 
-func (r *Runner) FenBoardString() string {
-	return r.g.Board.fenString()
+func (r *Runner) FenString() string {
+	return r.g.fenString()
 }
 
 func (r *Runner) Player() Player {

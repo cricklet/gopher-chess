@@ -16,14 +16,14 @@ import (
 )
 
 type UpdateToWeb struct {
-	FenBoardString string
-	Selection      string
-	PossibleMoves  []string
-	Player         string // white / black
+	FenString     string
+	Selection     string
+	PossibleMoves []string
+	Player        string // white / black
 }
 
 func (u UpdateToWeb) String() string {
-	return fmt.Sprint("UpdateToWeb: ", u.FenBoardString, ", ", u.Selection, ", ", u.PossibleMoves)
+	return fmt.Sprint("UpdateToWeb: ", u.FenString, ", ", u.Selection, ", ", u.PossibleMoves)
 }
 
 type MessageFromWeb struct {
@@ -72,7 +72,8 @@ func serve() {
 
 		runner.Logger = &LogForwarding{
 			func(message string) {
-				bytes, err := json.Marshal([]string{message})
+				log.Print("logging", message)
+				bytes, err := json.Marshal([]string{"server: " + message})
 				if err != nil {
 					panic(err)
 				}
@@ -103,6 +104,7 @@ func serve() {
 					"ucinewgame",
 					fmt.Sprintf("position fen %v", *message.NewFen),
 				} {
+					runner.Logger.Println(command)
 					runner.HandleInput(command)
 				}
 			} else if message.Selection != nil {
@@ -129,7 +131,7 @@ func serve() {
 				runner.Rewind(*message.Rewind)
 			}
 
-			update.FenBoardString = runner.FenBoardString()
+			update.FenString = runner.FenString()
 			if runner.Player() == chessgo.WHITE {
 				update.Player = "white"
 			} else {
@@ -150,11 +152,18 @@ func serve() {
 		}
 	}
 
+	var index = func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "../static/index.html")
+	}
+
 	log.Println("serving")
 
 	router := mux.NewRouter()
 	router.HandleFunc("/ws", ws)
-	router.PathPrefix("/").Handler(http.FileServer(http.Dir("../static")))
+	router.PathPrefix("/static").Handler(
+		http.StripPrefix("/static", http.FileServer(http.Dir("../static"))))
+	router.PathPrefix("/fen").HandlerFunc(index)
+	router.HandleFunc("/", index)
 	http.Handle("/", router)
 	http.ListenAndServe(":8002", router)
 

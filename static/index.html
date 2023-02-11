@@ -145,27 +145,27 @@
     }
 
     .rook {
-        background-image: url('chess-rook-solid.svg');
+        background-image: url('/static/chess-rook-solid.svg');
     }
 
     .king {
-        background-image: url('chess-king-solid.svg');
+        background-image: url('/static/chess-king-solid.svg');
     }
 
     .knight {
-        background-image: url('chess-knight-solid.svg');
+        background-image: url('/static/chess-knight-solid.svg');
     }
 
     .pawn {
-        background-image: url('chess-pawn-solid.svg');
+        background-image: url('/static/chess-pawn-solid.svg');
     }
 
     .queen {
-        background-image: url('chess-queen-solid.svg');
+        background-image: url('/static/chess-queen-solid.svg');
     }
 
     .bishop {
-        background-image: url('chess-bishop-solid.svg');
+        background-image: url('/static/chess-bishop-solid.svg');
     }
 </style>
 <script>
@@ -188,6 +188,8 @@
         'white': new Set(['R', 'N', 'B', 'Q', 'K', 'P']),
         'black': new Set(['r', 'n', 'b', 'q', 'k', 'p'])
     }
+
+    START_POS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
     function rankFromChar(c) {
         return parseInt(c) - 1
@@ -224,12 +226,13 @@
             [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
             [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
         ]
+        let boardFen = fen.split(' ')[0]
         let rankIndex = 7
         let fileIndex = 0
-        for (let c of fen) {
+        for (let c of boardFen) {
             if (c == '/') {
                 if (fileIndex != 8) {
-                    throw Error("couldn't parse " + fen)
+                    throw Error("couldn't parse " + boardFen)
                 }
                 rankIndex--
                 fileIndex = 0
@@ -335,38 +338,79 @@
 
     function send(obj) {
         const message = JSON.stringify(obj)
-        console.log("sending", message)
+        log("sending", message)
         socket.send(message)
     }
 
+    function log(... values) {
+        console.log(...values)
+        const textEl = document.createElement('div')
+        textEl.innerText = values.map(v =>
+            JSON.stringify(v)
+            .replaceAll("\"", "'")
+            .replaceAll("\\n", "")
+            .replace(/^'+|'+$/g, '')
+            .replaceAll("\\", "")).join(" ")
+        document.getElementById("logs").prepend(textEl)
+    }
+
+    function urlFromFen(fen) {
+        return "/fen/" + fen
+    }
+    function urlPath() {
+        return decodeURI(window.location.pathname)
+    }
+    function updateUrlForFen(fenString) {
+        if (!fenString) {
+            return
+        }
+        const fenUrl = urlFromFen(fenString)
+        if (urlPath() === "/" && fenUrl === urlFromFen(START_POS_FEN)) {
+            return
+        }
+        if (urlPath() !== fenUrl) {
+            window.history.pushState(null, "", fenUrl) 
+        }
+        return
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
-        document.body.addEventListener('keydown', () => {
-            if (selectedFileRank) {
-                send({ Selection: "" })
-            } else {
-                send({ Rewind: 1 })
+        document.body.addEventListener('keydown', (e) => {
+            if (e.code === "Backspace") {
+                if (selectedFileRank) {
+                    send({ Selection: "" })
+                } else {
+                    // send({ Rewind: 1 })
+                    window.history.back()
+                }
             }
         })
-
         socket.onopen = () => {
-            let fen = window.location.pathname.slice(1)
+            let fen = decodeURI(urlPath().slice(1).replace("fen/", ""))
             if (fen == 'startpos' || fen.length < 1) {
-                fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+                fen = START_POS_FEN
             }
             send({ NewFen: fen })
         };
-
+        window.addEventListener('popstate', function (event) {
+            let fen = decodeURI(window.location.pathname.slice(1).replace("fen/", ""))
+            if (fen == 'startpos' || fen.length < 1) {
+                fen = START_POS_FEN
+            }
+            send({ NewFen: fen })
+        });
         socket.onmessage = event => {
             data = JSON.parse(event.data)
-            console.log('received', data)
             if (Array.isArray(data)) {
                 for (const line of data) {
-                    const textEl = document.createElement('div')
-                    textEl.innerText = line
-                    document.getElementById("logs").prepend(textEl)
+                    log(">",line)
                 }
             } else {
-                board = parseFenBoardString(data.FenBoardString)
+                log('received', data)
+                board = parseFenBoardString(data.FenString)
+
+                updateUrlForFen(data.FenString)
+
                 selectedFileRank = data.Selection ? fileRankFromString(data.Selection) : null
 
                 let availableMovesArray = data.PossibleMoves ? data.PossibleMoves.map(v => fileRankFromString(v)) : null
@@ -388,7 +432,7 @@
         };
 
         socket.onerror = error => {
-            console.log("Socket Error: ", error);
+            log("Socket Error: ", error);
         };
     })
 </script>
