@@ -15,8 +15,18 @@
         .piece.white {
             filter: invert(80%);
         }
+
         #logs {
             color: #eee;
+        }
+
+        .file-rank {
+            color: #caa;
+            text-shadow:
+                -1px -1px 0 #222,
+                1px -1px 0 #222,
+                -1px 1px 0 #222,
+                1px 1px 0 #222;
         }
     }
 
@@ -35,6 +45,15 @@
 
         .piece.white {
             filter: invert(90%);
+        }
+
+        .file-rank {
+            color: #caa;
+            text-shadow:
+                -1px -1px 0 #222,
+                1px -1px 0 #222,
+                -1px 1px 0 #222,
+                1px 1px 0 #222;
         }
     }
 
@@ -59,13 +78,14 @@
     }
 
     #board {
-        width:fit-content;
+        width: fit-content;
         height: 100%;
         display: flex;
-        flex-direction:column;
-        justify-content:center;
-        align-items:center;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
     }
+
     #sidepanel {
         flex: 1;
         height: 100%;
@@ -73,22 +93,43 @@
         flex-direction: column;
         justify-content: end;
     }
+
     #logs {
         display: flex;
-        align-items:flex-start;
+        align-items: flex-start;
         flex-direction: column-reverse;
         padding: 20px 20px 4px 20px;
-        font-family:monospace;
-        overflow:scroll;
+        font-family: monospace;
+        overflow: scroll;
     }
+
     #input {
         margin: 0px 20px 20px 20px;
-        font-family:monospace;
+        font-family: monospace;
     }
 
     .row {
-        font-size:calc(2em + 2vw);
+        font-size: calc(2em + 2vw);
         display: flex;
+    }
+
+    .file-rank {
+        width: 100%;
+        height: 100%;
+        font-size: calc(100% - 70%);
+        font-family: monospace;
+        font-weight: bolder;
+        z-index: 10;
+        visibility: hidden;
+
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-end;
+        padding: 4px;
+    }
+
+    .file-rank.selectable {
+        visibility: visible;
     }
 
     .square {
@@ -96,6 +137,9 @@
         display: grid;
         width: 1em;
         height: 1em;
+    }
+
+    .square .piece {
         line-height: 1em;
     }
 
@@ -341,6 +385,18 @@
 
                     spanEl.classList.add('potential')
                 }
+                {
+                    const fileRankEl = document.createElement('span')
+                    fileRankEl.classList.add('file-rank')
+                    if (PLAYER_PIECE_MAP[player].has(c) && selectedFileRank == null) {
+                        fileRankEl.classList.add('selectable')
+                        fileRankEl.classList.add(player)
+                    }
+                    const innerEl = document.createElement('span')
+                    innerEl.textContent = fileRankToString(file, rank)
+                    fileRankEl.appendChild(innerEl)
+                    spanEl.appendChild(fileRankEl)
+                }
                 rowEl.appendChild(spanEl)
             }
         }
@@ -354,15 +410,15 @@
         socket.send(message)
     }
 
-    function log(... values) {
+    function log(...values) {
         console.log(...values)
         const textEl = document.createElement('div')
         textEl.innerText = values.map(v =>
             JSON.stringify(v)
-            .replaceAll("\"", "'")
-            .replaceAll("\\n", "")
-            .replace(/^'+|'+$/g, '')
-            .replaceAll("\\", "")).join(" ")
+                .replaceAll("\"", "'")
+                .replaceAll("\\n", "")
+                .replace(/^'+|'+$/g, '')
+                .replaceAll("\\", "")).join(" ")
         document.getElementById("logs").prepend(textEl)
     }
 
@@ -381,7 +437,7 @@
             return
         }
         if (urlPath() !== fenUrl) {
-            window.history.pushState(null, "", fenUrl) 
+            window.history.pushState(null, "", fenUrl)
         }
         return
     }
@@ -405,7 +461,7 @@
             data = JSON.parse(event.data)
             if (Array.isArray(data)) {
                 for (const line of data) {
-                    log(">",line)
+                    log(">", line)
                 }
             } else {
                 log('received', data)
@@ -442,6 +498,6 @@
     <div id="board"></div>
     <div id="sidepanel">
         <div id="logs"></div>
-        <input id="input" autofocus="true"/>
+        <input id="input" autofocus="true" />
     </div>
 </div>
