@@ -20,13 +20,10 @@
             color: #eee;
         }
 
-        .file-rank {
-            color: #caa;
-            text-shadow:
-                -1px -1px 0 #222,
-                1px -1px 0 #222,
-                -1px 1px 0 #222,
-                1px 1px 0 #222;
+        .file-rank span {
+            color: #fff;
+            background-color: #222b;
+            padding: 2px;
         }
     }
 
@@ -47,13 +44,10 @@
             filter: invert(90%);
         }
 
-        .file-rank {
-            color: #caa;
-            text-shadow:
-                -1px -1px 0 #222,
-                1px -1px 0 #222,
-                -1px 1px 0 #222,
-                1px 1px 0 #222;
+        .file-rank span {
+            color: #fff;
+            background-color: #222b;
+            padding: 2px;
         }
     }
 
@@ -118,7 +112,6 @@
         height: 100%;
         font-size: calc(100% - 70%);
         font-family: monospace;
-        font-weight: bolder;
         z-index: 10;
         visibility: hidden;
 
@@ -174,6 +167,7 @@
 
     .potentialCircle {
         z-index: 9;
+        line-height: 1em;
         pointer-events: none;
     }
 
@@ -304,6 +298,14 @@
         }
 
         return board
+    }
+
+    function * forEachPieceFileRank(board) {
+        for (let rank = 7; rank >= 0; rank--) {
+            for (let file = 0; file < 8; file++) {
+                yield [board[file][rank], fileRankToString(file, rank)]
+            }
+        }
     }
 
     let board, selectedFileRank, player, availableMoves
@@ -492,12 +494,95 @@
         socket.onerror = error => {
             log("Socket Error: ", error);
         };
+
+        const inputEl = document.getElementById('input')
+
+        function parseValidInput() {
+            const input = inputEl.value
+
+            let result = ""
+            if (input.length == 0) {
+                return result
+            }
+
+            const selectFile = input[0]
+            const potentialSelections = new Set()
+            for (const [p, fileRank] of forEachPieceFileRank(board)) {
+                if (fileRank[0] === selectFile && PLAYER_PIECE_MAP[player].has(p)) {
+                    potentialSelections.add(fileRank)
+                }
+            }
+
+            if (potentialSelections.size > 0) {
+                result += selectFile
+            }
+
+            if (input.length <= 1) {
+                return result
+            }
+
+            const selectRank = input[1]
+            if (potentialSelections.has(selectFile + selectRank)) {
+                result += selectRank
+            }
+
+            if (input.length <= 2 || result.length <= 1) {
+                return result
+            }
+
+            const targetFileChar = input[2]
+            const targetFile = fileFromChar(input[2])
+            if (availableMoves && targetFile in availableMoves) {
+                result += targetFileChar
+
+                const targetRankChar = input[3]
+                const targetRank = rankFromChar(targetRankChar)
+                if (availableMoves[targetFile] && targetRank in availableMoves[targetFile]) {
+                    result += targetRankChar
+                }
+            }
+
+            return result
+        }
+
+        function updateFromInputChange() {
+            const validInput = parseValidInput()
+            if (validInput.length < 2) {
+                if (selectedFileRank) {
+                    send({
+                        Selection: ""
+                    })
+                }
+                return
+            }
+
+            const selection = validInput.substring(0, 2)
+            if (!selectedFileRank || fileRankToString(...selectedFileRank) != selection) {
+                send({
+                    Selection: selection
+                })
+            }
+
+            if (validInput.length !== 4) {
+                return
+            }
+
+            const [moveFile, moveRank] = fileRankFromString(validInput.substring(2, 4))
+            if (availableMoves && availableMoves[moveFile] && availableMoves[moveFile][moveRank]) {
+                log("move works!", moveFile, moveRank)
+            }
+        }
+
+        document.getElementById("input").addEventListener('input', function() {
+            log(parseValidInput())
+            updateFromInputChange()
+        })
     })
 </script>
 <div id="container">
     <div id="board"></div>
     <div id="sidepanel">
         <div id="logs"></div>
-        <input id="input" autofocus="true" />
+        <input id="input" autofocus="true" autocomplete="off" />
     </div>
 </div>
