@@ -136,6 +136,12 @@ func RecordCurrentState(g *GameState, output *OldGameState) {
 	output.halfMoveClock = g.halfMoveClock
 }
 
+func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player Player, side CastlingSide) {
+	if moveBitboard&CASTLING_REQUIREMENTS[player][side].pieces != 0 {
+		g.playerAndCastlingSideAllowed[player][side] = false
+	}
+}
+
 func (g *GameState) performMove(move Move, update BoardUpdate) {
 	startPiece := g.Board[move.startIndex]
 
@@ -154,6 +160,19 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 	}
 	g.player = g.player.other()
 	g.moveHistoryForDebugging = append(g.moveHistoryForDebugging, move)
+
+	startBitboard := singleBitboard(move.startIndex)
+	endBitboard := singleBitboard(move.endIndex)
+	moveBitboard := startBitboard | endBitboard
+	g.updateCastlingRequirementsFor(moveBitboard, WHITE, KINGSIDE)
+	g.updateCastlingRequirementsFor(moveBitboard, WHITE, QUEENSIDE)
+	g.updateCastlingRequirementsFor(moveBitboard, BLACK, KINGSIDE)
+	g.updateCastlingRequirementsFor(moveBitboard, BLACK, QUEENSIDE)
+
+	if move.moveType == CASTLING_MOVE {
+		g.playerAndCastlingSideAllowed[g.player][KINGSIDE] = false
+		g.playerAndCastlingSideAllowed[g.player][QUEENSIDE] = false
+	}
 }
 
 func (g *GameState) undoUpdate(undo OldGameState, update BoardUpdate) {

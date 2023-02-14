@@ -1161,6 +1161,9 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 		SetupBoardUpdate(g, move, &update)
 		RecordCurrentState(g, &previous)
 
+		str := g.Board.String()
+		Ignore(str)
+
 		b.performMove(g, move)
 		g.performMove(move, update)
 
@@ -1279,6 +1282,7 @@ func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth 
 		if ok == false {
 			result[move] = MOVE_IS_INVALID
 		} else if count > expectedCount {
+			fmt.Println(count, expectedCount)
 			result[move] = COUNT_TOO_HIGH
 		} else if count < expectedCount {
 			result[move] = COUNT_TOO_LOW
@@ -1298,10 +1302,16 @@ func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth 
 	return result
 }
 
-type MoveToSearch struct {
+type InitialState struct {
+	fen         string
+	moves       []Move
+	expectedFen string
+}
+
+type InvalidMovesToSearch struct {
 	move    string
 	issue   PerftComparison
-	initial string
+	initial InitialState
 }
 
 func (p PerftComparison) String() string {
@@ -1318,7 +1328,7 @@ func (p PerftComparison) String() string {
 	panic("unknown issue")
 }
 
-func (m MoveToSearch) String() string {
+func (m InvalidMovesToSearch) String() string {
 	return fmt.Sprintf("%v %v at \"%v\"",
 		m.issue.String(),
 		m.move,
@@ -1330,25 +1340,35 @@ var totalInvalidMoves int = 0
 
 const MAX_TOTAL_INVALID_MOVES int = 20
 
-func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string {
+func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []string {
 	result := []string{}
-	movesToSearch := []MoveToSearch{}
+	invalidMovesToSearch := []InvalidMovesToSearch{}
 
-	g, err := GamestateFromFenString(initialString)
+	g, err := GamestateFromFenString(initialState.fen)
 	assert.Nil(t, err)
 	b := SetupBitboards(&g)
 
+	for _, move := range initialState.moves {
+		update := BoardUpdate{}
+		SetupBoardUpdate(&g, move, &update)
+		b.performMove(&g, move)
+		g.performMove(move, update)
+	}
+
+	assert.Equal(t, g.fenString(), initialState.expectedFen)
+
 	for i := 1; i <= maxDepth; i++ {
 		incorrectMoves := computeIncorrectPerftMoves(t, &g, &b, i)
+		fmt.Println(incorrectMoves)
 		if len(incorrectMoves) > 0 {
 			for move, issue := range incorrectMoves {
-				movesToSearch = append(movesToSearch, MoveToSearch{move, issue, initialString})
+				invalidMovesToSearch = append(invalidMovesToSearch, InvalidMovesToSearch{move, issue, initialState})
 			}
 			break
 		}
 	}
 
-	for _, search := range movesToSearch {
+	for _, search := range invalidMovesToSearch {
 		if totalInvalidMoves > MAX_TOTAL_INVALID_MOVES {
 			break
 		}
@@ -1358,24 +1378,26 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 		} else {
 			move := g.moveFromString(search.move)
 
-			update := BoardUpdate{}
-			previous := OldGameState{}
+			update, previous := BoardUpdate{}, OldGameState{}
 			SetupBoardUpdate(&g, move, &update)
 			RecordCurrentState(&g, &previous)
 
 			b.performMove(&g, move)
 			g.performMove(move, update)
 
-			nextString := g.fenString()
+			result = append(result, findInvalidMoves(t,
+				InitialState{
+					initialState.fen,
+					append(initialState.moves, move),
+					g.fenString(),
+				}, maxDepth-1)...)
 
 			b.undoUpdate(update)
 			g.undoUpdate(previous, update)
-
-			result = append(result, findInvalidMoves(t, nextString, maxDepth-1)...)
 		}
 	}
 
-	if len(result) == 0 && len(movesToSearch) > 0 && totalInvalidMoves < MAX_TOTAL_INVALID_MOVES {
+	if len(result) == 0 && len(invalidMovesToSearch) > 0 && totalInvalidMoves < MAX_TOTAL_INVALID_MOVES {
 		panic("we weren't able to find the invalid move")
 	}
 	return result
@@ -1383,7 +1405,7 @@ func findInvalidMoves(t *testing.T, initialString string, maxDepth int) []string
 
 func TestIncorrectEnPassantOutOfBounds(t *testing.T) {
 	s := "rnbqkb1r/1ppppppp/5n2/p7/6PP/8/PPPPPP2/RNBQKBNR/ w KQkq a6 2 2"
-	invalidMoves := findInvalidMoves(t, s, 2)
+	invalidMoves := findInvalidMoves(t, InitialState{s, []Move{}, s}, 2)
 
 	for _, move := range invalidMoves {
 		assert.Equal(t, nil, move)
@@ -1392,7 +1414,7 @@ func TestIncorrectEnPassantOutOfBounds(t *testing.T) {
 
 func TestIncorrectUndoBoard(t *testing.T) {
 	s := "rnbqkbnr/pp1p1ppp/2p5/4pP2/8/2P5/PP1PP1PP/RNBQKBNR/ b KQkq - 5 3"
-	invalidMoves := findInvalidMoves(t, s, 3)
+	invalidMoves := findInvalidMoves(t, InitialState{s, []Move{}, s}, 3)
 
 	for _, move := range invalidMoves {
 		assert.Equal(t, nil, move)
@@ -1401,7 +1423,7 @@ func TestIncorrectUndoBoard(t *testing.T) {
 
 func TestFindIncorrectMoves(t *testing.T) {
 	s := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-	invalidMoves := findInvalidMoves(t, s, 3)
+	invalidMoves := findInvalidMoves(t, InitialState{s, []Move{}, s}, 3)
 
 	for _, move := range invalidMoves {
 		assert.Equal(t, nil, move)
@@ -1676,4 +1698,45 @@ func TestPlayerFromPiece(t *testing.T) {
 	}
 	lookupProgress.Close()
 
+}
+
+func TestClearIndexBug(t *testing.T) {
+	{
+		r := Runner{}
+		for _, line := range []string{
+			"isready",
+			"uci",
+			"position fen rnbqkb1r/ppp2ppp/5n2/3pp3/4P3/2NP1N2/PPP1BPPP/R1BQK2R w KQkq - 10 6",
+		} {
+			r.HandleInput(line)
+		}
+		findInvalidMoves(t, InitialState{r.FenString(), []Move{}, r.FenString()}, 3)
+	}
+
+	{
+		r := Runner{}
+		for _, line := range []string{
+			"isready",
+			"uci",
+			"position fen rnbqkb1r/ppp2ppp/5n2/3pp3/4P3/2NP1N2/PPP1BPPP/R1BQK2R w KQkq - 10 6",
+		} {
+			r.HandleInput(line)
+		}
+		r.PerformMoveFromString("e1g1")
+		r.HandleInput("go")
+	}
+}
+
+func TestAnotherIndexBug(t *testing.T) {
+	r := Runner{}
+	for _, line := range []string{
+		"isready",
+		"uci",
+		"position fen 2kr3r/p1p2ppp/2n1b3/2bqp3/Pp1p4/1P1P1N1P/2PBBPP1/R2Q1RK1 w - - 24 13",
+	} {
+		r.HandleInput(line)
+	}
+
+	r.PerformMoveFromString("g2g4")
+	r.HandleInput("go")
 }

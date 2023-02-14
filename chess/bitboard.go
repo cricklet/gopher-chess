@@ -241,24 +241,28 @@ var KING_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
 var CASTLING_REQUIREMENTS = func() [2][2]CastlingRequirements {
 	result := [2][2]CastlingRequirements{}
 	result[WHITE][KINGSIDE] = CastlingRequirements{
-		safe:  MapSlice([]string{"e1", "f1", "g1"}, boardIndexFromString),
-		empty: bitboardWithAllLocationsSet(([]string{"f1", "g1"})),
-		move:  moveFromString("e1g1", CASTLING_MOVE),
+		safe:   MapSlice([]string{"e1", "f1", "g1"}, boardIndexFromString),
+		empty:  bitboardWithAllLocationsSet(([]string{"f1", "g1"})),
+		move:   moveFromString("e1g1", CASTLING_MOVE),
+		pieces: bitboardWithAllLocationsSet([]string{"e1", "h1"}),
 	}
 	result[WHITE][QUEENSIDE] = CastlingRequirements{
-		safe:  MapSlice([]string{"e1", "d1", "c1"}, boardIndexFromString),
-		empty: bitboardWithAllLocationsSet(([]string{"b1", "c1", "d1"})),
-		move:  moveFromString("e1c1", CASTLING_MOVE),
+		safe:   MapSlice([]string{"e1", "d1", "c1"}, boardIndexFromString),
+		empty:  bitboardWithAllLocationsSet(([]string{"b1", "c1", "d1"})),
+		move:   moveFromString("e1c1", CASTLING_MOVE),
+		pieces: bitboardWithAllLocationsSet([]string{"e1", "a1"}),
 	}
 	result[BLACK][KINGSIDE] = CastlingRequirements{
-		safe:  MapSlice([]string{"e8", "f8", "g8"}, boardIndexFromString),
-		empty: bitboardWithAllLocationsSet(([]string{"f8", "g8"})),
-		move:  moveFromString("e8g8", CASTLING_MOVE),
+		safe:   MapSlice([]string{"e8", "f8", "g8"}, boardIndexFromString),
+		empty:  bitboardWithAllLocationsSet(([]string{"f8", "g8"})),
+		move:   moveFromString("e8g8", CASTLING_MOVE),
+		pieces: bitboardWithAllLocationsSet([]string{"e8", "h8"}),
 	}
 	result[BLACK][QUEENSIDE] = CastlingRequirements{
-		safe:  MapSlice([]string{"e8", "d8", "c8"}, boardIndexFromString),
-		empty: bitboardWithAllLocationsSet(([]string{"b8", "c8", "d8"})),
-		move:  moveFromString("e8c8", CASTLING_MOVE),
+		safe:   MapSlice([]string{"e8", "d8", "c8"}, boardIndexFromString),
+		empty:  bitboardWithAllLocationsSet(([]string{"b8", "c8", "d8"})),
+		move:   moveFromString("e8c8", CASTLING_MOVE),
+		pieces: bitboardWithAllLocationsSet([]string{"e8", "a8"}),
 	}
 	return result
 }()
@@ -355,9 +359,10 @@ var ReverseBitsCache = func() [256]uint8 {
 }()
 
 type CastlingRequirements struct {
-	empty Bitboard
-	safe  []int
-	move  Move
+	empty  Bitboard
+	safe   []int
+	move   Move
+	pieces Bitboard
 }
 
 func OnesCount(b Bitboard) int {

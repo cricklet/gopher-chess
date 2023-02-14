@@ -6,13 +6,13 @@ import (
 )
 
 type Runner struct {
+	Logger Logger
+
 	g *GameState
 	b *Bitboards
 
 	startPos string
 	history  []HistoryValue
-
-	Logger Logger
 }
 
 type HistoryValue struct {
@@ -73,6 +73,9 @@ func (r *Runner) PerformMoves(startPos string, moves []string) {
 }
 
 func (r *Runner) SetupPosition(position Position) {
+	if r.Logger == nil {
+		r.Logger = &DEFAULT_LOGGER
+	}
 	if !r.IsNew() {
 		panic("please use ucinewgame")
 	}

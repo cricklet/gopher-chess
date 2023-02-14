@@ -104,6 +104,9 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		SetupBoardUpdate(g, move, &update)
 		RecordCurrentState(g, &previous)
 
+		str := g.Board.String()
+		Ignore(str)
+
 		b.performMove(g, move)
 		g.performMove(move, update)
 
