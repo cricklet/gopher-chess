@@ -8,9 +8,9 @@ import (
 
 var INF int = 999999
 
-func evaluateCaptures(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillAvoidIfBetterThan int) (Optional[int], int) {
+func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) SearchResult {
 	if b.kingIsInCheck(g.enemy(), g.player) {
-		return Empty[int](), 1
+		return SearchResult{INF, 1, 1}
 	}
 
 	moves := GetMovesBuffer()
@@ -21,12 +21,16 @@ func evaluateCaptures(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillA
 
 	if len(*moves) == 0 {
 		score := b.evaluate(g.player)
-		return Some(score), 1
+		return SearchResult{score, 1, 1}
 	}
 
 	totalSearched := 0
 
 	for _, move := range *moves {
+		if move.evaluation.Value() < 200 {
+			continue
+		}
+
 		update := BoardUpdate{}
 		previous := OldGameState{}
 		SetupBoardUpdate(g, move, &update)
@@ -35,37 +39,53 @@ func evaluateCaptures(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillA
 		b.performMove(g, move)
 		g.performMove(move, update)
 
-		enemyScore, numSearched := evaluateCaptures(g, b,
-			-enemyWillAvoidIfBetterThan,
-			-bestScoreSoFar)
-		totalSearched += numSearched
+		result := evaluateCaptures(g, b,
+			-enemyCanForceScore,
+			-playerCanForceScore)
+		enemyScore := result.score
+		totalSearched += result.quiescenceSearched
 
 		b.undoUpdate(update)
 		g.undoUpdate(previous, update)
 
-		if enemyScore.HasValue() {
-			currentScore := -enemyScore.Value()
-			if currentScore >= enemyWillAvoidIfBetterThan {
-				return Some(enemyWillAvoidIfBetterThan), totalSearched
-			}
+		currentScore := -enemyScore
+		if currentScore >= enemyCanForceScore {
+			return SearchResult{enemyCanForceScore, totalSearched, totalSearched}
+		}
 
-			if currentScore > bestScoreSoFar {
-				bestScoreSoFar = currentScore
-			}
+		if currentScore > playerCanForceScore {
+			playerCanForceScore = currentScore
 		}
 	}
 
-	return Some(bestScoreSoFar), totalSearched
+	return SearchResult{playerCanForceScore, totalSearched, totalSearched}
 }
 
-func evaluateSearch(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillAvoidIfBetterThan int, depth int) (Optional[int], int) {
+func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) SearchResult {
+	standPat := b.evaluate(g.player)
+	if standPat > enemyCanForceScore {
+		return SearchResult{enemyCanForceScore, 1, 1}
+	} else if standPat > playerCanForceScore {
+		playerCanForceScore = standPat
+	}
+
+	return evaluateCapturesInner(g, b, playerCanForceScore, enemyCanForceScore)
+}
+
+type SearchResult struct {
+	score              int
+	totalSearched      int
+	quiescenceSearched int
+}
+
+func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int, depth int) SearchResult {
 	if b.kingIsInCheck(g.enemy(), g.player) {
-		return Empty[int](), 1
+		return SearchResult{INF, 1, 0}
 	}
 
 	if depth == 0 {
 		score := b.evaluate(g.player)
-		return Some(score), 1
+		return SearchResult{score, 1, 0}
 	}
 
 	moves := GetMovesBuffer()
@@ -76,6 +96,7 @@ func evaluateSearch(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillAvo
 	b.GenerateSortedPseudoMoves(g, moves)
 
 	totalSearched := 0
+	quiescenceSearched := 0
 
 	for _, move := range *moves {
 		update := BoardUpdate{}
@@ -86,36 +107,36 @@ func evaluateSearch(g *GameState, b *Bitboards, bestScoreSoFar int, enemyWillAvo
 		b.performMove(g, move)
 		g.performMove(move, update)
 
-		var enemyScore Optional[int]
-		var numSearched int
+		var result SearchResult
 		if depth == 1 && move.moveType == CAPTURE_MOVE {
-			enemyScore, numSearched = evaluateCaptures(g, b,
-				-enemyWillAvoidIfBetterThan,
-				-bestScoreSoFar)
+			result = evaluateCaptures(g, b,
+				-enemyCanForceScore,
+				-playerCanForceScore)
 		} else {
-			enemyScore, numSearched = evaluateSearch(g, b,
-				-enemyWillAvoidIfBetterThan,
-				-bestScoreSoFar,
+			result = evaluateSearch(g, b,
+				-enemyCanForceScore,
+				-playerCanForceScore,
 				depth-1)
 		}
-		totalSearched += numSearched
+
+		enemyScore := result.score
+		totalSearched += result.totalSearched
+		quiescenceSearched += result.quiescenceSearched
 
 		b.undoUpdate(update)
 		g.undoUpdate(previous, update)
 
-		if enemyScore.HasValue() {
-			currentScore := -enemyScore.Value()
-			if currentScore >= enemyWillAvoidIfBetterThan {
-				return Some(enemyWillAvoidIfBetterThan), totalSearched
-			}
+		currentScore := -enemyScore
+		if currentScore >= enemyCanForceScore {
+			return SearchResult{enemyCanForceScore, totalSearched, quiescenceSearched}
+		}
 
-			if currentScore > bestScoreSoFar {
-				bestScoreSoFar = currentScore
-			}
+		if currentScore > playerCanForceScore {
+			playerCanForceScore = currentScore
 		}
 	}
 
-	return Some(bestScoreSoFar), totalSearched
+	return SearchResult{playerCanForceScore, totalSearched, quiescenceSearched}
 }
 
 func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move] {
@@ -127,36 +148,34 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move]
 	bestMoveSoFar := Empty[Move]()
 	bestScoreSoFar := -INF
 
+	quiescenceSearched := 0
 	totalSearched := 0
 
 	startTime := time.Now()
 
 	for i, move := range *moves {
-		update := BoardUpdate{}
-		previous := OldGameState{}
+		update, previous := BoardUpdate{}, OldGameState{}
 		SetupBoardUpdate(g, move, &update)
 		RecordCurrentState(g, &previous)
 
 		b.performMove(g, move)
 		g.performMove(move, update)
 
-		enemyScore, numSearched := evaluateSearch(g, b,
+		result := evaluateSearch(g, b,
 			-INF, INF, depth)
-		totalSearched += numSearched
+		enemyScore := result.score
+		totalSearched += result.totalSearched
+		quiescenceSearched += result.quiescenceSearched
 
 		b.undoUpdate(update)
 		g.undoUpdate(previous, update)
 
-		if enemyScore.HasValue() {
-			currentScore := -enemyScore.Value()
-			logger.Println(i, "/", len(*moves), "searched", numSearched, "under", move.String(), "and found score", currentScore)
+		currentScore := -enemyScore
+		logger.Println(i, "/", len(*moves), "searched", result.totalSearched, "with initial search", result.totalSearched-result.quiescenceSearched, "and ending captures", result.quiescenceSearched, "under", move.String(), "and found score", currentScore)
 
-			if currentScore > bestScoreSoFar {
-				bestScoreSoFar = currentScore
-				bestMoveSoFar = Some(move)
-			}
-		} else {
-			logger.Println("searched", move.String(), "and and failed to find score")
+		if currentScore > bestScoreSoFar {
+			bestScoreSoFar = currentScore
+			bestMoveSoFar = Some(move)
 		}
 	}
 
@@ -173,7 +192,9 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) Optional[Move]
 
 	for i := 0; i < len(PLY_COUNTS); i++ {
 		if totalSearched < PLY_COUNTS[i] {
-			logger.Println("searched", totalSearched, "nodes in", time.Since(startTime), ", ~ perft of ply", i, "(", PLY_COUNTS[i], ")")
+			logger.Println("searched", totalSearched,
+				"with initial search", totalSearched-quiescenceSearched, "and ending captures", quiescenceSearched,
+				"nodes in", time.Since(startTime), ", ~ perft of ply", i, "(", PLY_COUNTS[i], ")")
 			break
 		}
 	}

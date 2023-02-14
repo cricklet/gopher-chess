@@ -176,9 +176,14 @@ func (m *Move) Evaluate(g *GameState) int {
 		score += 100
 	}
 
-	score += evaluateDevelopment(
+	startDevelopment := evaluateDevelopment(
 		singleBitboard(m.endIndex),
 		DEVELOPMENT_BITBOARDS[g.Board[m.startIndex].pieceType()][g.player])
+	endDevelopment :=
+		evaluateDevelopment(
+			singleBitboard(m.startIndex),
+			DEVELOPMENT_BITBOARDS[g.Board[m.startIndex].pieceType()][g.player])
 
+	score += startDevelopment - endDevelopment
 	return score
 }
