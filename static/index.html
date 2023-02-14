@@ -25,6 +25,12 @@
             background-color: #222b;
             padding: 2px;
         }
+        .file-rank.selected span {
+            background-color: #2ccb;
+        }
+        .file-rank.ready span {
+            background-color: #2ccb;
+        }
     }
 
     @media (prefers-color-scheme: light) {
@@ -48,6 +54,12 @@
             color: #fff;
             background-color: #222b;
             padding: 2px;
+        }
+        .file-rank.selected span {
+            background-color: #2ccb;
+        }
+        .file-rank.ready span {
+            background-color: #2ccb;
         }
     }
 
@@ -125,7 +137,7 @@
         padding: 4px;
     }
 
-    .file-rank.selectable {
+    .file-rank.selectable, .file-rank.selected, .file-rank.ready {
         visibility: visible;
     }
 
@@ -399,6 +411,21 @@
                     if (PLAYER_PIECE_MAP[player].has(c) && selectedFileRank == null) {
                         fileRankEl.classList.add('selectable')
                         fileRankEl.classList.add(player)
+                    }
+                    if (selectedFileRank != null) {
+                        if (validMoveSubstr.length === 4) {
+                          if (fileRankToString(file, rank) == validMoveSubstr.substring(2, 4)) {
+                            fileRankEl.classList.add('ready')
+                          }
+                        } else if (availableMoves && availableMoves[file] && availableMoves[file][rank]) {
+                            fileRankEl.classList.add('selectable')
+                            fileRankEl.classList.add(player)
+                        }
+
+                        if (file == selectedFileRank[0] && rank == selectedFileRank[1]) {
+                            fileRankEl.classList.add('selected')
+                            fileRankEl.classList.add(player)
+                        }
                     }
                     const innerEl = document.createElement('span')
                     innerEl.textContent = fileRankToString(file, rank)
