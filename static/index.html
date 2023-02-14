@@ -97,9 +97,13 @@
         overflow: scroll;
     }
 
-    #input {
+    #input-form {
         margin: 0px 20px 20px 20px;
         font-family: monospace;
+    }
+
+    #input {
+        width: 100%;
     }
 
     .row {
@@ -300,7 +304,7 @@
         return board
     }
 
-    function * forEachPieceFileRank(board) {
+    function * forEachPieceAndFileRankStr(board) {
         for (let rank = 7; rank >= 0; rank--) {
             for (let file = 0; file < 8; file++) {
                 yield [board[file][rank], fileRankToString(file, rank)]
@@ -309,6 +313,7 @@
     }
 
     let board, selectedFileRank, player, availableMoves
+    let validMoveSubstr
 
     async function update() {
         function click(file, rank) {
@@ -332,6 +337,7 @@
                 Selection: ""
             })
         }
+        console.log({board, selectedFileRank, player, availableMoves, validMoveSubstr})
 
         const boardEl = document.getElementById('board')
         boardEl.innerHTML = ''
@@ -497,7 +503,7 @@
 
         const inputEl = document.getElementById('input')
 
-        function parseValidInput() {
+        function validateInputMoveSubstr() {
             const input = inputEl.value
 
             let result = ""
@@ -507,7 +513,7 @@
 
             const selectFile = input[0]
             const potentialSelections = new Set()
-            for (const [p, fileRank] of forEachPieceFileRank(board)) {
+            for (const [p, fileRank] of forEachPieceAndFileRankStr(board)) {
                 if (fileRank[0] === selectFile && PLAYER_PIECE_MAP[player].has(p)) {
                     potentialSelections.add(fileRank)
                 }
@@ -546,8 +552,8 @@
         }
 
         function updateFromInputChange() {
-            const validInput = parseValidInput()
-            if (validInput.length < 2) {
+            validMoveSubstr  = validateInputMoveSubstr()
+            if (validMoveSubstr.length < 2) {
                 if (selectedFileRank) {
                     send({
                         Selection: ""
@@ -556,26 +562,30 @@
                 return
             }
 
-            const selection = validInput.substring(0, 2)
+            const selection = validMoveSubstr.substring(0, 2)
             if (!selectedFileRank || fileRankToString(...selectedFileRank) != selection) {
                 send({
                     Selection: selection
                 })
             }
 
-            if (validInput.length !== 4) {
-                return
-            }
-
-            const [moveFile, moveRank] = fileRankFromString(validInput.substring(2, 4))
-            if (availableMoves && availableMoves[moveFile] && availableMoves[moveFile][moveRank]) {
-                log("move works!", moveFile, moveRank)
-            }
+            update()
         }
 
-        document.getElementById("input").addEventListener('input', function() {
-            log(parseValidInput())
+        inputEl.addEventListener('input', function() {
+            log(validateInputMoveSubstr())
             updateFromInputChange()
+        })
+
+        document.getElementById("input-form").addEventListener('submit', function(event) {
+            event.preventDefault()
+            
+            if (validMoveSubstr.length == 4) {
+                send({
+                    Move: validMoveSubstr
+                })
+                inputEl.value = ""
+            }
         })
     })
 </script>
@@ -583,6 +593,8 @@
     <div id="board"></div>
     <div id="sidepanel">
         <div id="logs"></div>
-        <input id="input" autofocus="true" autocomplete="off" />
+        <form id="input-form">
+            <input id="input" autofocus="true" autocomplete="off" />
+        </form>
     </div>
 </div>
