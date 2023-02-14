@@ -181,7 +181,7 @@
         -webkit-backdrop-filter: sepia(50%) saturate(100%) hue-rotate(180deg);
     }
 
-    .potentialCircle {
+    /* .potentialCircle {
         z-index: 9;
         line-height: 1em;
         pointer-events: none;
@@ -194,7 +194,7 @@
     .potentialCircle::after {
         content: "⬤";
         font-size: 0.4em;
-    }
+    } */
 
 
     .piece {
@@ -325,7 +325,7 @@
     }
 
     let board, selectedFileRank, player, availableMoves
-    let validMoveSubstr
+    let validMoveSubstr = ""
 
     async function update() {
         function click(file, rank) {
