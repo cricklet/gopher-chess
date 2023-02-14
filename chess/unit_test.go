@@ -1700,7 +1700,7 @@ func TestPlayerFromPiece(t *testing.T) {
 
 }
 
-func TestClearIndexBug(t *testing.T) {
+func TestIndexBug1(t *testing.T) {
 	{
 		r := Runner{}
 		for _, line := range []string{
@@ -1727,7 +1727,7 @@ func TestClearIndexBug(t *testing.T) {
 	}
 }
 
-func TestAnotherIndexBug(t *testing.T) {
+func TestIndexBug2(t *testing.T) {
 	r := Runner{}
 	for _, line := range []string{
 		"isready",
@@ -1738,5 +1738,19 @@ func TestAnotherIndexBug(t *testing.T) {
 	}
 
 	r.PerformMoveFromString("g2g4")
+	r.HandleInput("go")
+}
+
+func TestIndexBug3(t *testing.T) {
+	r := Runner{}
+	for _, line := range []string{
+		"isready",
+		"uci",
+		"position fen 2k1r3/8/2np2p1/p1bq4/Pp2P1P1/1P1p4/2PBQ3/R4RK1 w - - 48 25",
+	} {
+		r.HandleInput(line)
+	}
+
+	r.PerformMoveFromString("d2e3")
 	r.HandleInput("go")
 }

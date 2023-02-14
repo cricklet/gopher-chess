@@ -192,7 +192,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 
 		// generate one step
 		if !onlyCaptures {
-			potential := rotateTowardsIndex64(playerBoards.pieces[PAWN], pushOffset)
+			potential := rotateTowardsIndex64(playerBoards.pieces[PAWN]&PremoveMaskFromOffset(pushOffset), pushOffset)
 			potential = potential & ^b.occupied
 
 			index, tempPotential := 0, Bitboard(potential)
