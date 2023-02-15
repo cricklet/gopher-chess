@@ -17,13 +17,14 @@ import (
 
 type UpdateToWeb struct {
 	FenString     string
+	LastMove      string
 	Selection     string
 	PossibleMoves []string
 	Player        string // white / black
 }
 
 func (u UpdateToWeb) String() string {
-	return fmt.Sprint("UpdateToWeb: ", u.FenString, ", ", u.Selection, ", ", u.PossibleMoves)
+	return fmt.Sprint("UpdateToWeb: ", u.FenString, ", ", u.LastMove, ", ", u.Selection, ", ", u.PossibleMoves)
 }
 
 type MessageFromWeb struct {
@@ -81,9 +82,19 @@ func serve() {
 			},
 		}
 
-		var sendUpdateToWeb = func(result UpdateToWeb) {
-			runner.Logger.Println("sending", result)
-			bytes, err := json.Marshal(result)
+		var finalizeUpdate = func(update UpdateToWeb) {
+			update.FenString = runner.FenString()
+			if runner.Player() == chessgo.WHITE {
+				update.Player = "white"
+			} else {
+				update.Player = "black"
+			}
+			if lastMove := runner.LastMove(); lastMove.HasValue() {
+				update.LastMove = lastMove.Value().String()
+			}
+
+			runner.Logger.Println("sending", update)
+			bytes, err := json.Marshal(update)
 			if err != nil {
 				panic(err)
 			}
@@ -118,6 +129,7 @@ func serve() {
 				}
 			} else if message.Move != nil {
 				runner.PerformMoveFromString(*message.Move)
+				finalizeUpdate(update)
 
 				bestMoveString := chessgo.FindInSlice(runner.HandleInput("go"), func(v string) bool {
 					return strings.HasPrefix(v, "bestmove ")
@@ -131,13 +143,7 @@ func serve() {
 				runner.Rewind(*message.Rewind)
 			}
 
-			update.FenString = runner.FenString()
-			if runner.Player() == chessgo.WHITE {
-				update.Player = "white"
-			} else {
-				update.Player = "black"
-			}
-			sendUpdateToWeb(update)
+			finalizeUpdate(update)
 		}
 
 		defer c.Close()
@@ -162,7 +168,8 @@ func serve() {
 	router.HandleFunc("/ws", ws)
 	router.PathPrefix("/static").Handler(
 		http.StripPrefix("/static", http.FileServer(http.Dir("../static"))))
-	router.PathPrefix("/fen").HandlerFunc(index)
+	router.PathPrefix("/white/fen").HandlerFunc(index)
+	router.PathPrefix("/black/fen").HandlerFunc(index)
 	router.HandleFunc("/", index)
 	http.Handle("/", router)
 	http.ListenAndServe(":8002", router)

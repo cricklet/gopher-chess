@@ -25,9 +25,15 @@
             background-color: #222b;
             padding: 2px;
         }
+
         .file-rank.selected span {
             background-color: #2ccb;
         }
+
+        .file-rank.last-move span {
+            background-color: #c2cb;
+        }
+
         .file-rank.ready span {
             background-color: #2ccb;
         }
@@ -55,9 +61,15 @@
             background-color: #222b;
             padding: 2px;
         }
+
         .file-rank.selected span {
             background-color: #2ccb;
         }
+
+        .file-rank.last-move span {
+            background-color: #c2cb;
+        }
+
         .file-rank.ready span {
             background-color: #2ccb;
         }
@@ -137,7 +149,10 @@
         padding: 4px;
     }
 
-    .file-rank.selectable, .file-rank.selected, .file-rank.ready {
+    .file-rank.selectable,
+    .file-rank.selected,
+    .file-rank.ready,
+    .last-move {
         visibility: visible;
     }
 
@@ -235,6 +250,10 @@
     }
 </style>
 <script>
+    let userControlsPlayer
+    let board, selectedFileRank, currentPlayerToMove, availableMoves, lastMoveStart, lastMoveEnd
+    let validMoveSubstr = ""
+
     PIECE_CLASS_MAP = {
         'r': ['black', 'rook'],
         'n': ['black', 'knight'],
@@ -316,16 +335,13 @@
         return board
     }
 
-    function * forEachPieceAndFileRankStr(board) {
+    function* forEachPieceAndFileRankStr(board) {
         for (let rank = 7; rank >= 0; rank--) {
             for (let file = 0; file < 8; file++) {
                 yield [board[file][rank], fileRankToString(file, rank)]
             }
         }
     }
-
-    let board, selectedFileRank, player, availableMoves
-    let validMoveSubstr = ""
 
     async function update() {
         function click(file, rank) {
@@ -337,7 +353,7 @@
                 return
             }
 
-            if (c != " " && PLAYER_PIECE_MAP[player].has(c)) {
+            if (c != " " && PLAYER_PIECE_MAP[currentPlayerToMove].has(c)) {
                 if (!fileRankMatches(file, rank, selectedFileRank)) {
                     send({
                         Selection: fileRankToString(file, rank)
@@ -349,7 +365,7 @@
                 Selection: ""
             })
         }
-        console.log({board, selectedFileRank, player, availableMoves, validMoveSubstr})
+        console.log({ board, selectedFileRank, currentPlayerToMove, availableMoves, validMoveSubstr, lastMoveStart, lastMoveEnd })
 
         const boardEl = document.getElementById('board')
         boardEl.innerHTML = ''
@@ -378,7 +394,7 @@
 
                 const pieceClasses = PIECE_CLASS_MAP[c]
                 if (pieceClasses) {
-                    if (PLAYER_PIECE_MAP[player].has(c) && selectedFileRank == null) {
+                    if (currentPlayerToMove === userControlsPlayer && PLAYER_PIECE_MAP[currentPlayerToMove].has(c) && selectedFileRank == null) {
                         const backdropEl = document.createElement('span')
                         backdropEl.classList.add('selectable')
                         backdropEl.classList.add('backdrop')
@@ -392,7 +408,7 @@
                     pieceEl.classList.add('piece')
                     spanEl.appendChild(pieceEl)
                 }
-                if (availableMoves && availableMoves[file] && availableMoves[file][rank]) {
+                if (currentPlayerToMove === userControlsPlayer && availableMoves && availableMoves[file] && availableMoves[file][rank]) {
                     const backdropEl = document.createElement('span')
                     backdropEl.classList.add('potential')
                     backdropEl.classList.add('backdrop')
@@ -400,7 +416,7 @@
 
                     const potentialCircle = document.createElement('span')
                     potentialCircle.classList.add('potentialCircle')
-                    potentialCircle.classList.add(player)
+                    potentialCircle.classList.add(currentPlayerToMove)
                     spanEl.appendChild(potentialCircle)
 
                     spanEl.classList.add('potential')
@@ -408,24 +424,29 @@
                 {
                     const fileRankEl = document.createElement('span')
                     fileRankEl.classList.add('file-rank')
-                    if (PLAYER_PIECE_MAP[player].has(c) && selectedFileRank == null) {
+                    if (currentPlayerToMove === userControlsPlayer && PLAYER_PIECE_MAP[currentPlayerToMove].has(c) && selectedFileRank == null) {
                         fileRankEl.classList.add('selectable')
-                        fileRankEl.classList.add(player)
+                        fileRankEl.classList.add(currentPlayerToMove)
                     }
                     if (selectedFileRank != null) {
                         if (validMoveSubstr.length === 4) {
-                          if (fileRankToString(file, rank) == validMoveSubstr.substring(2, 4)) {
-                            fileRankEl.classList.add('ready')
-                          }
+                            if (fileRankToString(file, rank) == validMoveSubstr.substring(2, 4)) {
+                                fileRankEl.classList.add('ready')
+                            }
                         } else if (availableMoves && availableMoves[file] && availableMoves[file][rank]) {
                             fileRankEl.classList.add('selectable')
-                            fileRankEl.classList.add(player)
+                            fileRankEl.classList.add(currentPlayerToMove)
                         }
 
                         if (file == selectedFileRank[0] && rank == selectedFileRank[1]) {
                             fileRankEl.classList.add('selected')
-                            fileRankEl.classList.add(player)
+                            fileRankEl.classList.add(currentPlayerToMove)
                         }
+                    }
+                    if ((lastMoveStart && lastMoveStart[0] == file && lastMoveStart[1] == rank) 
+                        || (lastMoveEnd && lastMoveEnd[0] == file && lastMoveEnd[1] == rank)) {
+                        fileRankEl.classList.add('last-move')
+                        fileRankEl.classList.add(currentPlayerToMove === 'white' ? 'black' : 'white')
                     }
                     const innerEl = document.createElement('span')
                     innerEl.textContent = fileRankToString(file, rank)
@@ -458,7 +479,7 @@
     }
 
     function urlFromFen(fen) {
-        return "/fen/" + fen
+        return "/" + userControlsPlayer + "/fen/" + fen
     }
     function urlPath() {
         return decodeURI(window.location.pathname)
@@ -479,11 +500,17 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         socket.onopen = () => {
-            let fen = decodeURI(urlPath().slice(1).replace("fen/", ""))
-            if (fen == 'startpos' || fen.length < 1) {
-                fen = START_POS_FEN
+            let initialFen
+                ;[userControlsPlayer, initialFen] = decodeURI(urlPath())
+                    // Remove the initial "/"
+                    .slice(1)
+                    // Split "white/fen/xxx" into "white" and "xxx"
+                    .split("/fen/")
+
+            if (initialFen == 'startpos' || initialFen.length < 1) {
+                initialFen = START_POS_FEN
             }
-            send({ NewFen: fen })
+            send({ NewFen: initialFen })
         };
         window.addEventListener('popstate', function (event) {
             let fen = decodeURI(window.location.pathname.slice(1).replace("fen/", ""))
@@ -515,7 +542,11 @@
                     availableMoves[file][rank] = true
                 }
 
-                player = data.Player
+                currentPlayerToMove = data.Player
+
+                    ;[lastMoveStart, lastMoveEnd] = data.LastMove ?
+                        [fileRankFromString(data.LastMove.substring(0, 2)), fileRankFromString(data.LastMove.substring(2, 4))]
+                        : [undefined, undefined]
 
                 update()
             }
@@ -533,6 +564,10 @@
         function validateInputMoveSubstr() {
             const input = inputEl.value
 
+            if (currentPlayerToMove !== userControlsPlayer) {
+                return ""
+            }
+
             let result = ""
             if (input.length == 0) {
                 return result
@@ -541,7 +576,7 @@
             const selectFile = input[0]
             const potentialSelections = new Set()
             for (const [p, fileRank] of forEachPieceAndFileRankStr(board)) {
-                if (fileRank[0] === selectFile && PLAYER_PIECE_MAP[player].has(p)) {
+                if (fileRank[0] === selectFile && PLAYER_PIECE_MAP[currentPlayerToMove].has(p)) {
                     potentialSelections.add(fileRank)
                 }
             }
@@ -579,7 +614,7 @@
         }
 
         function updateFromInputChange() {
-            validMoveSubstr  = validateInputMoveSubstr()
+            validMoveSubstr = validateInputMoveSubstr()
             if (validMoveSubstr.length < 2) {
                 if (selectedFileRank) {
                     send({
@@ -599,14 +634,14 @@
             update()
         }
 
-        inputEl.addEventListener('input', function() {
+        inputEl.addEventListener('input', function () {
             log(validateInputMoveSubstr())
             updateFromInputChange()
         })
 
-        document.getElementById("input-form").addEventListener('submit', function(event) {
+        document.getElementById("input-form").addEventListener('submit', function (event) {
             event.preventDefault()
-            
+
             if (validMoveSubstr.length == 4) {
                 send({
                     Move: validMoveSubstr

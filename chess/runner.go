@@ -25,6 +25,13 @@ func (r *Runner) IsNew() bool {
 	return r.g == nil || r.b == nil || len(r.history) == 0
 }
 
+func (r *Runner) LastMove() Optional[Move] {
+	if len(r.history) > 0 {
+		return Some(r.LastHistory().move)
+	}
+	return Empty[Move]()
+}
+
 func (r *Runner) LastHistory() *HistoryValue {
 	return &r.history[len(r.history)-1]
 }
@@ -41,6 +48,7 @@ func (r *Runner) PerformMove(move Move) {
 	r.history = append(r.history, HistoryValue{})
 
 	h := r.LastHistory()
+	h.move = move
 
 	SetupBoardUpdate(r.g, move, &h.update)
 	RecordCurrentState(r.g, &h.previous)
