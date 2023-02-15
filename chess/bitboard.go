@@ -112,6 +112,17 @@ var PAWN_PUSH_OFFSETS = [2]int{
 	OFFSET_S,
 }
 
+var PAWN_PROMOTION_BITBOARD = bitboardFromStrings([8]string{
+	"11111111",
+	"00000000",
+	"00000000",
+	"00000000",
+	"00000000",
+	"00000000",
+	"00000000",
+	"11111111",
+})
+
 var PAWN_CAPTURE_OFFSETS = [2][2]int{
 	{ // WHITE
 		OFFSET_N + OFFSET_E, OFFSET_N + OFFSET_W,

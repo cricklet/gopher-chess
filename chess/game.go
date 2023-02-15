@@ -94,8 +94,13 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) {
 	switch move.moveType {
 	case QUIET_MOVE:
 		{
-			output.Add(g, move.startIndex, XX)
-			output.Add(g, move.endIndex, startPiece)
+			if startPiece.pieceType() == PAWN && singleBitboard(move.endIndex)&PAWN_PROMOTION_BITBOARD != 0 {
+				output.Add(g, move.startIndex, XX)
+				output.Add(g, move.endIndex, PIECE_FOR_PLAYER[g.player][QUEEN])
+			} else {
+				output.Add(g, move.startIndex, XX)
+				output.Add(g, move.endIndex, startPiece)
+			}
 		}
 	case CAPTURE_MOVE:
 		{

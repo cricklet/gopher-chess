@@ -19,7 +19,7 @@ var ROOK_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
 }, DEVELOPMENT_SCALE)
 
 var PAWN_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
-	{0, 0, 0, 0, 0, 0, 0, 0},
+	{4, 4, 4, 4, 4, 4, 4, 4},
 	{3, 3, 3, 4, 4, 3, 3, 3},
 	{2, 2, 2, 3, 3, 2, 2, 2},
 	{2, 2, 2, 3, 3, 2, 2, 2},
