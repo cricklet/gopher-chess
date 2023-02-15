@@ -443,7 +443,7 @@
                             fileRankEl.classList.add(currentPlayerToMove)
                         }
                     }
-                    if ((lastMoveStart && lastMoveStart[0] == file && lastMoveStart[1] == rank) 
+                    if ((lastMoveStart && lastMoveStart[0] == file && lastMoveStart[1] == rank)
                         || (lastMoveEnd && lastMoveEnd[0] == file && lastMoveEnd[1] == rank)) {
                         fileRankEl.classList.add('last-move')
                         fileRankEl.classList.add(currentPlayerToMove === 'white' ? 'black' : 'white')
@@ -479,7 +479,11 @@
     }
 
     function urlFromFen(fen) {
-        return "/" + userControlsPlayer + "/fen/" + fen
+        let result = "/" + userControlsPlayer + "/fen/" + fen
+        if (lastMoveStart && lastMoveEnd) {
+            result += "/lastmove/" + fileRankToString(...lastMoveStart) + fileRankToString(...lastMoveEnd)
+        }
+        return result
     }
     function urlPath() {
         return decodeURI(window.location.pathname)
@@ -488,37 +492,61 @@
         if (!fenString) {
             return
         }
-        const fenUrl = urlFromFen(fenString)
-        if (urlPath() === "/" && fenUrl === urlFromFen(START_POS_FEN)) {
+        const newUrl = urlFromFen(fenString)
+        if (urlPath() === "/" && newUrl === urlFromFen(START_POS_FEN)) {
             return
         }
-        if (urlPath() !== fenUrl) {
-            window.history.pushState(null, "", fenUrl)
+        if (urlPath() !== newUrl) {
+            window.history.pushState(null, "", newUrl)
         }
         return
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
-        socket.onopen = () => {
-            let initialFen
-                ;[userControlsPlayer, initialFen] = decodeURI(urlPath())
-                    // Remove the initial "/"
-                    .slice(1)
-                    // Split "white/fen/xxx" into "white" and "xxx"
-                    .split("/fen/")
+    function playerFenLastFromUrl(path) {
+        let player = "white"
+        let fen = START_POS_FEN
+        let lastMove = undefined
 
-            if (initialFen == 'startpos' || initialFen.length < 1) {
-                initialFen = START_POS_FEN
-            }
-            send({ NewFen: initialFen })
-        };
-        window.addEventListener('popstate', function (event) {
-            let fen = decodeURI(window.location.pathname.slice(1).replace("fen/", ""))
-            if (fen == 'startpos' || fen.length < 1) {
-                fen = START_POS_FEN
-            }
+        const trimmed = decodeURI(path)
+            // Remove the initial "/"
+            .slice(1)
+        if (trimmed === "") {
+            return [player, fen]
+        }
+
+        const parts = trimmed
+            // Split "white/fen/xxx" into "white" and "xxx"
+            .split(/\/fen\/|\/lastmove\//)
+
+        if (parts.length > 0) {
+            player = parts[0]
+        }
+
+        if (parts.length > 1) {
+            fen = parts[1]
+        }
+
+        if (parts.length > 2 && parts[2].length === 4) {
+            lastMove = parts[2]
+        }
+
+        return [player, fen, lastMove]
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        function handleNewUrl() {
+            const [player, fen, lastMove] = playerFenLastFromUrl(urlPath());
+            userControlsPlayer = player;
+
+            [lastMoveStart, lastMoveEnd] = lastMove ?
+                [fileRankFromString(lastMove.substring(0, 2)), fileRankFromString(lastMove.substring(2, 4))]
+                : [undefined, undefined];
+
             send({ NewFen: fen })
-        });
+            send({ UserPlayer: userControlsPlayer })
+        }
+        socket.onopen = handleNewUrl
+        window.addEventListener('popstate', handleNewUrl);
         socket.onmessage = event => {
             data = JSON.parse(event.data)
             if (Array.isArray(data)) {
@@ -528,8 +556,6 @@
             } else {
                 log('received', data)
                 board = parseFenBoardString(data.FenString)
-
-                updateUrlForFen(data.FenString)
 
                 selectedFileRank = data.Selection ? fileRankFromString(data.Selection) : null
 
@@ -542,12 +568,13 @@
                     availableMoves[file][rank] = true
                 }
 
-                currentPlayerToMove = data.Player
+                currentPlayerToMove = data.Player;
 
-                    ;[lastMoveStart, lastMoveEnd] = data.LastMove ?
-                        [fileRankFromString(data.LastMove.substring(0, 2)), fileRankFromString(data.LastMove.substring(2, 4))]
-                        : [undefined, undefined]
+                [lastMoveStart, lastMoveEnd] = data.LastMove ?
+                    [fileRankFromString(data.LastMove.substring(0, 2)), fileRankFromString(data.LastMove.substring(2, 4))]
+                    : [lastMoveStart || undefined, lastMoveEnd || undefined];
 
+                updateUrlForFen(data.FenString)
                 update()
             }
         }

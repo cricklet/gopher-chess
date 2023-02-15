@@ -28,21 +28,28 @@ func (u UpdateToWeb) String() string {
 }
 
 type MessageFromWeb struct {
-	NewFen    *string
-	Selection *string
-	Move      *string
-	Rewind    *int
+	NewFen     *string
+	UserPlayer *string
+	Selection  *string
+	Move       *string
+	Rewind     *int
 }
 
 func (u MessageFromWeb) String() string {
 	if u.NewFen != nil {
-		return fmt.Sprint("MessageFromWeb newFen: ", *u.NewFen)
+		return fmt.Sprint("MessageFromWeb NewFen: ", *u.NewFen)
+	}
+	if u.UserPlayer != nil {
+		return fmt.Sprint("MessageFromWeb UserPlayer: ", *u.UserPlayer)
 	}
 	if u.Selection != nil {
-		return fmt.Sprint("MessageFromWeb selection: ", *u.Selection)
+		return fmt.Sprint("MessageFromWeb Selection: ", *u.Selection)
 	}
 	if u.Move != nil {
-		return fmt.Sprint("MessageFromWeb move: ", *u.Move)
+		return fmt.Sprint("MessageFromWeb Move: ", *u.Move)
+	}
+	if u.Rewind != nil {
+		return fmt.Sprint("MessageFromWeb Rewind: ", *u.Rewind)
 	}
 	return "MessageFromWeb unknown"
 }
@@ -65,6 +72,8 @@ func serve() {
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		runner := chessgo.Runner{}
+		userPlayer := chessgo.WHITE
+		computerPlayer := chessgo.BLACK
 
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -101,6 +110,17 @@ func serve() {
 			c.WriteMessage(websocket.TextMessage, bytes)
 		}
 
+		var performMove = func() {
+			bestMoveString := chessgo.FindInSlice(runner.HandleInput("go"), func(v string) bool {
+				return strings.HasPrefix(v, "bestmove ")
+			})
+			runner.Logger.Println("found move", bestMoveString)
+			if bestMoveString.HasValue() {
+				runner.PerformMoveFromString(
+					strings.TrimPrefix(bestMoveString.Value(), "bestmove "))
+			}
+		}
+
 		var handleMessageFromWeb = func(bytes []byte) {
 			var message MessageFromWeb
 			json.Unmarshal(bytes, &message)
@@ -118,6 +138,17 @@ func serve() {
 					runner.Logger.Println(command)
 					runner.HandleInput(command)
 				}
+			} else if message.UserPlayer != nil {
+				if *message.UserPlayer == "white" {
+					userPlayer = chessgo.WHITE
+				} else {
+					userPlayer = chessgo.BLACK
+				}
+				computerPlayer = userPlayer.Other()
+
+				if runner.Player() == computerPlayer {
+					performMove()
+				}
 			} else if message.Selection != nil {
 				if *message.Selection != "" {
 					update.Selection = *message.Selection
@@ -131,14 +162,7 @@ func serve() {
 				runner.PerformMoveFromString(*message.Move)
 				finalizeUpdate(update)
 
-				bestMoveString := chessgo.FindInSlice(runner.HandleInput("go"), func(v string) bool {
-					return strings.HasPrefix(v, "bestmove ")
-				})
-				runner.Logger.Println("found move", bestMoveString)
-				if bestMoveString.HasValue() {
-					runner.PerformMoveFromString(
-						strings.TrimPrefix(bestMoveString.Value(), "bestmove "))
-				}
+				performMove()
 			} else if message.Rewind != nil {
 				runner.Rewind(*message.Rewind)
 			}

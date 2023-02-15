@@ -131,7 +131,7 @@ func (b *Bitboards) evaluateDevelopment(player Player) int {
 }
 
 func (b *Bitboards) evaluate(player Player) int {
-	enemy := player.other()
+	enemy := player.Other()
 
 	pieceValues :=
 		500*OnesCount(b.players[player].pieces[ROOK]) +
@@ -174,6 +174,9 @@ func (m *Move) Evaluate(g *GameState) int {
 	}
 	if m.moveType == EN_PASSANT_MOVE {
 		score += 100
+	}
+	if m.moveType == CASTLING_MOVE {
+		score += 500
 	}
 
 	startDevelopment := evaluateDevelopment(

@@ -163,7 +163,7 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 	if g.player == BLACK {
 		g.fullMoveClock++
 	}
-	g.player = g.player.other()
+	g.player = g.player.Other()
 	g.moveHistoryForDebugging = append(g.moveHistoryForDebugging, move)
 
 	startBitboard := singleBitboard(move.startIndex)
@@ -197,7 +197,7 @@ func (g *GameState) undoUpdate(undo OldGameState, update BoardUpdate) {
 	g.moveHistoryForDebugging = g.moveHistoryForDebugging[:len(g.moveHistoryForDebugging)-1]
 }
 func (g *GameState) enemy() Player {
-	return g.player.other()
+	return g.player.Other()
 }
 
 func (g *GameState) whiteCanCastleKingside() bool {

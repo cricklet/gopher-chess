@@ -559,7 +559,7 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 		}
 	case EN_PASSANT_MOVE:
 		{
-			capturedPlayer := startPiece.player().other()
+			capturedPlayer := startPiece.player().Other()
 			capturedBackwards := N
 			if capturedPlayer == BLACK {
 				capturedBackwards = S

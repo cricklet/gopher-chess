@@ -163,7 +163,7 @@ func (p Piece) player2() Player {
 	return PLAYER_FOR_PIECE[p]
 }
 
-func (p Player) other() Player {
+func (p Player) Other() Player {
 	return 1 - p
 }
 

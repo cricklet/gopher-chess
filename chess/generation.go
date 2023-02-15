@@ -185,7 +185,7 @@ func (b *Bitboards) GeneratePseudoCaptures(g *GameState, moves *[]Move) {
 func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onlyCaptures bool) {
 	player := g.player
 	playerBoards := b.players[player]
-	enemyBoards := &b.players[player.other()]
+	enemyBoards := &b.players[player.Other()]
 
 	{
 		pushOffset := PAWN_PUSH_OFFSETS[player]
@@ -349,7 +349,7 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 
 	// Pawn attacks
 	{
-		enemyPlayer := player.other()
+		enemyPlayer := player.Other()
 		enemyPawns := enemyBitboards.pieces[PAWN]
 		captureOffset0 := PAWN_CAPTURE_OFFSETS[enemyPlayer][0]
 		captureOffset1 := PAWN_CAPTURE_OFFSETS[enemyPlayer][1]
@@ -385,7 +385,7 @@ func (b *Bitboards) kingIsInCheck(player Player, enemy Player) bool {
 }
 
 func (b *Bitboards) dangerBoard(player Player) Bitboard {
-	enemyPlayer := player.other()
+	enemyPlayer := player.Other()
 	enemyBoards := &b.players[enemyPlayer]
 	result := Bitboard(0)
 	for i := 0; i < 64; i++ {
