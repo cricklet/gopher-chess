@@ -620,7 +620,7 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) error {
 	return nil
 }
 
-func (b *Bitboards) undoUpdate(update BoardUpdate) {
+func (b *Bitboards) undoUpdate(update BoardUpdate) error {
 	for i := update.num - 1; i >= 0; i-- {
 		index := update.indices[i]
 		current := update.pieces[i]
@@ -632,12 +632,17 @@ func (b *Bitboards) undoUpdate(update BoardUpdate) {
 				b.setSquare(index, previous)
 			}
 		} else {
+			var err error
 			if previous == XX {
-				b.clearSquare(index, current)
+				err = b.clearSquare(index, current)
 			} else {
-				b.clearSquare(index, current)
+				err = b.clearSquare(index, current)
 				b.setSquare(index, previous)
+			}
+			if err != nil {
+				return fmt.Errorf("undo %v %v %v: %w", stringFromBoardIndex(index), current, previous, err)
 			}
 		}
 	}
+	return nil
 }

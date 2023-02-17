@@ -55,7 +55,10 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 		enemyScore := result.score
 		totalSearched += result.quiescenceSearched
 
-		b.undoUpdate(update)
+		err = b.undoUpdate(update)
+		if err != nil {
+			return SearchResult{}, fmt.Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
+		}
 		g.undoUpdate(previous, update)
 
 		currentScore := -enemyScore
@@ -146,7 +149,10 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		totalSearched += result.totalSearched
 		quiescenceSearched += result.quiescenceSearched
 
-		b.undoUpdate(update)
+		err = b.undoUpdate(update)
+		if err != nil {
+			return SearchResult{}, fmt.Errorf("undo evaluateSearch %v: %w", move.String(), err)
+		}
 		g.undoUpdate(previous, update)
 
 		currentScore := -enemyScore
@@ -200,7 +206,10 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		totalSearched += result.totalSearched
 		quiescenceSearched += result.quiescenceSearched
 
-		b.undoUpdate(update)
+		err = b.undoUpdate(update)
+		if err != nil {
+			return Empty[Move](), fmt.Errorf("undo Search %v => %v: %w", g.fenString(), move.String(), err)
+		}
 		g.undoUpdate(previous, update)
 
 		currentScore := -enemyScore

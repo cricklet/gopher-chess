@@ -431,7 +431,10 @@ func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) e
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 
-		b.undoUpdate(update)
+		err = b.undoUpdate(update)
+		if err != nil {
+			return fmt.Errorf("generateLegalMoves: %w", err)
+		}
 	}
 
 	return nil

@@ -1178,7 +1178,10 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 
 		countUnderMove := countAndPerftForDepth(t, g, b, n-1, nil, nil)
 
-		b.undoUpdate(update)
+		err = b.undoUpdate(update)
+		if err != nil {
+			t.Error(fmt.Errorf("undo %v, %v: %w", g.fenString(), move, err))
+		}
 		g.undoUpdate(previous, update)
 
 		num += countUnderMove
@@ -1420,7 +1423,10 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 					g.fenString(),
 				}, maxDepth-1)...)
 
-			b.undoUpdate(update)
+			err = b.undoUpdate(update)
+			if err != nil {
+				t.Error(fmt.Errorf("undo %v => %v: %w", g.fenString(), move, err))
+			}
 			g.undoUpdate(previous, update)
 		}
 	}

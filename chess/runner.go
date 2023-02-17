@@ -36,13 +36,17 @@ func (r *Runner) LastMove() Optional[Move] {
 func (r *Runner) LastHistory() *HistoryValue {
 	return &r.history[len(r.history)-1]
 }
-func (r *Runner) Rewind(num int) {
+func (r *Runner) Rewind(num int) error {
 	for i := 0; i < MinInt(num, len(r.history)); i++ {
 		h := r.history[len(r.history)-1]
-		r.b.undoUpdate(h.update)
+		err := r.b.undoUpdate(h.update)
+		if err != nil {
+			return fmt.Errorf("Rewind: %w", err)
+		}
 		r.g.undoUpdate(h.previous, h.update)
 		r.history = r.history[:len(r.history)-1]
 	}
+	return nil
 }
 
 func (r *Runner) PerformMove(move Move) error {
@@ -79,7 +83,10 @@ func (r *Runner) PerformMoves(startPos string, moves []string) error {
 	startIndex := 0
 	for i := 0; i < len(moves); i++ {
 		if r.history[i].move.String() != moves[i] {
-			r.Rewind(len(moves) - i)
+			err := r.Rewind(len(moves) - i)
+			if err != nil {
+				return err
+			}
 			startIndex = 0
 			break
 		}
