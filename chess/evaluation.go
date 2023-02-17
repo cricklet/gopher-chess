@@ -5,7 +5,7 @@ type EvaluationBitboard struct {
 	b          Bitboard
 }
 
-var DEVELOPMENT_SCALE = 50
+var DEVELOPMENT_SCALE = 10
 
 var ROOK_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{0, 0, 0, 0, 0, 0, 0, 0},

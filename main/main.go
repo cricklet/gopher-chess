@@ -117,13 +117,23 @@ func serve() {
 		}
 
 		var performMove = func() {
-			bestMoveString := chessgo.FindInSlice(runner.HandleInput("go"), func(v string) bool {
+			result, err := runner.HandleInput("go")
+			if err != nil {
+				runner.Logger.Println("search: ", err)
+				return
+			}
+
+			bestMoveString := chessgo.FindInSlice(result, func(v string) bool {
 				return strings.HasPrefix(v, "bestmove ")
 			})
 			runner.Logger.Println("found move", bestMoveString)
 			if bestMoveString.HasValue() {
-				runner.PerformMoveFromString(
+				err := runner.PerformMoveFromString(
 					strings.TrimPrefix(bestMoveString.Value(), "bestmove "))
+				if err != nil {
+					runner.Logger.Println("perform %v: ", bestMoveString.Value(), err)
+					return
+				}
 			}
 		}
 
@@ -145,7 +155,10 @@ func serve() {
 					fmt.Sprintf("position fen %v", *message.NewFen),
 				} {
 					runner.Logger.Println(command)
-					runner.HandleInput(command)
+					_, err := runner.HandleInput(command)
+					if err != nil {
+						runner.Logger.Println("setup %v: ", command, err) // TODO reset
+					}
 				}
 			} else if message.UserPlayer != nil {
 				if *message.UserPlayer == "white" {
@@ -161,14 +174,21 @@ func serve() {
 			} else if message.Selection != nil {
 				if *message.Selection != "" {
 					update.Selection = *message.Selection
+					result, err := runner.MovesForSelection(*message.Selection)
+					if err != nil {
+						runner.Logger.Println("moves for %v: ", message.Selection, err)
+					}
 					update.PossibleMoves = chessgo.MapSlice(
-						runner.MovesForSelection(*message.Selection),
+						result,
 						func(v chessgo.FileRank) string {
 							return v.String()
 						})
 				}
 			} else if message.Move != nil {
-				runner.PerformMoveFromString(*message.Move)
+				err := runner.PerformMoveFromString(*message.Move)
+				if err != nil {
+					runner.Logger.Println("perform %v: ", message.Move, err) // TODO reset
+				}
 				finalizeUpdate(update)
 
 				performMove()
@@ -216,8 +236,8 @@ func serve() {
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println(fmt.Sprint(r))
-			log.Println(string(debug.Stack()))
+			fmt.Fprintln(os.Stderr, fmt.Sprint(r))
+			fmt.Fprintln(os.Stderr, string(debug.Stack()))
 		}
 	}()
 
@@ -236,7 +256,12 @@ func main() {
 			if input == "quit" {
 				break
 			}
-			for _, v := range r.HandleInput(input) {
+			result, err := r.HandleInput(input)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				break
+			}
+			for _, v := range result {
 				fmt.Println(v)
 			}
 		}

@@ -984,7 +984,10 @@ func TestCheck(t *testing.T) {
 
 	result := []string{}
 	moves := make([]Move, 0)
-	bitboards.generateLegalMoves(&g, &moves)
+	err = bitboards.generateLegalMoves(&g, &moves)
+	if err != nil {
+		t.Error(err)
+	}
 	for _, move := range moves {
 		result = append(result, move.String())
 	}
@@ -1023,7 +1026,10 @@ func TestPin(t *testing.T) {
 
 	result := []string{}
 	moves := make([]Move, 0)
-	bitboards.generateLegalMoves(&g, &moves)
+	err = bitboards.generateLegalMoves(&g, &moves)
+	if err != nil {
+		t.Error(err)
+	}
 	for _, move := range moves {
 		result = append(result, move.String())
 	}
@@ -1158,10 +1164,16 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 	for _, move := range *moves {
 		update := BoardUpdate{}
 		previous := OldGameState{}
-		SetupBoardUpdate(g, move, &update)
+		err := SetupBoardUpdate(g, move, &update)
+		if err != nil {
+			t.Error(fmt.Errorf("setup %v, %v: %w", g.fenString(), move, err))
+		}
 		RecordCurrentState(g, &previous)
 
-		b.performMove(g, move)
+		err = b.performMove(g, move)
+		if err != nil {
+			t.Error(fmt.Errorf("perform %v, %v: %w", g.fenString(), move, err))
+		}
 		g.performMove(move, update)
 
 		countUnderMove := countAndPerftForDepth(t, g, b, n-1, nil, nil)
@@ -1226,7 +1238,7 @@ const (
 	COUNT_TOO_LOW
 )
 
-func parsePerft(s string) (map[string]int, int) {
+func parsePerft(s string) (map[string]int, int, error) {
 	expectedPerft := make(map[string]int)
 
 	ok := false
@@ -1238,16 +1250,18 @@ func parsePerft(s string) (map[string]int, int) {
 				expectedCountStr := strings.TrimPrefix(line, "Nodes searched: ")
 				expectedCount, err := strconv.Atoi(expectedCountStr)
 				if err != nil {
-					panic(fmt.Sprint("couldn't parse searched nodes", line, err))
+					return expectedPerft, expectedCount,
+						fmt.Errorf("couldn't parse searched nodes: %v, %w", line, err)
 				}
 
-				return expectedPerft, expectedCount
+				return expectedPerft, expectedCount, nil
 			} else {
 				lineParts := strings.Split(line, ": ")
 				moveStr := lineParts[0]
 				moveCount, err := strconv.Atoi(lineParts[1])
 				if err != nil {
-					panic(fmt.Sprint("couldn't parse count from move", line, err))
+					return expectedPerft, 0,
+						fmt.Errorf("couldn't parse count from move: %v, %w", line, err)
 				}
 
 				expectedPerft[moveStr] = moveCount
@@ -1257,18 +1271,21 @@ func parsePerft(s string) (map[string]int, int) {
 		}
 	}
 
-	panic(fmt.Sprint("could not parse", s))
+	return expectedPerft, 0, fmt.Errorf("could not parse: %v", s)
 }
 
 func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth int) map[string]PerftComparison {
 	if depth == 0 {
-		panic("0 depth not valid for stockfish")
+		t.Error("0 depth not valid for stockfish")
 	}
 	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", g.fenString(), depth)
 	cmd := exec.Command("bash", "-c", input)
 	output, _ := cmd.CombinedOutput()
 
-	expectedPerft, expectedTotal := parsePerft(string(output))
+	expectedPerft, expectedTotal, err := parsePerft(string(output))
+	if err != nil {
+		t.Error(err)
+	}
 
 	total, perft := CountAndPerftForDepthWithProgress(t, g, b, depth, expectedTotal)
 
@@ -1347,8 +1364,15 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 
 	for _, move := range initialState.moves {
 		update := BoardUpdate{}
-		SetupBoardUpdate(&g, move, &update)
-		b.performMove(&g, move)
+		err := SetupBoardUpdate(&g, move, &update)
+		if err != nil {
+			t.Error(fmt.Errorf("setup %v => %v: %w", g.fenString(), move, err))
+		}
+		err = b.performMove(&g, move)
+		if err != nil {
+			t.Error(fmt.Errorf("perform %v => %v: %w", g.fenString(), move, err))
+		}
+
 		g.performMove(move, update)
 	}
 
@@ -1376,10 +1400,17 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 			move := g.moveFromString(search.move)
 
 			update, previous := BoardUpdate{}, OldGameState{}
-			SetupBoardUpdate(&g, move, &update)
+			err := SetupBoardUpdate(&g, move, &update)
+			if err != nil {
+				t.Error(fmt.Errorf("setup %v => %v: %w", g.fenString(), move, err))
+			}
+
 			RecordCurrentState(&g, &previous)
 
-			b.performMove(&g, move)
+			err = b.performMove(&g, move)
+			if err != nil {
+				t.Error(fmt.Errorf("perform %v => %v: %w", g.fenString(), move, err))
+			}
 			g.performMove(move, update)
 
 			result = append(result, findInvalidMoves(t,
@@ -1705,7 +1736,8 @@ func TestIndexBug1(t *testing.T) {
 			"uci",
 			"position fen rnbqkb1r/ppp2ppp/5n2/3pp3/4P3/2NP1N2/PPP1BPPP/R1BQK2R w KQkq - 10 6",
 		} {
-			r.HandleInput(line)
+			_, err := r.HandleInput(line)
+			assert.Nil(t, err)
 		}
 		findInvalidMoves(t, InitialState{r.FenString(), []Move{}, r.FenString()}, 3)
 	}
@@ -1717,10 +1749,13 @@ func TestIndexBug1(t *testing.T) {
 			"uci",
 			"position fen rnbqkb1r/ppp2ppp/5n2/3pp3/4P3/2NP1N2/PPP1BPPP/R1BQK2R w KQkq - 10 6",
 		} {
-			r.HandleInput(line)
+			_, err := r.HandleInput(line)
+			assert.Nil(t, err)
 		}
-		r.PerformMoveFromString("e1g1")
-		r.HandleInput("go")
+		err := r.PerformMoveFromString("e1g1")
+		assert.Nil(t, err)
+		_, err = r.HandleInput("go")
+		assert.Nil(t, err)
 	}
 }
 
@@ -1731,11 +1766,14 @@ func TestIndexBug2(t *testing.T) {
 		"uci",
 		"position fen 2kr3r/p1p2ppp/2n1b3/2bqp3/Pp1p4/1P1P1N1P/2PBBPP1/R2Q1RK1 w - - 24 13",
 	} {
-		r.HandleInput(line)
+		_, err := r.HandleInput(line)
+		assert.Nil(t, err)
 	}
 
-	r.PerformMoveFromString("g2g4")
-	r.HandleInput("go")
+	err := r.PerformMoveFromString("g2g4")
+	assert.Nil(t, err)
+	_, err = r.HandleInput("go")
+	assert.Nil(t, err)
 }
 
 func TestIndexBug3(t *testing.T) {
@@ -1745,9 +1783,12 @@ func TestIndexBug3(t *testing.T) {
 		"uci",
 		"position fen 2k1r3/8/2np2p1/p1bq4/Pp2P1P1/1P1p4/2PBQ3/R4RK1 w - - 48 25",
 	} {
-		r.HandleInput(line)
+		_, err := r.HandleInput(line)
+		assert.Nil(t, err)
 	}
 
-	r.PerformMoveFromString("d2e3")
-	r.HandleInput("go")
+	err := r.PerformMoveFromString("d2e3")
+	assert.Nil(t, err)
+	_, err = r.HandleInput("go")
+	assert.Nil(t, err)
 }

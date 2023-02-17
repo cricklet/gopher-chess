@@ -1,6 +1,7 @@
 package chess
 
 import (
+	"fmt"
 	"sort"
 )
 
@@ -396,17 +397,32 @@ func (b *Bitboards) dangerBoard(player Player) Bitboard {
 	return result
 }
 
-func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
+type BoardCorrupted struct {
+	Message error
+}
+
+func (e *BoardCorrupted) Error() string {
+	return fmt.Sprintf("corruption during update: %q", e.Message)
+}
+
+func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) error {
 	player := g.player
 	enemy := g.enemy()
 	potentialMoves := GetMovesBuffer()
+	defer ReleaseMovesBuffer(potentialMoves)
 	b.GeneratePseudoMoves(g, potentialMoves)
 
 	for _, move := range *potentialMoves {
 		update := BoardUpdate{}
-		SetupBoardUpdate(g, move, &update)
+		err := SetupBoardUpdate(g, move, &update)
+		if err != nil {
+			return fmt.Errorf("generateLegalMoves: %w", err)
+		}
 
-		b.performMove(g, move)
+		err = b.performMove(g, move)
+		if err != nil {
+			return &BoardCorrupted{err}
+		}
 		if !b.kingIsInCheck(player, enemy) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
@@ -414,5 +430,5 @@ func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) {
 		b.undoUpdate(update)
 	}
 
-	ReleaseMovesBuffer(potentialMoves)
+	return nil
 }

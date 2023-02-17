@@ -88,7 +88,7 @@ func (u *BoardUpdate) Add(g *GameState, index int, piece Piece) {
 	u.num++
 }
 
-func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) {
+func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 	startPiece := g.Board[move.startIndex]
 
 	switch move.moveType {
@@ -122,7 +122,10 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) {
 		}
 	case CASTLING_MOVE:
 		{
-			rookStartIndex, rookEndIndex := rookMoveForCastle(move.startIndex, move.endIndex)
+			rookStartIndex, rookEndIndex, err := rookMoveForCastle(move.startIndex, move.endIndex)
+			if err != nil {
+				return err
+			}
 			rookPiece := g.Board[rookStartIndex]
 
 			output.Add(g, move.startIndex, XX)
@@ -131,6 +134,8 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) {
 			output.Add(g, rookEndIndex, rookPiece)
 		}
 	}
+
+	return nil
 }
 
 func RecordCurrentState(g *GameState, output *OldGameState) {

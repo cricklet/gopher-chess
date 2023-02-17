@@ -295,24 +295,24 @@ var F8 int = boardIndexFromString("f8")
 var G8 int = boardIndexFromString("g8")
 var H8 int = boardIndexFromString("h8")
 
-func rookMoveForCastle(startIndex int, endIndex int) (int, int) {
+func rookMoveForCastle(startIndex int, endIndex int) (int, int, error) {
 	switch startIndex {
 	case E1:
 		switch endIndex {
 		case C1:
-			return A1, D1
+			return A1, D1, nil
 		case G1:
-			return H1, F1
+			return H1, F1, nil
 		}
 	case E8:
 		switch endIndex {
 		case C8:
-			return A8, D8
+			return A8, D8, nil
 		case G8:
-			return H8, F8
+			return H8, F8, nil
 		}
 	}
-	panic(fmt.Sprint("unknown castling move", stringFromBoardIndex(startIndex), stringFromBoardIndex(endIndex)))
+	return 0, 0, fmt.Errorf("unknown castling move %v %v", stringFromBoardIndex(startIndex), stringFromBoardIndex(endIndex))
 }
 
 var SINGLE_BITBOARDS [64]Bitboard = func() [64]Bitboard {
@@ -535,7 +535,7 @@ func (b *Bitboards) setSquare(index int, piece Piece) {
 	b.players[player].pieces[pieceType] |= oneBitboard
 }
 
-func (b *Bitboards) performMove(originalState *GameState, move Move) {
+func (b *Bitboards) performMove(originalState *GameState, move Move) error {
 	startIndex := move.startIndex
 	endIndex := move.endIndex
 
@@ -574,7 +574,10 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 		}
 	case CASTLING_MOVE:
 		{
-			rookStartIndex, rookEndIndex := rookMoveForCastle(startIndex, endIndex)
+			rookStartIndex, rookEndIndex, err := rookMoveForCastle(startIndex, endIndex)
+			if err != nil {
+				return err
+			}
 			rookPiece := originalState.Board[rookStartIndex]
 
 			b.clearSquare(startIndex, startPiece)
@@ -584,6 +587,8 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) {
 			b.clearSquare(rookEndIndex, rookPiece)
 		}
 	}
+
+	return nil
 }
 
 func (b *Bitboards) undoUpdate(update BoardUpdate) {

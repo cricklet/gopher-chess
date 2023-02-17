@@ -1,6 +1,7 @@
 package chess
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -44,24 +45,33 @@ func (r *Runner) Rewind(num int) {
 	}
 }
 
-func (r *Runner) PerformMove(move Move) {
+func (r *Runner) PerformMove(move Move) error {
 	r.history = append(r.history, HistoryValue{})
 
 	h := r.LastHistory()
 	h.move = move
 
-	SetupBoardUpdate(r.g, move, &h.update)
+	err := SetupBoardUpdate(r.g, move, &h.update)
+	if err != nil {
+		return fmt.Errorf("PerformMove: %w", err)
+	}
 	RecordCurrentState(r.g, &h.previous)
 
-	r.b.performMove(r.g, move)
+	err = r.b.performMove(r.g, move)
+	if err != nil {
+		return fmt.Errorf("PerformMove: %w", err)
+	}
+
 	r.g.performMove(move, h.update)
+
+	return nil
 }
 
-func (r *Runner) PerformMoveFromString(s string) {
-	r.PerformMove(r.g.moveFromString(s))
+func (r *Runner) PerformMoveFromString(s string) error {
+	return r.PerformMove(r.g.moveFromString(s))
 }
 
-func (r *Runner) PerformMoves(startPos string, moves []string) {
+func (r *Runner) PerformMoves(startPos string, moves []string) error {
 	if r.startPos != startPos {
 		panic("please use ucinewgame")
 	}
@@ -76,21 +86,26 @@ func (r *Runner) PerformMoves(startPos string, moves []string) {
 	}
 
 	for i := startIndex; i < len(moves); i++ {
-		r.PerformMove(r.g.moveFromString(moves[i]))
+		err := r.PerformMove(r.g.moveFromString(moves[i]))
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func (r *Runner) SetupPosition(position Position) {
+func (r *Runner) SetupPosition(position Position) error {
 	if r.Logger == nil {
 		r.Logger = &DEFAULT_LOGGER
 	}
 	if !r.IsNew() {
-		panic("please use ucinewgame")
+		return errors.New("please use ucinewgame")
 	}
 
 	game, err := GamestateFromFenString(position.fen)
 	if err != nil {
-		panic(fmt.Errorf("couldn't create game from %v, %w", position, err))
+		return fmt.Errorf("couldn't create game from %v, %w", position, err)
 	}
 	r.g = &game
 
@@ -100,8 +115,13 @@ func (r *Runner) SetupPosition(position Position) {
 	r.startPos = position.fen
 
 	for _, m := range position.moves {
-		r.PerformMove(r.g.moveFromString(m))
+		err := r.PerformMove(r.g.moveFromString(m))
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 type Position struct {
@@ -134,7 +154,7 @@ func parsePosition(input string) Position {
 	return Position{parseFen(input), parseMoves(input)}
 }
 
-func (r *Runner) HandleInput(input string) []string {
+func (r *Runner) HandleInput(input string) ([]string, error) {
 	result := []string{}
 	if input == "uci" {
 		result = append(result, "id name chessgo 1")
@@ -150,36 +170,48 @@ func (r *Runner) HandleInput(input string) []string {
 	} else if strings.HasPrefix(input, "position ") {
 		position := parsePosition(input)
 		if r.IsNew() {
-			r.SetupPosition(position)
+			err := r.SetupPosition(position)
+			if err != nil {
+				return result, err
+			}
 		} else {
-			r.PerformMoves(position.fen, position.moves)
+			err := r.PerformMoves(position.fen, position.moves)
+			if err != nil {
+				return result, err
+			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move := Search(r.g, r.b, 4, r.Logger)
+		move, err := Search(r.g, r.b, 4, r.Logger)
+		if err != nil {
+			return result, err
+		}
 		if move.IsEmpty() {
-			panic(fmt.Errorf("failed to find move for %v ", r.g.Board.String()))
+			return result, errors.New("no legal moves")
 		}
 		result = append(result, fmt.Sprintf("bestmove %v", move.Value().String()))
 	}
-	return result
+	return result, nil
 }
 
-func (r *Runner) MovesForSelection(selection string) []FileRank {
+func (r *Runner) MovesForSelection(selection string) ([]FileRank, error) {
 	selectionFileRank, err := FileRankFromString(selection)
 	if err != nil {
-		panic(fmt.Errorf("failed to parse selection %w", err))
+		return nil, fmt.Errorf("failed to parse selection %w", err)
 	}
 	selectionIndex := IndexFromFileRank(selectionFileRank)
 
 	legalMoves := []Move{}
-	r.b.generateLegalMoves(r.g, &legalMoves)
+	err = r.b.generateLegalMoves(r.g, &legalMoves)
+	if err != nil {
+		return nil, err
+	}
 
 	moves := FilterSlice(legalMoves, func(m Move) bool {
 		return m.startIndex == selectionIndex
 	})
 	return MapSlice(moves, func(m Move) FileRank {
 		return FileRankFromIndex(m.endIndex)
-	})
+	}), nil
 }
 
 func (r *Runner) FenString() string {
