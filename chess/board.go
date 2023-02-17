@@ -141,6 +141,10 @@ func (p Piece) pieceType() PieceType {
 	return PIECE_TYPE_LOOKUP[p]
 }
 
+func (p PieceType) isValid() bool {
+	return p >= ROOK && p <= PAWN
+}
+
 var PLAYER_FOR_PIECE [16]Player = func() [16]Player {
 	result := [16]Player{}
 	for i := WR; i <= WP; i++ {

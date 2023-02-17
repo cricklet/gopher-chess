@@ -45,6 +45,10 @@ func (m Move) String() string {
 	return stringFromBoardIndex(m.startIndex) + stringFromBoardIndex(m.endIndex)
 }
 
+func (m Move) DebugString() string {
+	return fmt.Sprintf("%v%v, %v", stringFromBoardIndex(m.startIndex), stringFromBoardIndex(m.endIndex), m.moveType)
+}
+
 func generateWalkMovesWithMagic(
 	pieces Bitboard,
 	allOccupied Bitboard,
