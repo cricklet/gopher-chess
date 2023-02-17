@@ -90,7 +90,7 @@ func (r *Runner) SetupPosition(position Position) {
 
 	game, err := GamestateFromFenString(position.fen)
 	if err != nil {
-		panic(fmt.Errorf("couldn't create game from %v, %v", position, err))
+		panic(fmt.Errorf("couldn't create game from %v, %w", position, err))
 	}
 	r.g = &game
 
@@ -167,7 +167,7 @@ func (r *Runner) HandleInput(input string) []string {
 func (r *Runner) MovesForSelection(selection string) []FileRank {
 	selectionFileRank, err := FileRankFromString(selection)
 	if err != nil {
-		panic(fmt.Errorf("failed to parse selection %v", err))
+		panic(fmt.Errorf("failed to parse selection %w", err))
 	}
 	selectionIndex := IndexFromFileRank(selectionFileRank)
 

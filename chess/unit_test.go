@@ -1161,9 +1161,6 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 		SetupBoardUpdate(g, move, &update)
 		RecordCurrentState(g, &previous)
 
-		str := g.Board.String()
-		Ignore(str)
-
 		b.performMove(g, move)
 		g.performMove(move, update)
 
@@ -1192,7 +1189,7 @@ func CountAndPerftForDepthWithProgress(t *testing.T, g *GameState, b *Bitboards,
 
 	var progressBar *progressbar.ProgressBar
 	var startTime time.Time
-	if expectedCount > 9999999 {
+	if expectedCount > 999 {
 		progressBar = progressbar.Default(int64(expectedCount), fmt.Sprint("depth ", n))
 		startTime = time.Now()
 	}
@@ -1207,7 +1204,7 @@ func CountAndPerftForDepthWithProgress(t *testing.T, g *GameState, b *Bitboards,
 
 	for p := range progressChan {
 		if progressBar != nil {
-			progressBar.Set(p)
+			_ = progressBar.Set(p)
 		}
 	}
 
@@ -1359,8 +1356,8 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 
 	for i := 1; i <= maxDepth; i++ {
 		incorrectMoves := computeIncorrectPerftMoves(t, &g, &b, i)
-		fmt.Println(incorrectMoves)
 		if len(incorrectMoves) > 0 {
+			fmt.Println("found invalid moves", incorrectMoves)
 			for move, issue := range incorrectMoves {
 				invalidMovesToSearch = append(invalidMovesToSearch, InvalidMovesToSearch{move, issue, initialState})
 			}
@@ -1404,7 +1401,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 }
 
 func TestIncorrectEnPassantOutOfBounds(t *testing.T) {
-	s := "rnbqkb1r/1ppppppp/5n2/p7/6PP/8/PPPPPP2/RNBQKBNR/ w KQkq a6 2 2"
+	s := "rnbqkb1r/1ppppppp/5n2/p7/6PP/8/PPPPPP2/RNBQKBNR w KQkq a6 2 2"
 	invalidMoves := findInvalidMoves(t, InitialState{s, []Move{}, s}, 2)
 
 	for _, move := range invalidMoves {
@@ -1413,7 +1410,7 @@ func TestIncorrectEnPassantOutOfBounds(t *testing.T) {
 }
 
 func TestIncorrectUndoBoard(t *testing.T) {
-	s := "rnbqkbnr/pp1p1ppp/2p5/4pP2/8/2P5/PP1PP1PP/RNBQKBNR/ b KQkq - 5 3"
+	s := "rnbqkbnr/pp1p1ppp/2p5/4pP2/8/2P5/PP1PP1PP/RNBQKBNR b KQkq - 5 3"
 	invalidMoves := findInvalidMoves(t, InitialState{s, []Move{}, s}, 3)
 
 	for _, move := range invalidMoves {
@@ -1560,7 +1557,7 @@ func TestSliceVsArray(t *testing.T) {
 				}
 				ReleaseTestSlice(slice)
 				if i%100 == 0 {
-					sliceProgress.Add(100)
+					_ = sliceProgress.Add(100)
 				}
 			}
 		}()
@@ -1581,7 +1578,7 @@ func TestSliceVsArray(t *testing.T) {
 				}
 				ReleaseTestArray(array)
 				if i%100 == 0 {
-					arrayProgress.Add(100)
+					_ = arrayProgress.Add(100)
 				}
 			}
 		}()
@@ -1606,7 +1603,7 @@ func TestEachIndexOfOneCallbackVsRange(t *testing.T) {
 		for range *Bitboard(i).eachIndexOfOne(buffer) {
 		}
 		if i%1000 == 0 {
-			bufferProgress.Add(1000)
+			_ = bufferProgress.Add(1000)
 		}
 	}
 	bufferProgress.Close()
@@ -1617,7 +1614,7 @@ func TestEachIndexOfOneCallbackVsRange(t *testing.T) {
 	for i := uint64(0); i < testNum; i++ {
 		Bitboard(i).eachIndexOfOne2(f)
 		if i%1000 == 0 {
-			callbackProgress.Add(1000)
+			_ = callbackProgress.Add(1000)
 		}
 	}
 	callbackProgress.Close()
@@ -1629,7 +1626,7 @@ func TestEachIndexOfOneCallbackVsRange(t *testing.T) {
 			_, temp = temp.nextIndexOfOne()
 		}
 		if i%1000 == 0 {
-			manualProgress.Add(1000)
+			_ = manualProgress.Add(1000)
 		}
 	}
 	manualProgress.Close()
@@ -1648,7 +1645,7 @@ func TestIndexSingeVsDoubleArray(t *testing.T) {
 			_ = single[j]
 		}
 		if i%1000 == 0 {
-			singleProgress.Add(1000)
+			_ = singleProgress.Add(1000)
 		}
 	}
 	singleProgress.Close()
@@ -1662,7 +1659,7 @@ func TestIndexSingeVsDoubleArray(t *testing.T) {
 			}
 		}
 		if i%1000 == 0 {
-			doubleProgress.Add(1000)
+			_ = doubleProgress.Add(1000)
 		}
 	}
 	doubleProgress.Close()
@@ -1681,7 +1678,7 @@ func TestPlayerFromPiece(t *testing.T) {
 			_ = piece.player()
 		}
 		if i%1000 == 0 {
-			ifProgress.Add(1000)
+			_ = ifProgress.Add(1000)
 		}
 	}
 	ifProgress.Close()
@@ -1693,7 +1690,7 @@ func TestPlayerFromPiece(t *testing.T) {
 			_ = piece.player2()
 		}
 		if i%1000 == 0 {
-			lookupProgress.Add(1000)
+			_ = lookupProgress.Add(1000)
 		}
 	}
 	lookupProgress.Close()

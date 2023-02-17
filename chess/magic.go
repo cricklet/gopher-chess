@@ -44,15 +44,38 @@ var BISHOP_BEST_MAGICS = [64]MagicValue{
 var ROOK_MAGIC_TABLE MagicMoveTable
 var BISHOP_MAGIC_TABLE MagicMoveTable
 
-func initMagicTables() {
-	rookInput, err := os.ReadFile("../data/magics-for-rook.json")
-	if err == nil {
-		json.Unmarshal(rookInput, &ROOK_BEST_MAGICS)
+func unmarshalMagics(path string, magics *[64]MagicValue) error {
+	input, err := os.ReadFile("../data/magics-for-rook.json")
+	if err != nil {
+		//lint:ignore nilerr reason it's fine if we haven't cached better magics. We'll compute new ones now.
+		return nil
+	}
+	err = json.Unmarshal(input, &ROOK_BEST_MAGICS)
+	if err != nil {
+		return err
 	}
 
-	bishopInput, err := os.ReadFile("../data/magics-for-bishop.json")
-	if err == nil {
-		json.Unmarshal(bishopInput, &BISHOP_BEST_MAGICS)
+	return nil
+}
+
+func marshalMagics(path string, magics *[64]MagicValue) error {
+	output, err := json.Marshal(ROOK_BEST_MAGICS)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(path, output, 0600)
+	return err
+}
+
+func initMagicTables() error {
+	err := unmarshalMagics("../data/magics-for-rook.json", &ROOK_BEST_MAGICS)
+	if err != nil {
+		return err
+	}
+
+	err = unmarshalMagics("../data/magics-for-bishop.json", &BISHOP_BEST_MAGICS)
+	if err != nil {
+		return err
 	}
 
 	ROOK_MAGIC_TABLE = generateMagicMoveTable(ROOK_DIRS, ROOK_BEST_MAGICS, "rook magics ")
@@ -79,16 +102,17 @@ func initMagicTables() {
 	// log.Println("rook bits for magic index: best", lowestRookBits, "average", sumRookBits/64.0)
 	// log.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
 
-	if rookOutput, err := json.Marshal(ROOK_BEST_MAGICS); err == nil {
-		os.WriteFile("../data/magics-for-rook.json", rookOutput, 0777)
-	} else {
-		panic("couldn't marshal rook magics")
+	err = marshalMagics("../data/magics-for-rook.json", &ROOK_BEST_MAGICS)
+	if err != nil {
+		return err
 	}
-	if bishopOutput, err := json.Marshal(BISHOP_BEST_MAGICS); err == nil {
-		os.WriteFile("../data/magics-for-bishop.json", bishopOutput, 0777)
-	} else {
-		panic("couldn't marshal bishop magics")
+
+	err = marshalMagics("../data/magics-for-bishop.json", &BISHOP_BEST_MAGICS)
+	if err != nil {
+		return err
 	}
+
+	return nil
 }
 
 func rand64() uint64 {
@@ -273,5 +297,8 @@ func generateMagicMoveTable(dirs []Dir, bestMagics [64]MagicValue, label string)
 func init() {
 	// defer profile.Start(profile.ProfilePath("../data")).Stop()
 	// defer profile.Start(profile.MemProfile, profile.ProfilePath("../data")).Stop()
-	initMagicTables()
+	err := initMagicTables()
+	if err != nil {
+		fmt.Println("Error initializing magic tables: ", err)
+	}
 }

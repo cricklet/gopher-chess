@@ -555,11 +555,11 @@
                 }
             } else {
                 log('received', data)
-                board = parseFenBoardString(data.FenString)
+                board = parseFenBoardString(data.fenString)
 
-                selectedFileRank = data.Selection ? fileRankFromString(data.Selection) : null
+                selectedFileRank = data.selection ? fileRankFromString(data.selection) : null
 
-                let availableMovesArray = data.PossibleMoves ? data.PossibleMoves.map(v => fileRankFromString(v)) : null
+                let availableMovesArray = data.possibleMoves ? data.possibleMoves.map(v => fileRankFromString(v)) : null
                 availableMoves = {}
                 for (const [file, rank] of availableMovesArray || []) {
                     if (!availableMoves[file]) {
@@ -568,13 +568,13 @@
                     availableMoves[file][rank] = true
                 }
 
-                currentPlayerToMove = data.Player;
+                currentPlayerToMove = data.player;
 
-                [lastMoveStart, lastMoveEnd] = data.LastMove ?
-                    [fileRankFromString(data.LastMove.substring(0, 2)), fileRankFromString(data.LastMove.substring(2, 4))]
+                [lastMoveStart, lastMoveEnd] = data.lastMove ?
+                    [fileRankFromString(data.lastMove.substring(0, 2)), fileRankFromString(data.lastMove.substring(2, 4))]
                     : [lastMoveStart || undefined, lastMoveEnd || undefined];
 
-                updateUrlForFen(data.FenString)
+                updateUrlForFen(data.fenString)
                 update()
             }
         }

@@ -91,7 +91,7 @@ func FileRankFromString(s string) (FileRank, error) {
 	rank, rankErr := rankFromChar(s[1])
 
 	if fileErr != nil || rankErr != nil {
-		return FileRank{}, fmt.Errorf("invalid location %v with errors %v, %v", s, fileErr, rankErr)
+		return FileRank{}, fmt.Errorf("invalid location %v with errors %w, %w", s, fileErr, rankErr)
 	}
 
 	return FileRank{file, rank}, nil

@@ -16,11 +16,11 @@ import (
 )
 
 type UpdateToWeb struct {
-	FenString     string
-	LastMove      string
-	Selection     string
-	PossibleMoves []string
-	Player        string // white / black
+	FenString     string   `json:"fenString"`
+	LastMove      string   `json:"lastMove"`
+	Selection     string   `json:"selection"`
+	PossibleMoves []string `json:"possibleMoves"`
+	Player        string   `json:"player"`
 }
 
 func (u UpdateToWeb) String() string {
@@ -28,11 +28,11 @@ func (u UpdateToWeb) String() string {
 }
 
 type MessageFromWeb struct {
-	NewFen     *string
-	UserPlayer *string
-	Selection  *string
-	Move       *string
-	Rewind     *int
+	NewFen     *string `json:"newFen"`
+	UserPlayer *string `json:"userPlayer"`
+	Selection  *string `json:"selection"`
+	Move       *string `json:"move"`
+	Rewind     *int    `json:"rewind"`
 }
 
 func (u MessageFromWeb) String() string {
@@ -85,9 +85,12 @@ func serve() {
 				log.Print("logging", message)
 				bytes, err := json.Marshal([]string{"server: " + message})
 				if err != nil {
-					panic(err)
+					fmt.Fprintln(os.Stderr, fmt.Sprint("logging: json marshal: ", err))
 				}
-				c.WriteMessage(websocket.TextMessage, bytes)
+				err = c.WriteMessage(websocket.TextMessage, bytes)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, fmt.Sprint("logging: websocket: ", err))
+				}
 			},
 		}
 
@@ -105,9 +108,12 @@ func serve() {
 			runner.Logger.Println("sending", update)
 			bytes, err := json.Marshal(update)
 			if err != nil {
-				panic(err)
+				runner.Logger.Println("update: json marshal: ", err)
 			}
-			c.WriteMessage(websocket.TextMessage, bytes)
+			err = c.WriteMessage(websocket.TextMessage, bytes)
+			if err != nil {
+				runner.Logger.Println("websocket: ", err)
+			}
 		}
 
 		var performMove = func() {
@@ -123,7 +129,10 @@ func serve() {
 
 		var handleMessageFromWeb = func(bytes []byte) {
 			var message MessageFromWeb
-			json.Unmarshal(bytes, &message)
+			err := json.Unmarshal(bytes, &message)
+			if err != nil {
+				runner.Logger.Println("handleMessageFromWeb: json unmarshal: ", err)
+			}
 			runner.Logger.Println("received", message)
 
 			var update UpdateToWeb
@@ -196,7 +205,11 @@ func serve() {
 	router.PathPrefix("/black/fen").HandlerFunc(index)
 	router.HandleFunc("/", index)
 	http.Handle("/", router)
-	http.ListenAndServe(":8002", router)
+	err := http.ListenAndServe(":8002", router)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 }
 
@@ -209,7 +222,7 @@ func main() {
 	}()
 
 	args := os.Args[1:]
-	if args[0] == "serve" {
+	if len(args) > 0 && args[0] == "serve" {
 		log.Println("starting webserver")
 		serve()
 	} else {
