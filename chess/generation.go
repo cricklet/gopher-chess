@@ -3,6 +3,8 @@ package chess
 import (
 	"fmt"
 	"sort"
+
+	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type MoveType int
@@ -59,7 +61,7 @@ func generateWalkMovesWithMagic(
 ) []Move {
 	startIndex, tempPieces := 0, Bitboard(pieces)
 	for tempPieces != 0 {
-		startIndex, tempPieces = tempPieces.nextIndexOfOne()
+		startIndex, tempPieces = tempPieces.NextIndexOfOne()
 
 		blockerBoard := magicTable.blockerMasks[startIndex] & allOccupied
 		magicValues := magicTable.magics[startIndex]
@@ -74,14 +76,14 @@ func generateWalkMovesWithMagic(
 		if !onlyCaptures {
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
-				endIndex, tempQuiet = tempQuiet.nextIndexOfOne()
+				endIndex, tempQuiet = tempQuiet.NextIndexOfOne()
 				output = append(output, Move{QUIET_MOVE, startIndex, endIndex, Empty[int]()})
 			}
 		}
 		{
 			captureIndex, tempCapture := 0, Bitboard(capture)
 			for tempCapture != 0 {
-				captureIndex, tempCapture = tempCapture.nextIndexOfOne()
+				captureIndex, tempCapture = tempCapture.NextIndexOfOne()
 
 				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex, Empty[int]()})
 			}
@@ -97,14 +99,14 @@ func generateWalkBitboard(
 	dir Dir,
 	output Bitboard,
 ) Bitboard {
-	mask := PRE_MOVE_MASKS[dir]
-	offset := OFFSETS[dir]
+	mask := PreMoveMasks[dir]
+	offset := Offsets[dir]
 
 	totalOffset := 0
 	potential := pieceBoard
 
 	for potential != 0 {
-		potential = rotateTowardsIndex64(potential&mask, offset)
+		potential = RotateTowardsIndex64(potential&mask, offset)
 		totalOffset += offset
 
 		quiet := potential & ^blockerBoard
@@ -128,7 +130,7 @@ func generateJumpMovesByLookup(
 ) []Move {
 	startIndex, tempPieces := 0, Bitboard(pieces)
 	for tempPieces != 0 {
-		startIndex, tempPieces = tempPieces.nextIndexOfOne()
+		startIndex, tempPieces = tempPieces.NextIndexOfOne()
 
 		attackMask := attackMasks[startIndex]
 		potential := attackMask & ^selfOccupied
@@ -139,14 +141,14 @@ func generateJumpMovesByLookup(
 		if !onlyCaptures {
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
-				endIndex, tempQuiet = tempQuiet.nextIndexOfOne()
+				endIndex, tempQuiet = tempQuiet.NextIndexOfOne()
 				output = append(output, Move{QUIET_MOVE, startIndex, endIndex, Empty[int]()})
 			}
 		}
 		{
 			captureIndex, tempCapture := 0, Bitboard(capture)
 			for tempCapture != 0 {
-				captureIndex, tempCapture = tempCapture.nextIndexOfOne()
+				captureIndex, tempCapture = tempCapture.NextIndexOfOne()
 
 				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex, Empty[int]()})
 			}
@@ -193,16 +195,16 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 	enemyBoards := &b.players[player.Other()]
 
 	{
-		pushOffset := PAWN_PUSH_OFFSETS[player]
+		pushOffset := PawnPushOffsets[player]
 
 		// generate one step
 		if !onlyCaptures {
-			potential := rotateTowardsIndex64(playerBoards.pieces[PAWN]&PremoveMaskFromOffset(pushOffset), pushOffset)
+			potential := RotateTowardsIndex64(playerBoards.pieces[PAWN]&PremoveMaskFromOffset(pushOffset), pushOffset)
 			potential = potential & ^b.occupied
 
 			index, tempPotential := 0, Bitboard(potential)
 			for tempPotential != 0 {
-				index, tempPotential = tempPotential.nextIndexOfOne()
+				index, tempPotential = tempPotential.NextIndexOfOne()
 
 				*moves = append(*moves, Move{QUIET_MOVE, index - pushOffset, index, Empty[int]()})
 			}
@@ -211,15 +213,15 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 		// generate skip step
 		if !onlyCaptures {
 			potential := playerBoards.pieces[PAWN]
-			potential = potential & maskStartingPawnsForPlayer(player)
-			potential = rotateTowardsIndex64(potential, pushOffset)
+			potential = potential & MaskStartingPawnsForPlayer(player)
+			potential = RotateTowardsIndex64(potential, pushOffset)
 			potential = potential & ^b.occupied
-			potential = rotateTowardsIndex64(potential, pushOffset)
+			potential = RotateTowardsIndex64(potential, pushOffset)
 			potential = potential & ^b.occupied
 
 			index, tempPotential := 0, Bitboard(potential)
 			for tempPotential != 0 {
-				index, tempPotential = tempPotential.nextIndexOfOne()
+				index, tempPotential = tempPotential.NextIndexOfOne()
 
 				*moves = append(*moves, Move{QUIET_MOVE, index - 2*pushOffset, index, Empty[int]()})
 			}
@@ -227,14 +229,14 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 
 		// generate captures
 		{
-			for _, captureOffset := range PAWN_CAPTURE_OFFSETS[player] {
+			for _, captureOffset := range PawnCaptureOffsets[player] {
 				potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
-				potential = rotateTowardsIndex64(potential, captureOffset)
+				potential = RotateTowardsIndex64(potential, captureOffset)
 				potential = potential & enemyBoards.occupied
 
 				index, tempPotential := 0, Bitboard(potential)
 				for tempPotential != 0 {
-					index, tempPotential = tempPotential.nextIndexOfOne()
+					index, tempPotential = tempPotential.NextIndexOfOne()
 
 					*moves = append(*moves, Move{CAPTURE_MOVE, index - captureOffset, index, Empty[int]()})
 				}
@@ -244,15 +246,15 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 		// generate en-passant
 		{
 			if g.enPassantTarget.HasValue() {
-				enPassantBoard := singleBitboard(IndexFromFileRank(g.enPassantTarget.Value()))
-				for _, captureOffset := range []int{pushOffset + OFFSET_E, pushOffset + OFFSET_W} {
+				enPassantBoard := SingleBitboard(IndexFromFileRank(g.enPassantTarget.Value()))
+				for _, captureOffset := range []int{pushOffset + OffsetE, pushOffset + OffsetW} {
 					potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
-					potential = rotateTowardsIndex64(potential, captureOffset)
+					potential = RotateTowardsIndex64(potential, captureOffset)
 					potential = potential & enPassantBoard
 
 					index, tempPotential := 0, Bitboard(potential)
 					for tempPotential != 0 {
-						index, tempPotential = tempPotential.nextIndexOfOne()
+						index, tempPotential = tempPotential.NextIndexOfOne()
 
 						*moves = append(*moves, Move{EN_PASSANT_MOVE, index - captureOffset, index, Empty[int]()})
 					}
@@ -290,10 +292,10 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 
 	{
 		// generate knight moves
-		*moves = generateJumpMovesByLookup(playerBoards.pieces[KNIGHT], b.occupied, playerBoards.occupied, KNIGHT_ATTACK_MASKS, onlyCaptures, *moves)
+		*moves = generateJumpMovesByLookup(playerBoards.pieces[KNIGHT], b.occupied, playerBoards.occupied, KnightAttackMasks, onlyCaptures, *moves)
 
 		// generate king moves
-		*moves = generateJumpMovesByLookup(playerBoards.pieces[KING], b.occupied, playerBoards.occupied, KING_ATTACK_MASKS, onlyCaptures, *moves)
+		*moves = generateJumpMovesByLookup(playerBoards.pieces[KING], b.occupied, playerBoards.occupied, KingAttackMasks, onlyCaptures, *moves)
 	}
 
 	if !onlyCaptures {
@@ -301,7 +303,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 		for _, castlingSide := range CASTLING_SIDES {
 			canCastle := true
 			if g.playerAndCastlingSideAllowed[player][castlingSide] {
-				requirements := CASTLING_REQUIREMENTS[player][castlingSide]
+				requirements := AllCastlingRequirements[player][castlingSide]
 				if b.occupied&requirements.empty != 0 {
 					canCastle = false
 				}
@@ -321,7 +323,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 }
 
 func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, enemyBitboards *PlayerBitboards) bool {
-	startBoard := singleBitboard(startIndex)
+	startBoard := SingleBitboard(startIndex)
 
 	// Bishop attacks
 	{
@@ -356,25 +358,25 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	{
 		enemyPlayer := player.Other()
 		enemyPawns := enemyBitboards.pieces[PAWN]
-		captureOffset0 := PAWN_CAPTURE_OFFSETS[enemyPlayer][0]
-		captureOffset1 := PAWN_CAPTURE_OFFSETS[enemyPlayer][1]
+		captureOffset0 := PawnCaptureOffsets[enemyPlayer][0]
+		captureOffset1 := PawnCaptureOffsets[enemyPlayer][1]
 		captureMask0 := enemyPawns & PremoveMaskFromOffset(captureOffset0)
 		captureMask1 := enemyPawns & PremoveMaskFromOffset(captureOffset1)
 
-		potential := rotateTowardsIndex64(captureMask0, captureOffset0)
-		potential |= rotateTowardsIndex64(captureMask1, captureOffset1)
+		potential := RotateTowardsIndex64(captureMask0, captureOffset0)
+		potential |= RotateTowardsIndex64(captureMask1, captureOffset1)
 		potential &= startBoard
 		attackers |= potential
 	}
 	// Knight, king attacks
 	{
 		{
-			knightMask := KNIGHT_ATTACK_MASKS[startIndex]
+			knightMask := KnightAttackMasks[startIndex]
 			potential := enemyBitboards.pieces[KNIGHT] & knightMask
 			attackers |= potential
 		}
 		{
-			kingMask := KING_ATTACK_MASKS[startIndex]
+			kingMask := KingAttackMasks[startIndex]
 			potential := enemyBitboards.pieces[KING] & kingMask
 			attackers |= potential
 		}
@@ -385,7 +387,7 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 
 func (b *Bitboards) kingIsInCheck(player Player, enemy Player) bool {
 	kingBoard := b.players[player].pieces[KING]
-	kingIndex := kingBoard.firstIndexOfOne()
+	kingIndex := kingBoard.FirstIndexOfOne()
 	return playerIndexIsAttacked(player, kingIndex, b.occupied, &b.players[enemy])
 }
 
@@ -395,7 +397,7 @@ func (b *Bitboards) dangerBoard(player Player) Bitboard {
 	result := Bitboard(0)
 	for i := 0; i < 64; i++ {
 		if playerIndexIsAttacked(player, i, b.occupied, enemyBoards) {
-			result |= singleBitboard(i)
+			result |= SingleBitboard(i)
 		}
 	}
 	return result
@@ -423,7 +425,7 @@ func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) e
 			return fmt.Errorf("generateLegalMoves: %w", err)
 		}
 
-		err = b.performMove(g, move)
+		err = b.PerformMove(g, move)
 		if err != nil {
 			return &BoardCorrupted{err}
 		}
@@ -431,7 +433,7 @@ func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) e
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 
-		err = b.undoUpdate(update)
+		err = b.UndoUpdate(update)
 		if err != nil {
 			return fmt.Errorf("generateLegalMoves: %w", err)
 		}

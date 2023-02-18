@@ -13,7 +13,7 @@ type FileRank struct {
 type Player uint
 
 const (
-	WHITE Player = iota
+	White Player = iota
 	BLACK
 )
 
@@ -102,9 +102,9 @@ func playerFromString(c string) (Player, error) {
 	case "b":
 		return BLACK, nil
 	case "w":
-		return WHITE, nil
+		return White, nil
 	default:
-		return WHITE, fmt.Errorf("invalid player char %v", c)
+		return White, fmt.Errorf("invalid player char %v", c)
 	}
 }
 
@@ -148,7 +148,7 @@ func (p PieceType) isValid() bool {
 var PLAYER_FOR_PIECE [16]Player = func() [16]Player {
 	result := [16]Player{}
 	for i := WR; i <= WP; i++ {
-		result[i] = WHITE
+		result[i] = White
 	}
 	for i := BR; i <= BP; i++ {
 		result[i] = BLACK
@@ -158,7 +158,7 @@ var PLAYER_FOR_PIECE [16]Player = func() [16]Player {
 
 func (p Piece) player() Player {
 	if p < BR {
-		return WHITE
+		return White
 	}
 	return BLACK
 }
@@ -174,12 +174,12 @@ func (p Player) Other() Player {
 var PIECE_FOR_PLAYER [2][8]Piece = func() [2][8]Piece {
 	result := [2][8]Piece{}
 
-	result[WHITE][ROOK] = WR
-	result[WHITE][KNIGHT] = WN
-	result[WHITE][BISHOP] = WB
-	result[WHITE][KING] = WK
-	result[WHITE][QUEEN] = WQ
-	result[WHITE][PAWN] = WP
+	result[White][ROOK] = WR
+	result[White][KNIGHT] = WN
+	result[White][BISHOP] = WB
+	result[White][KING] = WK
+	result[White][QUEEN] = WQ
+	result[White][PAWN] = WP
 
 	result[BLACK][ROOK] = BR
 	result[BLACK][KNIGHT] = BN
@@ -311,8 +311,8 @@ func boardIndexFromString(s string) int {
 type CastlingSide int
 
 const (
-	KINGSIDE CastlingSide = iota
-	QUEENSIDE
+	Kingside CastlingSide = iota
+	Queenside
 )
 
-var CASTLING_SIDES = [2]CastlingSide{KINGSIDE, QUEENSIDE}
+var CASTLING_SIDES = [2]CastlingSide{Kingside, Queenside}

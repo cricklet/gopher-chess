@@ -8,6 +8,8 @@ import (
 	"math/rand"
 	"os"
 	"runtime"
+
+	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type MagicValue struct {
@@ -78,8 +80,8 @@ func initMagicTables() error {
 		return err
 	}
 
-	ROOK_MAGIC_TABLE = generateMagicMoveTable(ROOK_DIRS, ROOK_BEST_MAGICS, "rook magics ")
-	BISHOP_MAGIC_TABLE = generateMagicMoveTable(BISHOP_DIRS, BISHOP_BEST_MAGICS, "bishop magic")
+	ROOK_MAGIC_TABLE = generateMagicMoveTable(RookDirs, ROOK_BEST_MAGICS, "rook magics ")
+	BISHOP_MAGIC_TABLE = generateMagicMoveTable(BishopDirs, BISHOP_BEST_MAGICS, "bishop magic")
 
 	lowestRookBits := 12
 	sumRookBits := 0
@@ -161,11 +163,11 @@ func magicIndexWorks(magic uint64, moves []MoveBoardForBlockerBoard, bitsInIndex
 func generateBlockerMask(startIndex int, dirs []Dir) Bitboard {
 	result := Bitboard(0)
 	for _, dir := range dirs {
-		walk := generateWalkBitboard(singleBitboard(startIndex), Bitboard(0), dir, result)
-		result |= walk & PRE_MOVE_MASKS[dir]
+		walk := generateWalkBitboard(SingleBitboard(startIndex), Bitboard(0), dir, result)
+		result |= walk & PreMoveMasks[dir]
 	}
 
-	result &= ^singleBitboard(startIndex)
+	result &= ^SingleBitboard(startIndex)
 
 	return result
 }
@@ -179,9 +181,9 @@ func generateBlockerBoard(blockerMask Bitboard, seed int) Bitboard {
 		// If the bit at i is 1 in the seed...
 		if seed&(1<<i) != 0 {
 			// Find the ith one bit in blockerMask and set the corresponding bit to one in result.
-			for oneIndex, indexInBitboard := range *blockerMask.eachIndexOfOne(buffer) {
+			for oneIndex, indexInBitboard := range *blockerMask.EachIndexOfOne(buffer) {
 				if oneIndex == i {
-					result |= singleBitboard(indexInBitboard)
+					result |= SingleBitboard(indexInBitboard)
 				}
 			}
 		}
@@ -207,7 +209,7 @@ func generateMoveBoards(
 		blockerBoards[seed] = generateBlockerBoard(blockerMask, seed)
 	}
 
-	pieceBoard := singleBitboard(pieceIndex)
+	pieceBoard := SingleBitboard(pieceIndex)
 
 	result := make([]MoveBoardForBlockerBoard, numBlockerBoards)
 	for seed, blockerBoard := range blockerBoards {

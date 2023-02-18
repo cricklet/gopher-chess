@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type Runner struct {
@@ -39,7 +41,7 @@ func (r *Runner) LastHistory() *HistoryValue {
 func (r *Runner) Rewind(num int) error {
 	for i := 0; i < MinInt(num, len(r.history)); i++ {
 		h := r.history[len(r.history)-1]
-		err := r.b.undoUpdate(h.update)
+		err := r.b.UndoUpdate(h.update)
 		if err != nil {
 			return fmt.Errorf("Rewind: %w", err)
 		}
@@ -61,7 +63,7 @@ func (r *Runner) PerformMove(move Move) error {
 	}
 	RecordCurrentState(r.g, &h.previous)
 
-	err = r.b.performMove(r.g, move)
+	err = r.b.PerformMove(r.g, move)
 	if err != nil {
 		return fmt.Errorf("PerformMove: %w", err)
 	}

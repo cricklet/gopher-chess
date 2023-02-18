@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/bits"
 	"strings"
+
+	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type Bitboard uint64
@@ -40,10 +42,10 @@ const (
 	WNW
 	WSW
 
-	NUM_DIRS
+	NumDirs
 )
 
-var KNIGHT_DIRS = []Dir{
+var KnightDirs = []Dir{
 	NNE,
 	NNW,
 	SSE,
@@ -54,21 +56,21 @@ var KNIGHT_DIRS = []Dir{
 	WSW,
 }
 
-var ROOK_DIRS = []Dir{
+var RookDirs = []Dir{
 	N,
 	S,
 	E,
 	W,
 }
 
-var BISHOP_DIRS = []Dir{
+var BishopDirs = []Dir{
 	NE,
 	NW,
 	SE,
 	SW,
 }
 
-var KING_DIRS = []Dir{
+var KingDirs = []Dir{
 	N,
 	S,
 	E,
@@ -80,39 +82,39 @@ var KING_DIRS = []Dir{
 }
 
 const (
-	OFFSET_N int = 8
-	OFFSET_S int = -8
-	OFFSET_E int = 1
-	OFFSET_W int = -1
+	OffsetN int = 8
+	OffsetS int = -8
+	OffsetE int = 1
+	OffsetW int = -1
 )
 
-var OFFSETS = [NUM_DIRS]int{
-	OFFSET_N,
-	OFFSET_S,
-	OFFSET_E,
-	OFFSET_W,
+var Offsets = [NumDirs]int{
+	OffsetN,
+	OffsetS,
+	OffsetE,
+	OffsetW,
 
-	OFFSET_N + OFFSET_E,
-	OFFSET_N + OFFSET_W,
-	OFFSET_S + OFFSET_E,
-	OFFSET_S + OFFSET_W,
+	OffsetN + OffsetE,
+	OffsetN + OffsetW,
+	OffsetS + OffsetE,
+	OffsetS + OffsetW,
 
-	OFFSET_N + OFFSET_N + OFFSET_E,
-	OFFSET_N + OFFSET_N + OFFSET_W,
-	OFFSET_S + OFFSET_S + OFFSET_E,
-	OFFSET_S + OFFSET_S + OFFSET_W,
-	OFFSET_E + OFFSET_N + OFFSET_E,
-	OFFSET_E + OFFSET_S + OFFSET_E,
-	OFFSET_W + OFFSET_N + OFFSET_W,
-	OFFSET_W + OFFSET_S + OFFSET_W,
+	OffsetN + OffsetN + OffsetE,
+	OffsetN + OffsetN + OffsetW,
+	OffsetS + OffsetS + OffsetE,
+	OffsetS + OffsetS + OffsetW,
+	OffsetE + OffsetN + OffsetE,
+	OffsetE + OffsetS + OffsetE,
+	OffsetW + OffsetN + OffsetW,
+	OffsetW + OffsetS + OffsetW,
 }
 
-var PAWN_PUSH_OFFSETS = [2]int{
-	OFFSET_N,
-	OFFSET_S,
+var PawnPushOffsets = [2]int{
+	OffsetN,
+	OffsetS,
 }
 
-var PAWN_PROMOTION_BITBOARD = bitboardFromStrings([8]string{
+var PawnPromotionBitboard = BitboardFromStrings([8]string{
 	"11111111",
 	"00000000",
 	"00000000",
@@ -123,110 +125,110 @@ var PAWN_PROMOTION_BITBOARD = bitboardFromStrings([8]string{
 	"11111111",
 })
 
-var PAWN_CAPTURE_OFFSETS = [2][2]int{
+var PawnCaptureOffsets = [2][2]int{
 	{ // WHITE
-		OFFSET_N + OFFSET_E, OFFSET_N + OFFSET_W,
+		OffsetN + OffsetE, OffsetN + OffsetW,
 	},
 	{
-		OFFSET_S + OFFSET_E, OFFSET_S + OFFSET_W,
+		OffsetS + OffsetE, OffsetS + OffsetW,
 	},
 }
 
-var ALL_ZEROS Bitboard = Bitboard(0)
-var ALL_ONES Bitboard = ^ALL_ZEROS
+var AllZeros Bitboard = Bitboard(0)
+var AllOnes Bitboard = ^AllZeros
 
-var ZEROS = []int{0, 0, 0, 0, 0, 0, 0, 0}
-var ONES = []int{1, 1, 1, 1, 1, 1, 1, 1}
-var SIXES = []int{6, 6, 6, 6, 6, 6, 6, 6}
-var SEVENS = []int{7, 7, 7, 7, 7, 7, 7, 7}
-var ZERO_TO_SEVEN = []int{0, 1, 2, 3, 4, 5, 6, 7}
-
-var (
-	MASK_WHITE_STARTING_PAWNS = ^zerosForRange(ZERO_TO_SEVEN, ONES)
-	MASK_BLACK_STARTING_PAWNS = ^zerosForRange(ZERO_TO_SEVEN, SIXES)
-)
-
-var STARTING_PAWNS_FOR_PLAYER = [2]Bitboard{
-	MASK_WHITE_STARTING_PAWNS,
-	MASK_BLACK_STARTING_PAWNS,
-}
-
-func maskStartingPawnsForPlayer(player Player) Bitboard {
-	return STARTING_PAWNS_FOR_PLAYER[player]
-}
+var Zeros = []int{0, 0, 0, 0, 0, 0, 0, 0}
+var Ones = []int{1, 1, 1, 1, 1, 1, 1, 1}
+var Sixes = []int{6, 6, 6, 6, 6, 6, 6, 6}
+var Sevens = []int{7, 7, 7, 7, 7, 7, 7, 7}
+var ZeroToSeven = []int{0, 1, 2, 3, 4, 5, 6, 7}
 
 var (
-	MASK_N Bitboard = zerosForRange(ZERO_TO_SEVEN, SEVENS)
-	MASK_S Bitboard = zerosForRange(ZERO_TO_SEVEN, ZEROS)
-	MASK_E Bitboard = zerosForRange(SEVENS, ZERO_TO_SEVEN)
-	MASK_W Bitboard = zerosForRange(ZEROS, ZERO_TO_SEVEN)
-
-	MASK_NN Bitboard = zerosForRange(ZERO_TO_SEVEN, SIXES)
-	MASK_SS Bitboard = zerosForRange(ZERO_TO_SEVEN, ONES)
-	MASK_EE Bitboard = zerosForRange(SIXES, ZERO_TO_SEVEN)
-	MASK_WW Bitboard = zerosForRange(ONES, ZERO_TO_SEVEN)
-
-	MASK_ALL_EDGES Bitboard = MASK_N & MASK_S & MASK_E & MASK_W
+	MaskWhiteStartingPawns = ^ZerosForRange(ZeroToSeven, Ones)
+	MaskBlackStartingPawns = ^ZerosForRange(ZeroToSeven, Sixes)
 )
 
-var PRE_MOVE_MASKS = [NUM_DIRS]Bitboard{
-	MASK_N,
-	MASK_S,
-	MASK_E,
-	MASK_W,
-
-	MASK_N & MASK_E,
-	MASK_N & MASK_W,
-	MASK_S & MASK_E,
-	MASK_S & MASK_W,
-
-	MASK_NN & MASK_N & MASK_E,
-	MASK_NN & MASK_N & MASK_W,
-	MASK_SS & MASK_S & MASK_E,
-	MASK_SS & MASK_S & MASK_W,
-	MASK_EE & MASK_N & MASK_E,
-	MASK_EE & MASK_S & MASK_E,
-	MASK_WW & MASK_N & MASK_W,
-	MASK_WW & MASK_S & MASK_W,
+var StartingPawnsForPlayer = [2]Bitboard{
+	MaskWhiteStartingPawns,
+	MaskBlackStartingPawns,
 }
 
-const FORCE_POSITIVE_OFFSET = 32
+func MaskStartingPawnsForPlayer(player Player) Bitboard {
+	return StartingPawnsForPlayer[player]
+}
 
-var PRE_MOVE_MASK_FROM_OFFSET [64]Bitboard = func() [64]Bitboard {
+var (
+	MaskN Bitboard = ZerosForRange(ZeroToSeven, Sevens)
+	MaskS Bitboard = ZerosForRange(ZeroToSeven, Zeros)
+	MaskE Bitboard = ZerosForRange(Sevens, ZeroToSeven)
+	MaskW Bitboard = ZerosForRange(Zeros, ZeroToSeven)
+
+	MaskNN Bitboard = ZerosForRange(ZeroToSeven, Sixes)
+	MaskSS Bitboard = ZerosForRange(ZeroToSeven, Ones)
+	MaskEE Bitboard = ZerosForRange(Sixes, ZeroToSeven)
+	MaskWW Bitboard = ZerosForRange(Ones, ZeroToSeven)
+
+	MaskAllEdges Bitboard = MaskN & MaskS & MaskE & MaskW
+)
+
+var PreMoveMasks = [NumDirs]Bitboard{
+	MaskN,
+	MaskS,
+	MaskE,
+	MaskW,
+
+	MaskN & MaskE,
+	MaskN & MaskW,
+	MaskS & MaskE,
+	MaskS & MaskW,
+
+	MaskNN & MaskN & MaskE,
+	MaskNN & MaskN & MaskW,
+	MaskSS & MaskS & MaskE,
+	MaskSS & MaskS & MaskW,
+	MaskEE & MaskN & MaskE,
+	MaskEE & MaskS & MaskE,
+	MaskWW & MaskN & MaskW,
+	MaskWW & MaskS & MaskW,
+}
+
+const _forcePositiveOffset = 32
+
+var PreMoveMaskFromOffset [64]Bitboard = func() [64]Bitboard {
 	result := [64]Bitboard{}
-	result[FORCE_POSITIVE_OFFSET+OFFSET_N] = PRE_MOVE_MASKS[0]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_S] = PRE_MOVE_MASKS[1]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_E] = PRE_MOVE_MASKS[2]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_W] = PRE_MOVE_MASKS[3]
+	result[_forcePositiveOffset+OffsetN] = PreMoveMasks[0]
+	result[_forcePositiveOffset+OffsetS] = PreMoveMasks[1]
+	result[_forcePositiveOffset+OffsetE] = PreMoveMasks[2]
+	result[_forcePositiveOffset+OffsetW] = PreMoveMasks[3]
 
-	result[FORCE_POSITIVE_OFFSET+OFFSET_N+OFFSET_E] = PRE_MOVE_MASKS[4]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_N+OFFSET_W] = PRE_MOVE_MASKS[5]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_S+OFFSET_E] = PRE_MOVE_MASKS[6]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_S+OFFSET_W] = PRE_MOVE_MASKS[7]
+	result[_forcePositiveOffset+OffsetN+OffsetE] = PreMoveMasks[4]
+	result[_forcePositiveOffset+OffsetN+OffsetW] = PreMoveMasks[5]
+	result[_forcePositiveOffset+OffsetS+OffsetE] = PreMoveMasks[6]
+	result[_forcePositiveOffset+OffsetS+OffsetW] = PreMoveMasks[7]
 
-	result[FORCE_POSITIVE_OFFSET+OFFSET_N+OFFSET_N+OFFSET_E] = PRE_MOVE_MASKS[8]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_N+OFFSET_N+OFFSET_W] = PRE_MOVE_MASKS[9]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_S+OFFSET_S+OFFSET_E] = PRE_MOVE_MASKS[10]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_S+OFFSET_S+OFFSET_W] = PRE_MOVE_MASKS[11]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_E+OFFSET_N+OFFSET_E] = PRE_MOVE_MASKS[12]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_E+OFFSET_S+OFFSET_E] = PRE_MOVE_MASKS[13]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_W+OFFSET_N+OFFSET_W] = PRE_MOVE_MASKS[14]
-	result[FORCE_POSITIVE_OFFSET+OFFSET_W+OFFSET_S+OFFSET_W] = PRE_MOVE_MASKS[15]
+	result[_forcePositiveOffset+OffsetN+OffsetN+OffsetE] = PreMoveMasks[8]
+	result[_forcePositiveOffset+OffsetN+OffsetN+OffsetW] = PreMoveMasks[9]
+	result[_forcePositiveOffset+OffsetS+OffsetS+OffsetE] = PreMoveMasks[10]
+	result[_forcePositiveOffset+OffsetS+OffsetS+OffsetW] = PreMoveMasks[11]
+	result[_forcePositiveOffset+OffsetE+OffsetN+OffsetE] = PreMoveMasks[12]
+	result[_forcePositiveOffset+OffsetE+OffsetS+OffsetE] = PreMoveMasks[13]
+	result[_forcePositiveOffset+OffsetW+OffsetN+OffsetW] = PreMoveMasks[14]
+	result[_forcePositiveOffset+OffsetW+OffsetS+OffsetW] = PreMoveMasks[15]
 	return result
 }()
 
 func PremoveMaskFromOffset(offset int) Bitboard {
-	return PRE_MOVE_MASK_FROM_OFFSET[FORCE_POSITIVE_OFFSET+offset]
+	return PreMoveMaskFromOffset[_forcePositiveOffset+offset]
 }
 
-var KNIGHT_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
+var KnightAttackMasks [64]Bitboard = func() [64]Bitboard {
 	result := [64]Bitboard{}
 
 	for i := 0; i < 64; i++ {
-		pieceBoard := singleBitboard(i)
-		for _, dir := range KNIGHT_DIRS {
-			potential := pieceBoard & PRE_MOVE_MASKS[dir]
-			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+		pieceBoard := SingleBitboard(i)
+		for _, dir := range KnightDirs {
+			potential := pieceBoard & PreMoveMasks[dir]
+			potential = RotateTowardsIndex64(potential, Offsets[dir])
 
 			result[i] |= potential
 		}
@@ -234,14 +236,14 @@ var KNIGHT_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
 	return result
 }()
 
-var KING_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
+var KingAttackMasks [64]Bitboard = func() [64]Bitboard {
 	result := [64]Bitboard{}
 
 	for i := 0; i < 64; i++ {
-		pieceBoard := singleBitboard(i)
-		for _, dir := range KING_DIRS {
-			potential := pieceBoard & PRE_MOVE_MASKS[dir]
-			potential = rotateTowardsIndex64(potential, OFFSETS[dir])
+		pieceBoard := SingleBitboard(i)
+		for _, dir := range KingDirs {
+			potential := pieceBoard & PreMoveMasks[dir]
+			potential = RotateTowardsIndex64(potential, Offsets[dir])
 
 			result[i] |= potential
 		}
@@ -249,31 +251,31 @@ var KING_ATTACK_MASKS [64]Bitboard = func() [64]Bitboard {
 	return result
 }()
 
-var CASTLING_REQUIREMENTS = func() [2][2]CastlingRequirements {
+var AllCastlingRequirements = func() [2][2]CastlingRequirements {
 	result := [2][2]CastlingRequirements{}
-	result[WHITE][KINGSIDE] = CastlingRequirements{
+	result[White][Kingside] = CastlingRequirements{
 		safe:   MapSlice([]string{"e1", "f1", "g1"}, boardIndexFromString),
-		empty:  bitboardWithAllLocationsSet(([]string{"f1", "g1"})),
+		empty:  BitboardWithAllLocationsSet(([]string{"f1", "g1"})),
 		move:   moveFromString("e1g1", CASTLING_MOVE),
-		pieces: bitboardWithAllLocationsSet([]string{"e1", "h1"}),
+		pieces: BitboardWithAllLocationsSet([]string{"e1", "h1"}),
 	}
-	result[WHITE][QUEENSIDE] = CastlingRequirements{
+	result[White][Queenside] = CastlingRequirements{
 		safe:   MapSlice([]string{"e1", "d1", "c1"}, boardIndexFromString),
-		empty:  bitboardWithAllLocationsSet(([]string{"b1", "c1", "d1"})),
+		empty:  BitboardWithAllLocationsSet(([]string{"b1", "c1", "d1"})),
 		move:   moveFromString("e1c1", CASTLING_MOVE),
-		pieces: bitboardWithAllLocationsSet([]string{"e1", "a1"}),
+		pieces: BitboardWithAllLocationsSet([]string{"e1", "a1"}),
 	}
-	result[BLACK][KINGSIDE] = CastlingRequirements{
+	result[BLACK][Kingside] = CastlingRequirements{
 		safe:   MapSlice([]string{"e8", "f8", "g8"}, boardIndexFromString),
-		empty:  bitboardWithAllLocationsSet(([]string{"f8", "g8"})),
+		empty:  BitboardWithAllLocationsSet(([]string{"f8", "g8"})),
 		move:   moveFromString("e8g8", CASTLING_MOVE),
-		pieces: bitboardWithAllLocationsSet([]string{"e8", "h8"}),
+		pieces: BitboardWithAllLocationsSet([]string{"e8", "h8"}),
 	}
-	result[BLACK][QUEENSIDE] = CastlingRequirements{
+	result[BLACK][Queenside] = CastlingRequirements{
 		safe:   MapSlice([]string{"e8", "d8", "c8"}, boardIndexFromString),
-		empty:  bitboardWithAllLocationsSet(([]string{"b8", "c8", "d8"})),
+		empty:  BitboardWithAllLocationsSet(([]string{"b8", "c8", "d8"})),
 		move:   moveFromString("e8c8", CASTLING_MOVE),
-		pieces: bitboardWithAllLocationsSet([]string{"e8", "a8"}),
+		pieces: BitboardWithAllLocationsSet([]string{"e8", "a8"}),
 	}
 	return result
 }()
@@ -295,7 +297,7 @@ var F8 int = boardIndexFromString("f8")
 var G8 int = boardIndexFromString("g8")
 var H8 int = boardIndexFromString("h8")
 
-func rookMoveForCastle(startIndex int, endIndex int) (int, int, error) {
+func RookMoveForCastle(startIndex int, endIndex int) (int, int, error) {
 	switch startIndex {
 	case E1:
 		switch endIndex {
@@ -315,59 +317,37 @@ func rookMoveForCastle(startIndex int, endIndex int) (int, int, error) {
 	return 0, 0, fmt.Errorf("unknown castling move %v %v", stringFromBoardIndex(startIndex), stringFromBoardIndex(endIndex))
 }
 
-var SINGLE_BITBOARDS [64]Bitboard = func() [64]Bitboard {
+var SingleBitboards [64]Bitboard = func() [64]Bitboard {
 	result := [64]Bitboard{}
 	for i := 0; i < 64; i++ {
-		result[i] = shiftTowardsIndex64(1, i)
+		result[i] = ShiftTowardsIndex64(1, i)
 	}
 	return result
 }()
 
-func singleBitboard(index int) Bitboard {
-	return SINGLE_BITBOARDS[index]
+func SingleBitboard(index int) Bitboard {
+	return SingleBitboards[index]
 }
 
-var SINGLE_BITBOARDS_ALLOWING_NEGATIVE_INDEX [64]Bitboard = func() [64]Bitboard {
+var SingleBitboardsAllowingNegativeIndex [64]Bitboard = func() [64]Bitboard {
 	result := [64]Bitboard{}
 	for i := 0; i < 64; i++ {
-		result[i] = rotateTowardsIndex64(1, i)
+		result[i] = RotateTowardsIndex64(1, i)
 	}
 	return result
 }()
 
-func SingleUint8(indexFromTheRight int) uint8 {
-	return 1 << indexFromTheRight
-}
-
-func zerosForRange(fs []int, rs []int) Bitboard {
+func ZerosForRange(fs []int, rs []int) Bitboard {
 	if len(fs) != len(rs) {
 		panic("slices have different length")
 	}
 
-	result := ALL_ONES
+	result := AllOnes
 	for i := 0; i < len(fs); i++ {
-		result &= ^singleBitboard(IndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
+		result &= ^SingleBitboard(IndexFromFileRank(FileRank{File(fs[i]), Rank(rs[i])}))
 	}
 	return result
 }
-
-var ReverseBitsCache = func() [256]uint8 {
-	result := [256]uint8{}
-	for i := uint8(0); ; i++ {
-		reversed := uint8(0)
-		for bit := 0; bit < 8; bit++ {
-			if i&SingleUint8(bit) > 0 {
-				reversed |= SingleUint8(7 - bit)
-			}
-		}
-		result[i] = reversed
-
-		if i == uint8(255) {
-			break
-		}
-	}
-	return result
-}()
 
 type CastlingRequirements struct {
 	empty  Bitboard
@@ -380,29 +360,29 @@ func OnesCount(b Bitboard) int {
 	return bits.OnesCount64(uint64(b))
 }
 
-func bitboardWithAllLocationsSet(locations []string) Bitboard {
+func BitboardWithAllLocationsSet(locations []string) Bitboard {
 	return ReduceSlice(
 		MapSlice(locations, boardIndexFromString),
 		0,
 		func(result Bitboard, index int) Bitboard {
-			return result | singleBitboard(index)
+			return result | SingleBitboard(index)
 		},
 	)
 }
 
-func shiftTowardsIndex0(b Bitboard, n int) Bitboard {
+func ShiftTowardIndex0(b Bitboard, n int) Bitboard {
 	return b >> n
 }
 
-func shiftTowardsIndex64(b Bitboard, n int) Bitboard {
+func ShiftTowardsIndex64(b Bitboard, n int) Bitboard {
 	return b << n
 }
 
-func rotateTowardsIndex0(b Bitboard, n int) Bitboard {
+func RotateTowardsIndex0(b Bitboard, n int) Bitboard {
 	return Bitboard(bits.RotateLeft64(uint64(b), -n))
 }
 
-func rotateTowardsIndex64(b Bitboard, n int) Bitboard {
+func RotateTowardsIndex64(b Bitboard, n int) Bitboard {
 	return Bitboard(bits.RotateLeft64(uint64(b), n))
 }
 
@@ -415,25 +395,25 @@ func (b Bitboard) String() string {
 		r := b
 
 		// clip everything above this rank
-		r = shiftTowardsIndex64(r, bitsAfter)
+		r = ShiftTowardsIndex64(r, bitsAfter)
 		// clip everything before this rank
-		r = shiftTowardsIndex0(r, bitsBefore+bitsAfter)
+		r = ShiftTowardIndex0(r, bitsBefore+bitsAfter)
 
 		// mirror the bits so we're printing in a natural order
 		// (10000000 for the top left / lowest index instead of 00000001)
-		ranks[7-rank] = fmt.Sprintf("%08b", reverseBits(uint8(r)))
+		ranks[7-rank] = fmt.Sprintf("%08b", ReverseBits(uint8(r)))
 	}
 
 	return strings.Join(ranks[0:], "\n")
 }
 
-func bitboardFromStrings(strings [8]string) Bitboard {
+func BitboardFromStrings(strings [8]string) Bitboard {
 	b := Bitboard(0)
 	for inverseRank, line := range strings {
 		for file, c := range line {
 			if c == '1' {
 				index := IndexFromFileRank(FileRank{File(file), Rank(7 - inverseRank)})
-				b |= singleBitboard(index)
+				b |= SingleBitboard(index)
 			}
 		}
 	}
@@ -448,26 +428,26 @@ func SetupBitboards(g *GameState) Bitboards {
 		}
 		pieceType := piece.pieceType()
 		player := piece.player()
-		result.players[player].pieces[pieceType] |= singleBitboard(i)
+		result.players[player].pieces[pieceType] |= SingleBitboard(i)
 
 		if piece.isWhite() {
-			result.occupied |= singleBitboard(i)
-			result.players[WHITE].occupied |= singleBitboard(i)
+			result.occupied |= SingleBitboard(i)
+			result.players[White].occupied |= SingleBitboard(i)
 		}
 		if piece.isBlack() {
-			result.occupied |= singleBitboard(i)
-			result.players[BLACK].occupied |= singleBitboard(i)
+			result.occupied |= SingleBitboard(i)
+			result.players[BLACK].occupied |= SingleBitboard(i)
 		}
 	}
 	return result
 }
 
-func (b Bitboard) leastSignificantOne() Bitboard {
+func (b Bitboard) LeastSignificantOne() Bitboard {
 	return b & -b
 }
 
-func (b Bitboard) firstIndexOfOne() int {
-	ls1 := b.leastSignificantOne()
+func (b Bitboard) FirstIndexOfOne() int {
+	ls1 := b.LeastSignificantOne()
 	return bits.OnesCount64(uint64(ls1 - 1))
 }
 
@@ -482,12 +462,12 @@ var GetIndicesBuffer, ReleaseIndicesBuffer, StatsIndicesBuffer = createPool(
 	},
 )
 
-func (b Bitboard) eachIndexOfOne(buffer *IndicesBuffer) *IndicesBuffer {
+func (b Bitboard) EachIndexOfOne(buffer *IndicesBuffer) *IndicesBuffer {
 	*buffer = (*buffer)[:0]
 
 	temp := b
 	for temp != 0 {
-		ls1 := temp.leastSignificantOne()
+		ls1 := temp.LeastSignificantOne()
 		index := bits.OnesCount64(uint64(ls1 - 1))
 		*buffer = append(*buffer, int(index))
 		temp = temp ^ ls1
@@ -496,31 +476,31 @@ func (b Bitboard) eachIndexOfOne(buffer *IndicesBuffer) *IndicesBuffer {
 	return buffer
 }
 
-func (b Bitboard) eachIndexOfOne2(callback func(int)) {
+func (b Bitboard) EachIndexOfOneCallback(callback func(int)) {
 	temp := b
 	for temp != 0 {
-		ls1 := temp.leastSignificantOne()
+		ls1 := temp.LeastSignificantOne()
 		index := bits.OnesCount64(uint64(ls1 - 1))
 		callback(index)
 		temp = temp ^ ls1
 	}
 }
 
-func (b Bitboard) nextIndexOfOne() (int, Bitboard) {
-	ls1 := b.leastSignificantOne()
+func (b Bitboard) NextIndexOfOne() (int, Bitboard) {
+	ls1 := b.LeastSignificantOne()
 	index := bits.OnesCount64(uint64(ls1 - 1))
 	b = b ^ ls1
 
 	return index, b
 }
 
-func (b *Bitboards) clearSquare(index int, piece Piece) error {
+func (b *Bitboards) ClearSquare(index int, piece Piece) error {
 	player := piece.player()
 	pieceType := piece.pieceType()
 	if !pieceType.isValid() {
 		return fmt.Errorf("pieceType %v is not valid", piece.String())
 	}
-	oneBitboard := singleBitboard(index)
+	oneBitboard := SingleBitboard(index)
 	zeroBitboard := ^oneBitboard
 
 	b.occupied &= zeroBitboard
@@ -530,17 +510,17 @@ func (b *Bitboards) clearSquare(index int, piece Piece) error {
 	return nil
 }
 
-func (b *Bitboards) setSquare(index int, piece Piece) {
+func (b *Bitboards) SetSquare(index int, piece Piece) {
 	player := piece.player()
 	pieceType := piece.pieceType()
-	oneBitboard := singleBitboard(index)
+	oneBitboard := SingleBitboard(index)
 
 	b.occupied |= oneBitboard
 	b.players[player].occupied |= oneBitboard
 	b.players[player].pieces[pieceType] |= oneBitboard
 }
 
-func (b *Bitboards) performMove(originalState *GameState, move Move) error {
+func (b *Bitboards) PerformMove(originalState *GameState, move Move) error {
 	startIndex := move.startIndex
 	endIndex := move.endIndex
 
@@ -549,27 +529,27 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) error {
 	switch move.moveType {
 	case QUIET_MOVE:
 		{
-			err := b.clearSquare(startIndex, startPiece)
+			err := b.ClearSquare(startIndex, startPiece)
 			if err != nil {
 				return fmt.Errorf("%v: %w", move.DebugString(), err)
 			}
-			b.setSquare(endIndex, startPiece)
+			b.SetSquare(endIndex, startPiece)
 		}
 	case CAPTURE_MOVE:
 		{
 			// Remove captured piece
 			endPiece := originalState.Board[endIndex]
-			err := b.clearSquare(endIndex, endPiece)
+			err := b.ClearSquare(endIndex, endPiece)
 			if err != nil {
 				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), stringFromBoardIndex(endIndex), endPiece, err)
 			}
 
 			// Move the capturing piece
-			err = b.clearSquare(startIndex, startPiece)
+			err = b.ClearSquare(startIndex, startPiece)
 			if err != nil {
 				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), stringFromBoardIndex(startIndex), startPiece, err)
 			}
-			b.setSquare(endIndex, startPiece)
+			b.SetSquare(endIndex, startPiece)
 		}
 	case EN_PASSANT_MOVE:
 		{
@@ -579,38 +559,38 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) error {
 				capturedBackwards = S
 			}
 
-			captureIndex := endIndex + OFFSETS[capturedBackwards]
+			captureIndex := endIndex + Offsets[capturedBackwards]
 			capturePiece := originalState.Board[captureIndex]
 
-			err := b.clearSquare(captureIndex, capturePiece)
+			err := b.ClearSquare(captureIndex, capturePiece)
 			if err != nil {
 				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), stringFromBoardIndex(captureIndex), capturePiece, err)
 			}
-			err = b.clearSquare(startIndex, startPiece)
+			err = b.ClearSquare(startIndex, startPiece)
 			if err != nil {
 				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), stringFromBoardIndex(startIndex), startPiece, err)
 			}
-			b.setSquare(endIndex, startPiece)
+			b.SetSquare(endIndex, startPiece)
 		}
 	case CASTLING_MOVE:
 		{
-			rookStartIndex, rookEndIndex, err := rookMoveForCastle(startIndex, endIndex)
+			rookStartIndex, rookEndIndex, err := RookMoveForCastle(startIndex, endIndex)
 			if err != nil {
 				return err
 			}
 			rookPiece := originalState.Board[rookStartIndex]
 
-			err = b.clearSquare(startIndex, startPiece)
+			err = b.ClearSquare(startIndex, startPiece)
 			if err != nil {
 				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), stringFromBoardIndex(startIndex), startPiece, err)
 			}
-			b.setSquare(endIndex, startPiece)
+			b.SetSquare(endIndex, startPiece)
 
-			err = b.clearSquare(rookStartIndex, rookPiece)
+			err = b.ClearSquare(rookStartIndex, rookPiece)
 			if err != nil {
 				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), stringFromBoardIndex(rookStartIndex), rookPiece, err)
 			}
-			err = b.clearSquare(rookEndIndex, rookPiece)
+			err = b.ClearSquare(rookEndIndex, rookPiece)
 			if err != nil {
 				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), stringFromBoardIndex(rookEndIndex), rookPiece, err)
 			}
@@ -620,7 +600,7 @@ func (b *Bitboards) performMove(originalState *GameState, move Move) error {
 	return nil
 }
 
-func (b *Bitboards) undoUpdate(update BoardUpdate) error {
+func (b *Bitboards) UndoUpdate(update BoardUpdate) error {
 	for i := update.num - 1; i >= 0; i-- {
 		index := update.indices[i]
 		current := update.pieces[i]
@@ -629,15 +609,15 @@ func (b *Bitboards) undoUpdate(update BoardUpdate) error {
 		if current == XX {
 			if previous == XX {
 			} else {
-				b.setSquare(index, previous)
+				b.SetSquare(index, previous)
 			}
 		} else {
 			var err error
 			if previous == XX {
-				err = b.clearSquare(index, current)
+				err = b.ClearSquare(index, current)
 			} else {
-				err = b.clearSquare(index, current)
-				b.setSquare(index, previous)
+				err = b.ClearSquare(index, current)
+				b.SetSquare(index, previous)
 			}
 			if err != nil {
 				return fmt.Errorf("undo %v %v %v: %w", stringFromBoardIndex(index), current, previous, err)

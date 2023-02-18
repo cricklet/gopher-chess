@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 func (p Player) fenString() string {
-	if p == WHITE {
+	if p == White {
 		return "w"
 	} else {
 		return "b"
@@ -122,13 +124,13 @@ func GamestateFromFenString(s string) (GameState, error) {
 		case '-':
 			continue
 		case 'K':
-			game.playerAndCastlingSideAllowed[WHITE][KINGSIDE] = true
+			game.playerAndCastlingSideAllowed[White][Kingside] = true
 		case 'Q':
-			game.playerAndCastlingSideAllowed[WHITE][QUEENSIDE] = true
+			game.playerAndCastlingSideAllowed[White][Queenside] = true
 		case 'k':
-			game.playerAndCastlingSideAllowed[BLACK][KINGSIDE] = true
+			game.playerAndCastlingSideAllowed[BLACK][Kingside] = true
 		case 'q':
-			game.playerAndCastlingSideAllowed[BLACK][QUEENSIDE] = true
+			game.playerAndCastlingSideAllowed[BLACK][Queenside] = true
 		}
 	}
 

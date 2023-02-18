@@ -1,4 +1,4 @@
-package chess
+package helpers
 
 type Success bool
 
@@ -39,7 +39,29 @@ func ReduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
 	return u
 }
 
-func reverseBits(n uint8) uint8 {
+func SingleUint8(indexFromTheRight int) uint8 {
+	return 1 << indexFromTheRight
+}
+
+var ReverseBitsCache = func() [256]uint8 {
+	result := [256]uint8{}
+	for i := uint8(0); ; i++ {
+		reversed := uint8(0)
+		for bit := 0; bit < 8; bit++ {
+			if i&SingleUint8(bit) > 0 {
+				reversed |= SingleUint8(7 - bit)
+			}
+		}
+		result[i] = reversed
+
+		if i == uint8(255) {
+			break
+		}
+	}
+	return result
+}()
+
+func ReverseBits(n uint8) uint8 {
 	return ReverseBitsCache[n]
 }
 
@@ -68,7 +90,7 @@ func (o Optional[T]) Value() T {
 	return o._t
 }
 
-func absDiff(x int, y int) int {
+func AbsDiff(x int, y int) int {
 	if x < y {
 		return y - x
 	}
@@ -82,7 +104,7 @@ func MinInt(x int, y int) int {
 	return y
 }
 
-func flipArray(array [8][8]int) [8][8]int {
+func FlipArray(array [8][8]int) [8][8]int {
 	result := [8][8]int{}
 	for i := 0; i < 8; i++ {
 		for j := 0; j < 8; j++ {

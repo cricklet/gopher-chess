@@ -1,5 +1,9 @@
 package chess
 
+import (
+	. "github.com/cricklet/chessgo/internal/helpers"
+)
+
 type EvaluationBitboard struct {
 	multiplier int
 	b          Bitboard
@@ -81,7 +85,7 @@ func bitboardFromArray(lookup int, array [8][8]int) Bitboard {
 		for j := 0; j < 8; j++ {
 			if array[i][j] == lookup {
 				index := (7-i)*8 + j
-				b |= singleBitboard(index)
+				b |= SingleBitboard(index)
 			}
 		}
 	}
@@ -108,7 +112,7 @@ func evaluationsFromArray(array [8][8]int, scale int) []EvaluationBitboard {
 func evaluationsPerPlayer(whiteOrientedEvalArray [8][8]int, scale int) [2][]EvaluationBitboard {
 	return [2][]EvaluationBitboard{
 		evaluationsFromArray(whiteOrientedEvalArray, scale),
-		evaluationsFromArray(flipArray(whiteOrientedEvalArray), scale),
+		evaluationsFromArray(FlipArray(whiteOrientedEvalArray), scale),
 	}
 }
 
@@ -180,11 +184,11 @@ func (m *Move) Evaluate(g *GameState) int {
 	}
 
 	startDevelopment := evaluateDevelopment(
-		singleBitboard(m.endIndex),
+		SingleBitboard(m.endIndex),
 		DEVELOPMENT_BITBOARDS[g.Board[m.startIndex].pieceType()][g.player])
 	endDevelopment :=
 		evaluateDevelopment(
-			singleBitboard(m.startIndex),
+			SingleBitboard(m.startIndex),
 			DEVELOPMENT_BITBOARDS[g.Board[m.startIndex].pieceType()][g.player])
 
 	score += startDevelopment - endDevelopment

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/pkg/profile"
 )
 
@@ -40,7 +41,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 
 		RecordCurrentState(g, &previous)
 
-		err = b.performMove(g, move)
+		err = b.PerformMove(g, move)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("perform evaluateCapturesInner %v: %w", move.String(), err)
 		}
@@ -55,7 +56,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 		enemyScore := result.score
 		totalSearched += result.quiescenceSearched
 
-		err = b.undoUpdate(update)
+		err = b.UndoUpdate(update)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
 		}
@@ -123,7 +124,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		str := g.Board.String()
 		Ignore(str)
 
-		err = b.performMove(g, move)
+		err = b.PerformMove(g, move)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("perform evaluateSearch %v: %w", move.String(), err)
 		}
@@ -149,7 +150,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		totalSearched += result.totalSearched
 		quiescenceSearched += result.quiescenceSearched
 
-		err = b.undoUpdate(update)
+		err = b.UndoUpdate(update)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("undo evaluateSearch %v: %w", move.String(), err)
 		}
@@ -190,7 +191,7 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		}
 		RecordCurrentState(g, &previous)
 
-		err = b.performMove(g, move)
+		err = b.PerformMove(g, move)
 		if err != nil {
 			return Empty[Move](), fmt.Errorf("perform Search %v => %v: %w", g.fenString(), move.String(), err)
 		}
@@ -206,7 +207,7 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		totalSearched += result.totalSearched
 		quiescenceSearched += result.quiescenceSearched
 
-		err = b.undoUpdate(update)
+		err = b.UndoUpdate(update)
 		if err != nil {
 			return Empty[Move](), fmt.Errorf("undo Search %v => %v: %w", g.fenString(), move.String(), err)
 		}

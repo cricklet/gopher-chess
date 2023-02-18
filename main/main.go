@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	chessgo "github.com/cricklet/chessgo/chess"
+	. "github.com/cricklet/chessgo/internal/helpers"
+
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
@@ -72,7 +74,7 @@ func serve() {
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		runner := chessgo.Runner{}
-		userPlayer := chessgo.WHITE
+		userPlayer := chessgo.White
 		computerPlayer := chessgo.BLACK
 
 		c, err := upgrader.Upgrade(w, r, nil)
@@ -96,7 +98,7 @@ func serve() {
 
 		var finalizeUpdate = func(update UpdateToWeb) {
 			update.FenString = runner.FenString()
-			if runner.Player() == chessgo.WHITE {
+			if runner.Player() == chessgo.White {
 				update.Player = "white"
 			} else {
 				update.Player = "black"
@@ -123,7 +125,7 @@ func serve() {
 				return
 			}
 
-			bestMoveString := chessgo.FindInSlice(result, func(v string) bool {
+			bestMoveString := FindInSlice(result, func(v string) bool {
 				return strings.HasPrefix(v, "bestmove ")
 			})
 			runner.Logger.Println("found move", bestMoveString)
@@ -162,7 +164,7 @@ func serve() {
 				}
 			} else if message.UserPlayer != nil {
 				if *message.UserPlayer == "white" {
-					userPlayer = chessgo.WHITE
+					userPlayer = chessgo.White
 				} else {
 					userPlayer = chessgo.BLACK
 				}
@@ -178,7 +180,7 @@ func serve() {
 					if err != nil {
 						runner.Logger.Println("moves for %v: ", message.Selection, err)
 					}
-					update.PossibleMoves = chessgo.MapSlice(
+					update.PossibleMoves = MapSlice(
 						result,
 						func(v chessgo.FileRank) string {
 							return v.String()
