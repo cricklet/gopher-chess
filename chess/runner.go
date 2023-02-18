@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
@@ -208,7 +209,7 @@ func (r *Runner) MovesForSelection(selection string) ([]FileRank, error) {
 	selectionIndex := IndexFromFileRank(selectionFileRank)
 
 	legalMoves := []Move{}
-	err = r.b.generateLegalMoves(r.g, &legalMoves)
+	err = GenerateLegalMoves(r.b, r.g, &legalMoves)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 
+	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
@@ -116,11 +117,11 @@ func generateJumpMovesByLookup(
 
 var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = CreatePool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
-func (b *Bitboards) GeneratePseudoMoves(g *GameState, moves *[]Move) {
-	b.generatePseudoMovesInternal(g, moves, false /* onlyCaptures */)
+func GeneratePseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
+	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */)
 }
-func (b *Bitboards) GenerateSortedPseudoMoves(g *GameState, moves *[]Move) {
-	b.GeneratePseudoMoves(g, moves)
+func GenerateSortedPseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
+	GeneratePseudoMoves(b, g, moves)
 
 	for i := range *moves {
 		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], g))
@@ -130,8 +131,8 @@ func (b *Bitboards) GenerateSortedPseudoMoves(g *GameState, moves *[]Move) {
 		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
 	})
 }
-func (b *Bitboards) GenerateSortedPseudoCaptures(g *GameState, moves *[]Move) {
-	b.GeneratePseudoCaptures(g, moves)
+func GenerateSortedPseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
+	GeneratePseudoCaptures(b, g, moves)
 
 	for i := range *moves {
 		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], g))
@@ -141,11 +142,11 @@ func (b *Bitboards) GenerateSortedPseudoCaptures(g *GameState, moves *[]Move) {
 		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
 	})
 }
-func (b *Bitboards) GeneratePseudoCaptures(g *GameState, moves *[]Move) {
-	b.generatePseudoMovesInternal(g, moves, true /* onlyCaptures */)
+func GeneratePseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
+	GeneratePseudoMovesInternal(b, g, moves, true /* onlyCaptures */)
 }
 
-func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onlyCaptures bool) {
+func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, onlyCaptures bool) {
 	player := g.Player
 	playerBoards := b.Players[player]
 	enemyBoards := &b.Players[player.Other()]
@@ -260,10 +261,10 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 			canCastle := true
 			if g.PlayerAndCastlingSideAllowed[player][castlingSide] {
 				requirements := AllCastlingRequirements[player][castlingSide]
-				if b.Occupied&requirements.empty != 0 {
+				if b.Occupied&requirements.Empty != 0 {
 					canCastle = false
 				}
-				for _, index := range requirements.safe {
+				for _, index := range requirements.Safe {
 					if playerIndexIsAttacked(player, index, b.Occupied, enemyBoards) {
 						canCastle = false
 						break
@@ -271,7 +272,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 				}
 
 				if canCastle {
-					*moves = append(*moves, requirements.move)
+					*moves = append(*moves, requirements.Move)
 				}
 			}
 		}
@@ -341,13 +342,13 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	return attackers != 0
 }
 
-func (b *Bitboards) kingIsInCheck(player Player, enemy Player) bool {
+func KingIsInCheck(b *Bitboards, player Player, enemy Player) bool {
 	kingBoard := b.Players[player].Pieces[King]
 	kingIndex := kingBoard.FirstIndexOfOne()
 	return playerIndexIsAttacked(player, kingIndex, b.Occupied, &b.Players[enemy])
 }
 
-func (b *Bitboards) dangerBoard(player Player) Bitboard {
+func DangerBoard(b *Bitboards, player Player) Bitboard {
 	enemyPlayer := player.Other()
 	enemyBoards := &b.Players[enemyPlayer]
 	result := Bitboard(0)
@@ -367,31 +368,31 @@ func (e *BoardCorrupted) Error() string {
 	return fmt.Sprintf("corruption during update: %q", e.Message)
 }
 
-func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) error {
+func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) error {
 	player := g.Player
 	enemy := g.enemy()
 	potentialMoves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(potentialMoves)
-	b.GeneratePseudoMoves(g, potentialMoves)
+	GeneratePseudoMoves(b, g, potentialMoves)
 
 	for _, move := range *potentialMoves {
 		update := BoardUpdate{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
-			return fmt.Errorf("generateLegalMoves: %w", err)
+			return fmt.Errorf("GenerateLegalMoves: %w", err)
 		}
 
 		err = g.ApplyMoveToBitboards(b, move)
 		if err != nil {
 			return &BoardCorrupted{err}
 		}
-		if !b.kingIsInCheck(player, enemy) {
+		if !KingIsInCheck(b, player, enemy) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 
 		err = b.UndoUpdate(update)
 		if err != nil {
-			return fmt.Errorf("generateLegalMoves: %w", err)
+			return fmt.Errorf("GenerateLegalMoves: %w", err)
 		}
 	}
 

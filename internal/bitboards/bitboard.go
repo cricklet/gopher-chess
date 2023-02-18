@@ -1,4 +1,4 @@
-package chess
+package bitboards
 
 import (
 	"fmt"
@@ -311,28 +311,28 @@ var KingAttackMasks [64]Bitboard = func() [64]Bitboard {
 var AllCastlingRequirements = func() [2][2]CastlingRequirements {
 	result := [2][2]CastlingRequirements{}
 	result[White][Kingside] = CastlingRequirements{
-		safe:   MapSlice([]string{"e1", "f1", "g1"}, BoardIndexFromString),
-		empty:  BitboardWithAllLocationsSet(([]string{"f1", "g1"})),
-		move:   MoveFromString("e1g1", CastlingMove),
-		pieces: BitboardWithAllLocationsSet([]string{"e1", "h1"}),
+		Safe:   MapSlice([]string{"e1", "f1", "g1"}, BoardIndexFromString),
+		Empty:  BitboardWithAllLocationsSet(([]string{"f1", "g1"})),
+		Move:   MoveFromString("e1g1", CastlingMove),
+		Pieces: BitboardWithAllLocationsSet([]string{"e1", "h1"}),
 	}
 	result[White][Queenside] = CastlingRequirements{
-		safe:   MapSlice([]string{"e1", "d1", "c1"}, BoardIndexFromString),
-		empty:  BitboardWithAllLocationsSet(([]string{"b1", "c1", "d1"})),
-		move:   MoveFromString("e1c1", CastlingMove),
-		pieces: BitboardWithAllLocationsSet([]string{"e1", "a1"}),
+		Safe:   MapSlice([]string{"e1", "d1", "c1"}, BoardIndexFromString),
+		Empty:  BitboardWithAllLocationsSet(([]string{"b1", "c1", "d1"})),
+		Move:   MoveFromString("e1c1", CastlingMove),
+		Pieces: BitboardWithAllLocationsSet([]string{"e1", "a1"}),
 	}
 	result[Black][Kingside] = CastlingRequirements{
-		safe:   MapSlice([]string{"e8", "f8", "g8"}, BoardIndexFromString),
-		empty:  BitboardWithAllLocationsSet(([]string{"f8", "g8"})),
-		move:   MoveFromString("e8g8", CastlingMove),
-		pieces: BitboardWithAllLocationsSet([]string{"e8", "h8"}),
+		Safe:   MapSlice([]string{"e8", "f8", "g8"}, BoardIndexFromString),
+		Empty:  BitboardWithAllLocationsSet(([]string{"f8", "g8"})),
+		Move:   MoveFromString("e8g8", CastlingMove),
+		Pieces: BitboardWithAllLocationsSet([]string{"e8", "h8"}),
 	}
 	result[Black][Queenside] = CastlingRequirements{
-		safe:   MapSlice([]string{"e8", "d8", "c8"}, BoardIndexFromString),
-		empty:  BitboardWithAllLocationsSet(([]string{"b8", "c8", "d8"})),
-		move:   MoveFromString("e8c8", CastlingMove),
-		pieces: BitboardWithAllLocationsSet([]string{"e8", "a8"}),
+		Safe:   MapSlice([]string{"e8", "d8", "c8"}, BoardIndexFromString),
+		Empty:  BitboardWithAllLocationsSet(([]string{"b8", "c8", "d8"})),
+		Move:   MoveFromString("e8c8", CastlingMove),
+		Pieces: BitboardWithAllLocationsSet([]string{"e8", "a8"}),
 	}
 	return result
 }()
@@ -407,10 +407,10 @@ func ZerosForRange(fs []int, rs []int) Bitboard {
 }
 
 type CastlingRequirements struct {
-	empty  Bitboard
-	safe   []int
-	move   Move
-	pieces Bitboard
+	Empty  Bitboard
+	Safe   []int
+	Move   Move
+	Pieces Bitboard
 }
 
 func OnesCount(b Bitboard) int {

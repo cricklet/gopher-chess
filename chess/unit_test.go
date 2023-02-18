@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
 
 	"github.com/pkg/profile"
@@ -368,8 +369,8 @@ func TestEvaluation(t *testing.T) {
 		"    K   ",
 	}, "\n"), g.Board.String())
 
-	assert.Equal(t, bitboards.evaluateDevelopment(White), 2*DEVELOPMENT_SCALE)
-	assert.Equal(t, bitboards.evaluateDevelopment(Black), -2*DEVELOPMENT_SCALE)
+	assert.Equal(t, evaluateDevelopment(&bitboards, White), 2*DEVELOPMENT_SCALE)
+	assert.Equal(t, evaluateDevelopment(&bitboards, Black), -2*DEVELOPMENT_SCALE)
 
 }
 
@@ -393,7 +394,7 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 
 	result := []string{}
 	moves := GetMovesBuffer()
-	bitboards.GeneratePseudoMoves(&g, moves)
+	GeneratePseudoMoves(&bitboards, &g, moves)
 	for _, move := range *moves {
 		result = append(result, move.String())
 	}
@@ -476,7 +477,7 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.GeneratePseudoMoves(&g, moves)
+	GeneratePseudoMoves(&bitboards, &g, moves)
 	for _, move := range *moves {
 		result = append(result, move.String())
 	}
@@ -692,7 +693,7 @@ func TestWhiteCastling(t *testing.T) {
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.GeneratePseudoMoves(&g, moves)
+	GeneratePseudoMoves(&bitboards, &g, moves)
 	for _, move := range *moves {
 		result = append(result, move.String())
 	}
@@ -788,7 +789,7 @@ func TestBlackCastling(t *testing.T) {
 	result := []string{}
 
 	moves := GetMovesBuffer()
-	bitboards.GeneratePseudoMoves(&g, moves)
+	GeneratePseudoMoves(&bitboards, &g, moves)
 	for _, move := range *moves {
 		result = append(result, move.String())
 	}
@@ -896,7 +897,7 @@ func TestAttackMap(t *testing.T) {
 			"10000000",
 			"00000000",
 		}).String(),
-		bitboards.dangerBoard(White).String())
+		DangerBoard(&bitboards, White).String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -909,7 +910,7 @@ func TestAttackMap(t *testing.T) {
 			"10111101",
 			"01111110",
 		}).String(),
-		bitboards.dangerBoard(Black).String())
+		DangerBoard(&bitboards, Black).String())
 }
 
 func TestKnightMasks(t *testing.T) {
@@ -986,7 +987,7 @@ func TestCheck(t *testing.T) {
 
 	result := []string{}
 	moves := make([]Move, 0)
-	err = bitboards.generateLegalMoves(&g, &moves)
+	err = GenerateLegalMoves(&bitboards, &g, &moves)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1028,7 +1029,7 @@ func TestPin(t *testing.T) {
 
 	result := []string{}
 	moves := make([]Move, 0)
-	err = bitboards.generateLegalMoves(&g, &moves)
+	err = GenerateLegalMoves(&bitboards, &g, &moves)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1150,7 +1151,7 @@ func TestGameStateCopyingIsDeep(t *testing.T) {
 type PerftMap map[string]int
 
 func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, progress *chan int, perft *PerftMap) int {
-	if b.kingIsInCheck(g.enemy(), g.Player) {
+	if KingIsInCheck(b, g.enemy(), g.Player) {
 		return 0
 	}
 
@@ -1161,7 +1162,7 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 	num := 0
 
 	moves := GetMovesBuffer()
-	b.GeneratePseudoMoves(g, moves)
+	GeneratePseudoMoves(b, g, moves)
 
 	for _, move := range *moves {
 		update := BoardUpdate{}

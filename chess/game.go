@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
@@ -128,7 +129,7 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 }
 
 func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player Player, side CastlingSide) {
-	if moveBitboard&AllCastlingRequirements[player][side].pieces != 0 {
+	if moveBitboard&AllCastlingRequirements[player][side].Pieces != 0 {
 		g.PlayerAndCastlingSideAllowed[player][side] = false
 	}
 }

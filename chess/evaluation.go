@@ -1,6 +1,7 @@
 package chess
 
 import (
+	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
@@ -116,7 +117,7 @@ func evaluationsPerPlayer(whiteOrientedEvalArray [8][8]int, scale int) [2][]Eval
 	}
 }
 
-func evaluateDevelopment(b Bitboard, e []EvaluationBitboard) int {
+func evaluateDevelopmentForPiece(b Bitboard, e []EvaluationBitboard) int {
 	result := 0
 	for _, eval := range e {
 		result += eval.multiplier * OnesCount(eval.b&b)
@@ -124,17 +125,17 @@ func evaluateDevelopment(b Bitboard, e []EvaluationBitboard) int {
 	return result
 }
 
-func (b *Bitboards) evaluateDevelopment(player Player) int {
+func evaluateDevelopment(b *Bitboards, player Player) int {
 	development := 0
-	development += evaluateDevelopment(b.Players[player].Pieces[Rook], ROOK_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.Players[player].Pieces[Knight], KNIGHT_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.Players[player].Pieces[Bishop], BISHOP_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.Players[player].Pieces[Queen], QUEEN_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.Players[player].Pieces[Pawn], PAWN_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Rook], ROOK_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Knight], KNIGHT_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Bishop], BISHOP_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Queen], QUEEN_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Pawn], PAWN_DEVELOPMENT_BITBOARDS[player])
 	return development
 }
 
-func (b *Bitboards) evaluate(player Player) int {
+func evaluate(b *Bitboards, player Player) int {
 	enemy := player.Other()
 
 	pieceValues :=
@@ -151,8 +152,8 @@ func (b *Bitboards) evaluate(player Player) int {
 			900*OnesCount(b.Players[enemy].Pieces[Queen]) +
 			100*OnesCount(b.Players[enemy].Pieces[Pawn])
 
-	developmentValues := b.evaluateDevelopment(player)
-	enemyDevelopmentValues := b.evaluateDevelopment(enemy)
+	developmentValues := evaluateDevelopment(b, player)
+	enemyDevelopmentValues := evaluateDevelopment(b, enemy)
 
 	return pieceValues + developmentValues - enemyValues - enemyDevelopmentValues
 }
@@ -183,11 +184,11 @@ func EvaluateMove(m *Move, g *GameState) int {
 		score += 500
 	}
 
-	startDevelopment := evaluateDevelopment(
+	startDevelopment := evaluateDevelopmentForPiece(
 		SingleBitboard(m.EndIndex),
 		DEVELOPMENT_BITBOARDS[g.Board[m.StartIndex].PieceType()][g.Player])
 	endDevelopment :=
-		evaluateDevelopment(
+		evaluateDevelopmentForPiece(
 			SingleBitboard(m.StartIndex),
 			DEVELOPMENT_BITBOARDS[g.Board[m.StartIndex].PieceType()][g.Player])
 
