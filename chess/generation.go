@@ -20,11 +20,11 @@ func generateWalkMovesWithMagic(
 	for tempPieces != 0 {
 		startIndex, tempPieces = tempPieces.NextIndexOfOne()
 
-		blockerBoard := magicTable.blockerMasks[startIndex] & allOccupied
-		magicValues := magicTable.magics[startIndex]
-		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
+		blockerBoard := magicTable.BlockerMasks[startIndex] & allOccupied
+		magicValues := magicTable.Magics[startIndex]
+		magicIndex := MagicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
 
-		potential := magicTable.moves[startIndex][magicIndex]
+		potential := magicTable.Moves[startIndex][magicIndex]
 		potential = potential & ^selfOccupied
 
 		quiet := potential & ^allOccupied
@@ -45,33 +45,6 @@ func generateWalkMovesWithMagic(
 				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex, Evaluation: Empty[int]()})
 			}
 		}
-	}
-
-	return output
-}
-
-func generateWalkBitboard(
-	pieceBoard Bitboard,
-	blockerBoard Bitboard,
-	dir Dir,
-	output Bitboard,
-) Bitboard {
-	mask := PreMoveMasks[dir]
-	offset := Offsets[dir]
-
-	totalOffset := 0
-	potential := pieceBoard
-
-	for potential != 0 {
-		potential = RotateTowardsIndex64(potential&mask, offset)
-		totalOffset += offset
-
-		quiet := potential & ^blockerBoard
-		capture := potential & blockerBoard
-
-		output |= quiet | capture
-
-		potential = quiet
 	}
 
 	return output
@@ -241,10 +214,10 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NW, *moves)
 		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SW, *moves)
 
-		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Rook], b.Occupied, playerBoards.Occupied, ROOK_MAGIC_TABLE, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Bishop], b.Occupied, playerBoards.Occupied, BISHOP_MAGIC_TABLE, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Queen], b.Occupied, playerBoards.Occupied, ROOK_MAGIC_TABLE, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Queen], b.Occupied, playerBoards.Occupied, BISHOP_MAGIC_TABLE, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Rook], b.Occupied, playerBoards.Occupied, RookMagicTable, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Bishop], b.Occupied, playerBoards.Occupied, BishopMagicTable, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Queen], b.Occupied, playerBoards.Occupied, RookMagicTable, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Queen], b.Occupied, playerBoards.Occupied, BishopMagicTable, onlyCaptures, *moves)
 	}
 
 	{
@@ -284,11 +257,11 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 
 	// Bishop attacks
 	{
-		blockerBoard := BISHOP_MAGIC_TABLE.blockerMasks[startIndex] & occupied
-		magicValues := BISHOP_MAGIC_TABLE.magics[startIndex]
-		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
+		blockerBoard := BishopMagicTable.BlockerMasks[startIndex] & occupied
+		magicValues := BishopMagicTable.Magics[startIndex]
+		magicIndex := MagicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
 
-		potential := BISHOP_MAGIC_TABLE.moves[startIndex][magicIndex]
+		potential := BishopMagicTable.Moves[startIndex][magicIndex]
 		potential = potential & (enemyBitboards.Pieces[Bishop] | enemyBitboards.Pieces[Queen])
 
 		if potential != 0 {
@@ -297,11 +270,11 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	}
 	// Rook attacks
 	{
-		blockerBoard := ROOK_MAGIC_TABLE.blockerMasks[startIndex] & occupied
-		magicValues := ROOK_MAGIC_TABLE.magics[startIndex]
-		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
+		blockerBoard := RookMagicTable.BlockerMasks[startIndex] & occupied
+		magicValues := RookMagicTable.Magics[startIndex]
+		magicIndex := MagicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
 
-		potential := ROOK_MAGIC_TABLE.moves[startIndex][magicIndex]
+		potential := RookMagicTable.Moves[startIndex][magicIndex]
 		potential = potential & (enemyBitboards.Pieces[Rook] | enemyBitboards.Pieces[Queen])
 
 		if potential != 0 {

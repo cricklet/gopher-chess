@@ -610,7 +610,7 @@ func TestBlockerMasks(t *testing.T) {
 			"01110110",
 			"00000000",
 		}).String(),
-		ROOK_MAGIC_TABLE.blockerMasks[BoardIndexFromString("e2")].String())
+		RookMagicTable.BlockerMasks[BoardIndexFromString("e2")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -623,7 +623,7 @@ func TestBlockerMasks(t *testing.T) {
 			"00010000",
 			"00000000",
 		}).String(),
-		ROOK_MAGIC_TABLE.blockerMasks[BoardIndexFromString("d5")].String())
+		RookMagicTable.BlockerMasks[BoardIndexFromString("d5")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -636,7 +636,7 @@ func TestBlockerMasks(t *testing.T) {
 			"10000000",
 			"01111110",
 		}).String(),
-		ROOK_MAGIC_TABLE.blockerMasks[BoardIndexFromString("a1")].String())
+		RookMagicTable.BlockerMasks[BoardIndexFromString("a1")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -649,7 +649,7 @@ func TestBlockerMasks(t *testing.T) {
 			"00000010",
 			"00000000",
 		}).String(),
-		BISHOP_MAGIC_TABLE.blockerMasks[BoardIndexFromString("d5")].String())
+		BishopMagicTable.BlockerMasks[BoardIndexFromString("d5")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -662,7 +662,7 @@ func TestBlockerMasks(t *testing.T) {
 			"01000000",
 			"00000000",
 		}).String(),
-		BISHOP_MAGIC_TABLE.blockerMasks[BoardIndexFromString("a1")].String())
+		BishopMagicTable.BlockerMasks[BoardIndexFromString("a1")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -675,7 +675,7 @@ func TestBlockerMasks(t *testing.T) {
 			"00000010",
 			"00000000",
 		}).String(),
-		BISHOP_MAGIC_TABLE.blockerMasks[BoardIndexFromString("h1")].String())
+		BishopMagicTable.BlockerMasks[BoardIndexFromString("h1")].String())
 }
 
 func TestWhiteCastling(t *testing.T) {
