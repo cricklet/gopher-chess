@@ -1,6 +1,7 @@
 package chess
 
 import (
+	"fmt"
 	"strings"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -17,19 +18,19 @@ type GameState struct {
 }
 
 type OldGameState struct {
-	player                       Player
-	playerAndCastlingSideAllowed [2][2]bool
-	enPassantTarget              Optional[FileRank]
-	halfMoveClock                int
-	fullMoveClock                int
 }
 
 type BoardUpdate struct {
-	indices [4]int
-	pieces  [4]Piece
-	num     int
+	Indices [4]int
+	Pieces  [4]Piece
+	Num     int
 
-	old [4]Piece
+	PrevPieces                       [4]Piece
+	PrevPlayer                       Player
+	PrevPlayerAndCastlingSideAllowed [2][2]bool
+	PrevEnPassantTarget              Optional[FileRank]
+	PrevHalfMoveClock                int
+	PrevFullMoveClock                int
 }
 
 func (g *GameState) HistoryString() string {
@@ -87,10 +88,10 @@ func enPassantTarget(move Move) int {
 }
 
 func (u *BoardUpdate) Add(g *GameState, index int, piece Piece) {
-	u.indices[u.num] = index
-	u.pieces[u.num] = piece
-	u.old[u.num] = g.Board[index]
-	u.num++
+	u.Indices[u.Num] = index
+	u.Pieces[u.Num] = piece
+	u.PrevPieces[u.Num] = g.Board[index]
+	u.Num++
 }
 
 func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
@@ -140,15 +141,13 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 		}
 	}
 
-	return nil
-}
+	output.PrevPlayer = g.player
+	output.PrevPlayerAndCastlingSideAllowed = g.playerAndCastlingSideAllowed
+	output.PrevEnPassantTarget = g.enPassantTarget
+	output.PrevFullMoveClock = g.fullMoveClock
+	output.PrevHalfMoveClock = g.halfMoveClock
 
-func RecordCurrentState(g *GameState, output *OldGameState) {
-	output.player = g.player
-	output.playerAndCastlingSideAllowed = g.playerAndCastlingSideAllowed
-	output.enPassantTarget = g.enPassantTarget
-	output.fullMoveClock = g.fullMoveClock
-	output.halfMoveClock = g.halfMoveClock
+	return nil
 }
 
 func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player Player, side CastlingSide) {
@@ -165,8 +164,8 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 		g.enPassantTarget = Some(FileRankFromIndex(enPassantTarget(move)))
 	}
 
-	for i := 0; i < update.num; i++ {
-		g.Board[update.indices[i]] = update.pieces[i]
+	for i := 0; i < update.Num; i++ {
+		g.Board[update.Indices[i]] = update.Pieces[i]
 	}
 
 	g.halfMoveClock++
@@ -190,16 +189,16 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 	}
 }
 
-func (g *GameState) undoUpdate(undo OldGameState, update BoardUpdate) {
-	g.player = undo.player
-	g.playerAndCastlingSideAllowed = undo.playerAndCastlingSideAllowed
-	g.enPassantTarget = undo.enPassantTarget
-	g.fullMoveClock = undo.fullMoveClock
-	g.halfMoveClock = undo.halfMoveClock
+func (g *GameState) undoUpdate(update BoardUpdate) {
+	g.player = update.PrevPlayer
+	g.playerAndCastlingSideAllowed = update.PrevPlayerAndCastlingSideAllowed
+	g.enPassantTarget = update.PrevEnPassantTarget
+	g.fullMoveClock = update.PrevFullMoveClock
+	g.halfMoveClock = update.PrevHalfMoveClock
 
-	for i := update.num - 1; i >= 0; i-- {
-		index := update.indices[i]
-		piece := update.old[i]
+	for i := update.Num - 1; i >= 0; i-- {
+		index := update.Indices[i]
+		piece := update.PrevPieces[i]
 
 		g.Board[index] = piece
 	}
@@ -221,4 +220,106 @@ func (g *GameState) blackCanCastleKingside() bool {
 }
 func (g *GameState) blackCanCastleQueenside() bool {
 	return g.playerAndCastlingSideAllowed[Black][Queenside]
+}
+
+func (g *GameState) CreateBitboards() Bitboards {
+	result := Bitboards{}
+	for i, piece := range g.Board {
+		if piece == XX {
+			continue
+		}
+		pieceType := piece.PieceType()
+		player := piece.Player()
+		result.Players[player].Pieces[pieceType] |= SingleBitboard(i)
+
+		if piece.IsWhite() {
+			result.Occupied |= SingleBitboard(i)
+			result.Players[White].Occupied |= SingleBitboard(i)
+		}
+		if piece.IsBlack() {
+			result.Occupied |= SingleBitboard(i)
+			result.Players[Black].Occupied |= SingleBitboard(i)
+		}
+	}
+	return result
+}
+
+func (g *GameState) ApplyMoveToBitboards(b *Bitboards, move Move) error {
+	startIndex := move.StartIndex
+	endIndex := move.EndIndex
+
+	startPiece := g.Board[startIndex]
+
+	switch move.MoveType {
+	case QuietMove:
+		{
+			err := b.ClearSquare(startIndex, startPiece)
+			if err != nil {
+				return fmt.Errorf("%v: %w", move.DebugString(), err)
+			}
+			b.SetSquare(endIndex, startPiece)
+		}
+	case CaptureMove:
+		{
+			// Remove captured piece
+			endPiece := g.Board[endIndex]
+			err := b.ClearSquare(endIndex, endPiece)
+			if err != nil {
+				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(endIndex), endPiece, err)
+			}
+
+			// Move the capturing piece
+			err = b.ClearSquare(startIndex, startPiece)
+			if err != nil {
+				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
+			}
+			b.SetSquare(endIndex, startPiece)
+		}
+	case EnPassantMove:
+		{
+			capturedPlayer := startPiece.Player().Other()
+			capturedBackwards := N
+			if capturedPlayer == Black {
+				capturedBackwards = S
+			}
+
+			captureIndex := endIndex + Offsets[capturedBackwards]
+			capturePiece := g.Board[captureIndex]
+
+			err := b.ClearSquare(captureIndex, capturePiece)
+			if err != nil {
+				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(captureIndex), capturePiece, err)
+			}
+			err = b.ClearSquare(startIndex, startPiece)
+			if err != nil {
+				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
+			}
+			b.SetSquare(endIndex, startPiece)
+		}
+	case CastlingMove:
+		{
+			rookStartIndex, rookEndIndex, err := RookMoveForCastle(startIndex, endIndex)
+			if err != nil {
+				return err
+			}
+			rookPiece := g.Board[rookStartIndex]
+
+			err = b.ClearSquare(startIndex, startPiece)
+			if err != nil {
+				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
+			}
+			b.SetSquare(endIndex, startPiece)
+
+			err = b.ClearSquare(rookStartIndex, rookPiece)
+			if err != nil {
+				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(rookStartIndex), rookPiece, err)
+			}
+			err = b.ClearSquare(rookEndIndex, rookPiece)
+			if err != nil {
+				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(rookEndIndex), rookPiece, err)
+			}
+		}
+	}
+
+	return nil
 }

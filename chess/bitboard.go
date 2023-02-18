@@ -477,28 +477,6 @@ func BitboardFromStrings(strings [8]string) Bitboard {
 	return b
 }
 
-func SetupBitboards(g *GameState) Bitboards {
-	result := Bitboards{}
-	for i, piece := range g.Board {
-		if piece == XX {
-			continue
-		}
-		pieceType := piece.PieceType()
-		player := piece.Player()
-		result.Players[player].Pieces[pieceType] |= SingleBitboard(i)
-
-		if piece.IsWhite() {
-			result.Occupied |= SingleBitboard(i)
-			result.Players[White].Occupied |= SingleBitboard(i)
-		}
-		if piece.IsBlack() {
-			result.Occupied |= SingleBitboard(i)
-			result.Players[Black].Occupied |= SingleBitboard(i)
-		}
-	}
-	return result
-}
-
 func (b Bitboard) LeastSignificantOne() Bitboard {
 	return b & -b
 }
@@ -534,91 +512,11 @@ func (b *Bitboards) SetSquare(index int, piece Piece) {
 	b.Players[player].Pieces[pieceType] |= oneBitboard
 }
 
-func (b *Bitboards) PerformMove(originalState *GameState, move Move) error {
-	startIndex := move.StartIndex
-	endIndex := move.EndIndex
-
-	startPiece := originalState.Board[startIndex]
-
-	switch move.MoveType {
-	case QuietMove:
-		{
-			err := b.ClearSquare(startIndex, startPiece)
-			if err != nil {
-				return fmt.Errorf("%v: %w", move.DebugString(), err)
-			}
-			b.SetSquare(endIndex, startPiece)
-		}
-	case CaptureMove:
-		{
-			// Remove captured piece
-			endPiece := originalState.Board[endIndex]
-			err := b.ClearSquare(endIndex, endPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(endIndex), endPiece, err)
-			}
-
-			// Move the capturing piece
-			err = b.ClearSquare(startIndex, startPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
-			}
-			b.SetSquare(endIndex, startPiece)
-		}
-	case EnPassantMove:
-		{
-			capturedPlayer := startPiece.Player().Other()
-			capturedBackwards := N
-			if capturedPlayer == Black {
-				capturedBackwards = S
-			}
-
-			captureIndex := endIndex + Offsets[capturedBackwards]
-			capturePiece := originalState.Board[captureIndex]
-
-			err := b.ClearSquare(captureIndex, capturePiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(captureIndex), capturePiece, err)
-			}
-			err = b.ClearSquare(startIndex, startPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
-			}
-			b.SetSquare(endIndex, startPiece)
-		}
-	case CastlingMove:
-		{
-			rookStartIndex, rookEndIndex, err := RookMoveForCastle(startIndex, endIndex)
-			if err != nil {
-				return err
-			}
-			rookPiece := originalState.Board[rookStartIndex]
-
-			err = b.ClearSquare(startIndex, startPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
-			}
-			b.SetSquare(endIndex, startPiece)
-
-			err = b.ClearSquare(rookStartIndex, rookPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(rookStartIndex), rookPiece, err)
-			}
-			err = b.ClearSquare(rookEndIndex, rookPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(rookEndIndex), rookPiece, err)
-			}
-		}
-	}
-
-	return nil
-}
-
 func (b *Bitboards) UndoUpdate(update BoardUpdate) error {
-	for i := update.num - 1; i >= 0; i-- {
-		index := update.indices[i]
-		current := update.pieces[i]
-		previous := update.old[i]
+	for i := update.Num - 1; i >= 0; i-- {
+		index := update.Indices[i]
+		current := update.Pieces[i]
+		previous := update.PrevPieces[i]
 
 		if current == XX {
 			if previous == XX {

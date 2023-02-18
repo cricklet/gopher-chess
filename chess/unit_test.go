@@ -248,7 +248,7 @@ func TestBitboardSetup(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, WN, WR,
 	}.AsBoardArray().String())
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 	assert.Equal(t, bitboards.Occupied.String(), strings.Join([]string{
 		"11111111",
 		"11111111",
@@ -356,7 +356,7 @@ func TestEvaluation(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 	assert.Equal(t, strings.Join([]string{
 		"    k   ",
 		"  R     ",
@@ -389,7 +389,7 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, WN, WR,
 	}.AsBoardArray().String())
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 
 	result := []string{}
 	moves := GetMovesBuffer()
@@ -471,7 +471,7 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 
 	assert.Equal(t, g.enPassantTarget.Value().String(), "g6")
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 
 	result := []string{}
 
@@ -687,7 +687,7 @@ func TestWhiteCastling(t *testing.T) {
 	assert.Equal(t, White, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 
 	result := []string{}
 
@@ -783,7 +783,7 @@ func TestBlackCastling(t *testing.T) {
 	assert.Equal(t, Black, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 
 	result := []string{}
 
@@ -872,7 +872,7 @@ func TestAttackMap(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 
 	assert.Equal(t, strings.Join([]string{
 		"r   k  r",
@@ -971,7 +971,7 @@ func TestCheck(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 
 	assert.Equal(t, strings.Join([]string{
 		"r   k  r",
@@ -1013,7 +1013,7 @@ func TestPin(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	bitboards := SetupBitboards(&g)
+	bitboards := g.CreateBitboards()
 
 	assert.Equal(t, strings.Join([]string{
 		"     k  ",
@@ -1165,14 +1165,12 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 
 	for _, move := range *moves {
 		update := BoardUpdate{}
-		previous := OldGameState{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
 			t.Error(fmt.Errorf("setup %v, %v: %w", g.FenString(), move, err))
 		}
-		RecordCurrentState(g, &previous)
 
-		err = b.PerformMove(g, move)
+		err = g.ApplyMoveToBitboards(b, move)
 		if err != nil {
 			t.Error(fmt.Errorf("perform %v, %v: %w", g.FenString(), move, err))
 		}
@@ -1184,7 +1182,7 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 		if err != nil {
 			t.Error(fmt.Errorf("undo %v, %v: %w", g.FenString(), move, err))
 		}
-		g.undoUpdate(previous, update)
+		g.undoUpdate(update)
 
 		num += countUnderMove
 
@@ -1365,7 +1363,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 
 	g, err := GamestateFromFenString(initialState.fen)
 	assert.Nil(t, err)
-	b := SetupBitboards(&g)
+	b := g.CreateBitboards()
 
 	for _, move := range initialState.moves {
 		update := BoardUpdate{}
@@ -1373,7 +1371,8 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 		if err != nil {
 			t.Error(fmt.Errorf("setup %v => %v: %w", g.FenString(), move, err))
 		}
-		err = b.PerformMove(&g, move)
+
+		err = g.ApplyMoveToBitboards(&b, move)
 		if err != nil {
 			t.Error(fmt.Errorf("perform %v => %v: %w", g.FenString(), move, err))
 		}
@@ -1404,15 +1403,13 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 		} else {
 			move := g.MoveFromString(search.move)
 
-			update, previous := BoardUpdate{}, OldGameState{}
+			update := BoardUpdate{}
 			err := SetupBoardUpdate(&g, move, &update)
 			if err != nil {
 				t.Error(fmt.Errorf("setup %v => %v: %w", g.FenString(), move, err))
 			}
 
-			RecordCurrentState(&g, &previous)
-
-			err = b.PerformMove(&g, move)
+			err = g.ApplyMoveToBitboards(&b, move)
 			if err != nil {
 				t.Error(fmt.Errorf("perform %v => %v: %w", g.FenString(), move, err))
 			}
@@ -1429,7 +1426,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 			if err != nil {
 				t.Error(fmt.Errorf("undo %v => %v: %w", g.FenString(), move, err))
 			}
-			g.undoUpdate(previous, update)
+			g.undoUpdate(update)
 		}
 	}
 
@@ -1478,7 +1475,7 @@ func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 	for depth, expectedCount := range EXPECTED_COUNT {
 		g, err := GamestateFromFenString(s)
 		assert.Nil(t, err)
-		b := SetupBitboards(&g)
+		b := g.CreateBitboards()
 		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
@@ -1533,7 +1530,7 @@ func TestMovesAtDepth(t *testing.T) {
 	for depth, expectedCount := range EXPECTED_COUNT {
 		g, err := GamestateFromFenString(s)
 		assert.Nil(t, err)
-		b := SetupBitboards(&g)
+		b := g.CreateBitboards()
 		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)
@@ -1541,7 +1538,7 @@ func TestMovesAtDepth(t *testing.T) {
 	for depth, expectedCount := range EXPECTED_COUNT {
 		g, err := GamestateFromFenString(s)
 		assert.Nil(t, err)
-		b := SetupBitboards(&g)
+		b := g.CreateBitboards()
 		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualCount)

@@ -381,7 +381,7 @@ func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) e
 			return fmt.Errorf("generateLegalMoves: %w", err)
 		}
 
-		err = b.PerformMove(g, move)
+		err = g.ApplyMoveToBitboards(b, move)
 		if err != nil {
 			return &BoardCorrupted{err}
 		}

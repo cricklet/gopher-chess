@@ -19,9 +19,8 @@ type Runner struct {
 }
 
 type HistoryValue struct {
-	move     Move
-	update   BoardUpdate
-	previous OldGameState
+	move   Move
+	update BoardUpdate
 }
 
 func (r *Runner) IsNew() bool {
@@ -45,7 +44,7 @@ func (r *Runner) Rewind(num int) error {
 		if err != nil {
 			return fmt.Errorf("Rewind: %w", err)
 		}
-		r.g.undoUpdate(h.previous, h.update)
+		r.g.undoUpdate(h.update)
 		r.history = r.history[:len(r.history)-1]
 	}
 	return nil
@@ -61,9 +60,8 @@ func (r *Runner) PerformMove(move Move) error {
 	if err != nil {
 		return fmt.Errorf("PerformMove: %w", err)
 	}
-	RecordCurrentState(r.g, &h.previous)
 
-	err = r.b.PerformMove(r.g, move)
+	err = r.g.ApplyMoveToBitboards(r.b, move)
 	if err != nil {
 		return fmt.Errorf("PerformMove: %w", err)
 	}
@@ -118,7 +116,7 @@ func (r *Runner) SetupPosition(position Position) error {
 	}
 	r.g = &game
 
-	bitboards := SetupBitboards(r.g)
+	bitboards := r.g.CreateBitboards()
 	r.b = &bitboards
 
 	r.startPos = position.fen

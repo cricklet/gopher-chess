@@ -33,15 +33,12 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 		}
 
 		update := BoardUpdate{}
-		previous := OldGameState{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("setup evaluateCapturesInner %v: %w", move.String(), err)
 		}
 
-		RecordCurrentState(g, &previous)
-
-		err = b.PerformMove(g, move)
+		err = g.ApplyMoveToBitboards(b, move)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("perform evaluateCapturesInner %v: %w", move.String(), err)
 		}
@@ -60,7 +57,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
 		}
-		g.undoUpdate(previous, update)
+		g.undoUpdate(update)
 
 		currentScore := -enemyScore
 		if currentScore >= enemyCanForceScore {
@@ -114,17 +111,15 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 
 	for _, move := range *moves {
 		update := BoardUpdate{}
-		previous := OldGameState{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("setup evaluateSearch %v: %w", move.String(), err)
 		}
-		RecordCurrentState(g, &previous)
 
 		str := g.Board.String()
 		Ignore(str)
 
-		err = b.PerformMove(g, move)
+		err = g.ApplyMoveToBitboards(b, move)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("perform evaluateSearch %v: %w", move.String(), err)
 		}
@@ -154,7 +149,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("undo evaluateSearch %v: %w", move.String(), err)
 		}
-		g.undoUpdate(previous, update)
+		g.undoUpdate(update)
 
 		currentScore := -enemyScore
 		if currentScore >= enemyCanForceScore {
@@ -184,14 +179,13 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 	startTime := time.Now()
 
 	for i, move := range *moves {
-		update, previous := BoardUpdate{}, OldGameState{}
+		update := BoardUpdate{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
 			return Empty[Move](), fmt.Errorf("setup Search %v => %v: %w", g.FenString(), move.String(), err)
 		}
-		RecordCurrentState(g, &previous)
 
-		err = b.PerformMove(g, move)
+		err = g.ApplyMoveToBitboards(b, move)
 		if err != nil {
 			return Empty[Move](), fmt.Errorf("perform Search %v => %v: %w", g.FenString(), move.String(), err)
 		}
@@ -211,7 +205,7 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		if err != nil {
 			return Empty[Move](), fmt.Errorf("undo Search %v => %v: %w", g.FenString(), move.String(), err)
 		}
-		g.undoUpdate(previous, update)
+		g.undoUpdate(update)
 
 		currentScore := -enemyScore
 		logger.Println(i, "/", len(*moves), "searched", result.totalSearched, "with initial search", result.totalSearched-result.quiescenceSearched, "and ending captures", result.quiescenceSearched, "under", move.String(), "and found score", currentScore)
