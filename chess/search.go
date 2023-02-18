@@ -8,6 +8,7 @@ import (
 	. "github.com/cricklet/chessgo/internal/fen"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	. "github.com/cricklet/chessgo/internal/search"
 	"github.com/pkg/profile"
 )
 
@@ -24,7 +25,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 	GenerateSortedPseudoCaptures(b, g, moves)
 
 	if len(*moves) == 0 {
-		score := evaluate(b, g.Player)
+		score := Evaluate(b, g.Player)
 		return SearchResult{score, 1, 1}, nil
 	}
 
@@ -74,7 +75,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 }
 
 func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
-	standPat := evaluate(b, g.Player)
+	standPat := Evaluate(b, g.Player)
 	if standPat > enemyCanForceScore {
 		return SearchResult{enemyCanForceScore, 1, 1}, nil
 	} else if standPat > playerCanForceScore {
@@ -96,7 +97,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 	}
 
 	if depth == 0 {
-		score := evaluate(b, g.Player)
+		score := Evaluate(b, g.Player)
 		return SearchResult{score, 1, 0}, nil
 	}
 

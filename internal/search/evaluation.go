@@ -1,4 +1,4 @@
-package chess
+package search
 
 import (
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -11,9 +11,9 @@ type EvaluationBitboard struct {
 	b          Bitboard
 }
 
-var DEVELOPMENT_SCALE = 10
+var _developmentScale = 10
 
-var ROOK_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
+var RookDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{0, 0, 0, 0, 0, 0, 0, 0},
 	{1, 2, 2, 2, 2, 2, 2, 1},
 	{-1, 0, 0, 0, 0, 0, 0, -1},
@@ -22,9 +22,9 @@ var ROOK_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{0, 0, 0, 2, 2, 0, 0, 0},
-}, DEVELOPMENT_SCALE)
+}, _developmentScale)
 
-var PAWN_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
+var PawnDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{4, 4, 4, 4, 4, 4, 4, 4},
 	{3, 3, 3, 4, 4, 3, 3, 3},
 	{2, 2, 2, 3, 3, 2, 2, 2},
@@ -33,9 +33,9 @@ var PAWN_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{0, 0, 0, 2, 2, 0, 0, 0},
 	{0, 0, 0, 0, 0, 0, 0, 0},
 	{0, 0, 0, 0, 0, 0, 0, 0},
-}, DEVELOPMENT_SCALE)
+}, _developmentScale)
 
-var BISHOP_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
+var BishopDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{-1, -1, -1, -1, -1, -1, -1, -1},
 	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{-1, 0, 1, 2, 2, 1, 0, -1},
@@ -44,8 +44,8 @@ var BISHOP_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{-1, 2, 2, 2, 2, 2, 2, -1},
 	{-1, 1, 0, 0, 0, 0, 1, -1},
 	{-1, -1, -1, -1, -1, -1, -1, -1},
-}, DEVELOPMENT_SCALE)
-var KNIGHT_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
+}, _developmentScale)
+var KnightDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{-2, -2, -2, -2, -2, -2, -2, -2},
 	{-2, -1, 0, 0, 0, 0, -1, -2},
 	{-2, 0, 1, 2, 2, 1, 0, -2},
@@ -54,8 +54,8 @@ var KNIGHT_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{-2, 1, 1, 2, 2, 1, 1, -2},
 	{-2, -1, 0, 0, 0, 0, -1, -2},
 	{-2, -2, -2, -2, -2, -2, -2, -2},
-}, DEVELOPMENT_SCALE)
-var QUEEN_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
+}, _developmentScale)
+var QueenDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{-2, -2, -2, -1, -1, -2, -2, -2},
 	{-2, 0, 0, 0, 0, 0, 0, -2},
 	{-2, 0, 1, 1, 1, 1, 0, -2},
@@ -64,21 +64,21 @@ var QUEEN_DEVELOPMENT_BITBOARDS = evaluationsPerPlayer([8][8]int{
 	{-2, 0, 1, 1, 1, 1, 0, -2},
 	{-2, 0, 1, 0, 0, 1, 0, -2},
 	{-2, -2, -2, -1, -1, -2, -2, -20},
-}, DEVELOPMENT_SCALE)
+}, _developmentScale)
 
-var NULL_DEVELOPMENT_BITBOARDS = [2][]EvaluationBitboard{
+var NullDevelopmentBitboards = [2][]EvaluationBitboard{
 	{},
 	{},
 }
 
-var DEVELOPMENT_BITBOARDS = [][2][]EvaluationBitboard{
-	ROOK_DEVELOPMENT_BITBOARDS,
-	KNIGHT_DEVELOPMENT_BITBOARDS,
-	BISHOP_DEVELOPMENT_BITBOARDS,
-	NULL_DEVELOPMENT_BITBOARDS,
-	QUEEN_DEVELOPMENT_BITBOARDS,
-	PAWN_DEVELOPMENT_BITBOARDS,
-	NULL_DEVELOPMENT_BITBOARDS,
+var AllDevelopmentBitboards = [][2][]EvaluationBitboard{
+	RookDevelopmentBitboards,
+	KnightDevelopmentBitboards,
+	BishopDevelopmentBitboards,
+	NullDevelopmentBitboards,
+	QueenDevelopmentBitboards,
+	PawnDevelopmentBitboards,
+	NullDevelopmentBitboards,
 }
 
 func bitboardFromArray(lookup int, array [8][8]int) Bitboard {
@@ -126,17 +126,17 @@ func evaluateDevelopmentForPiece(b Bitboard, e []EvaluationBitboard) int {
 	return result
 }
 
-func evaluateDevelopment(b *Bitboards, player Player) int {
+func EvaluateDevelopment(b *Bitboards, player Player) int {
 	development := 0
-	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Rook], ROOK_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Knight], KNIGHT_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Bishop], BISHOP_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Queen], QUEEN_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Pawn], PAWN_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Rook], RookDevelopmentBitboards[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Knight], KnightDevelopmentBitboards[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Bishop], BishopDevelopmentBitboards[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Queen], QueenDevelopmentBitboards[player])
+	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Pawn], PawnDevelopmentBitboards[player])
 	return development
 }
 
-func evaluate(b *Bitboards, player Player) int {
+func Evaluate(b *Bitboards, player Player) int {
 	enemy := player.Other()
 
 	pieceValues :=
@@ -153,13 +153,13 @@ func evaluate(b *Bitboards, player Player) int {
 			900*OnesCount(b.Players[enemy].Pieces[Queen]) +
 			100*OnesCount(b.Players[enemy].Pieces[Pawn])
 
-	developmentValues := evaluateDevelopment(b, player)
-	enemyDevelopmentValues := evaluateDevelopment(b, enemy)
+	developmentValues := EvaluateDevelopment(b, player)
+	enemyDevelopmentValues := EvaluateDevelopment(b, enemy)
 
 	return pieceValues + developmentValues - enemyValues - enemyDevelopmentValues
 }
 
-var PIECE_SCORES = []int{
+var _pieceScores = []int{
 	500,
 	300,
 	350,
@@ -170,7 +170,7 @@ var PIECE_SCORES = []int{
 }
 
 func pieceScore(g *GameState, index int) int {
-	return PIECE_SCORES[g.Board[index].PieceType()]
+	return _pieceScores[g.Board[index].PieceType()]
 }
 
 func EvaluateMove(m *Move, g *GameState) int {
@@ -187,11 +187,11 @@ func EvaluateMove(m *Move, g *GameState) int {
 
 	startDevelopment := evaluateDevelopmentForPiece(
 		SingleBitboard(m.EndIndex),
-		DEVELOPMENT_BITBOARDS[g.Board[m.StartIndex].PieceType()][g.Player])
+		AllDevelopmentBitboards[g.Board[m.StartIndex].PieceType()][g.Player])
 	endDevelopment :=
 		evaluateDevelopmentForPiece(
 			SingleBitboard(m.StartIndex),
-			DEVELOPMENT_BITBOARDS[g.Board[m.StartIndex].PieceType()][g.Player])
+			AllDevelopmentBitboards[g.Board[m.StartIndex].PieceType()][g.Player])
 
 	score += startDevelopment - endDevelopment
 	return score

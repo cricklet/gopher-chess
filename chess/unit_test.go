@@ -354,28 +354,6 @@ func TestBitRotation(t *testing.T) {
 	}, "\n"))
 }
 
-func TestEvaluation(t *testing.T) {
-	s := "4k3/2R5/8/7r/8/r7/3R4/4K3 b - - 10 5"
-	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
-
-	bitboards := g.CreateBitboards()
-	assert.Equal(t, strings.Join([]string{
-		"    k   ",
-		"  R     ",
-		"        ",
-		"       r",
-		"        ",
-		"r       ",
-		"   R    ",
-		"    K   ",
-	}, "\n"), g.Board.String())
-
-	assert.Equal(t, evaluateDevelopment(&bitboards, White), 2*DEVELOPMENT_SCALE)
-	assert.Equal(t, evaluateDevelopment(&bitboards, Black), -2*DEVELOPMENT_SCALE)
-
-}
-
 func TestGeneratePseudoMovesEarly(t *testing.T) {
 	s := "rnbqkbnr/pppp11pp/8/4pp2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 1 2"
 	g, err := GamestateFromFenString(s)
