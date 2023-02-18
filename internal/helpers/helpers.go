@@ -1,5 +1,10 @@
 package helpers
 
+import (
+	"path/filepath"
+	"runtime"
+)
+
 type Success bool
 
 func Ignore(t any) {
@@ -112,4 +117,13 @@ func FlipArray(array [8][8]int) [8][8]int {
 		}
 	}
 	return result
+}
+
+var (
+	_, b, _, _ = runtime.Caller(0)
+	_basepath  = filepath.Join(filepath.Dir(b), "../..")
+)
+
+func RootDir() string {
+	return _basepath
 }

@@ -217,7 +217,7 @@ func serve() {
 	}
 
 	var index = func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "../static/index.html")
+		http.ServeFile(w, r, "./static/index.html")
 	}
 
 	log.Println("serving")
@@ -225,7 +225,7 @@ func serve() {
 	router := mux.NewRouter()
 	router.HandleFunc("/ws", ws)
 	router.PathPrefix("/static").Handler(
-		http.StripPrefix("/static", http.FileServer(http.Dir("../static"))))
+		http.StripPrefix("/static", http.FileServer(http.Dir("./static"))))
 	router.PathPrefix("/white/fen").HandlerFunc(index)
 	router.PathPrefix("/black/fen").HandlerFunc(index)
 	router.HandleFunc("/", index)
