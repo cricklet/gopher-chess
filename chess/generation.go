@@ -355,7 +355,7 @@ func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) er
 			return fmt.Errorf("GenerateLegalMoves: %w", err)
 		}
 
-		err = g.ApplyMoveToBitboards(b, move)
+		err = g.performMove(move, &update, b)
 		if err != nil {
 			return &BoardCorrupted{err}
 		}
@@ -363,7 +363,7 @@ func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) er
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 
-		err = b.UndoUpdate(update)
+		err = g.undoUpdate(&update, b)
 		if err != nil {
 			return fmt.Errorf("GenerateLegalMoves: %w", err)
 		}

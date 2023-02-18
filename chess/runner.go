@@ -41,11 +41,10 @@ func (r *Runner) LastHistory() *HistoryValue {
 func (r *Runner) Rewind(num int) error {
 	for i := 0; i < MinInt(num, len(r.history)); i++ {
 		h := r.history[len(r.history)-1]
-		err := r.b.UndoUpdate(h.update)
+		err := r.g.undoUpdate(&h.update, r.b)
 		if err != nil {
 			return fmt.Errorf("Rewind: %w", err)
 		}
-		r.g.undoUpdate(h.update)
 		r.history = r.history[:len(r.history)-1]
 	}
 	return nil
@@ -62,12 +61,10 @@ func (r *Runner) PerformMove(move Move) error {
 		return fmt.Errorf("PerformMove: %w", err)
 	}
 
-	err = r.g.ApplyMoveToBitboards(r.b, move)
+	err = r.g.performMove(move, &h.update, r.b)
 	if err != nil {
 		return fmt.Errorf("PerformMove: %w", err)
 	}
-
-	r.g.performMove(move, h.update)
 
 	return nil
 }

@@ -1171,19 +1171,17 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 			t.Error(fmt.Errorf("setup %v, %v: %w", g.FenString(), move, err))
 		}
 
-		err = g.ApplyMoveToBitboards(b, move)
+		err = g.performMove(move, &update, b)
 		if err != nil {
 			t.Error(fmt.Errorf("perform %v, %v: %w", g.FenString(), move, err))
 		}
-		g.performMove(move, update)
 
 		countUnderMove := countAndPerftForDepth(t, g, b, n-1, nil, nil)
 
-		err = b.UndoUpdate(update)
+		err = g.undoUpdate(&update, b)
 		if err != nil {
 			t.Error(fmt.Errorf("undo %v, %v: %w", g.FenString(), move, err))
 		}
-		g.undoUpdate(update)
 
 		num += countUnderMove
 
@@ -1373,12 +1371,10 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 			t.Error(fmt.Errorf("setup %v => %v: %w", g.FenString(), move, err))
 		}
 
-		err = g.ApplyMoveToBitboards(&b, move)
+		err = g.performMove(move, &update, &b)
 		if err != nil {
 			t.Error(fmt.Errorf("perform %v => %v: %w", g.FenString(), move, err))
 		}
-
-		g.performMove(move, update)
 	}
 
 	assert.Equal(t, g.FenString(), initialState.expectedFen)
@@ -1410,11 +1406,10 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 				t.Error(fmt.Errorf("setup %v => %v: %w", g.FenString(), move, err))
 			}
 
-			err = g.ApplyMoveToBitboards(&b, move)
+			err = g.performMove(move, &update, &b)
 			if err != nil {
 				t.Error(fmt.Errorf("perform %v => %v: %w", g.FenString(), move, err))
 			}
-			g.performMove(move, update)
 
 			result = append(result, findInvalidMoves(t,
 				InitialState{
@@ -1423,11 +1418,10 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 					g.FenString(),
 				}, maxDepth-1)...)
 
-			err = b.UndoUpdate(update)
+			err = g.undoUpdate(&update, &b)
 			if err != nil {
 				t.Error(fmt.Errorf("undo %v => %v: %w", g.FenString(), move, err))
 			}
-			g.undoUpdate(update)
 		}
 	}
 

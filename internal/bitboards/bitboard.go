@@ -511,30 +511,3 @@ func (b *Bitboards) SetSquare(index int, piece Piece) {
 	b.Players[player].Occupied |= oneBitboard
 	b.Players[player].Pieces[pieceType] |= oneBitboard
 }
-
-func (b *Bitboards) UndoUpdate(update BoardUpdate) error {
-	for i := update.Num - 1; i >= 0; i-- {
-		index := update.Indices[i]
-		current := update.Pieces[i]
-		previous := update.PrevPieces[i]
-
-		if current == XX {
-			if previous == XX {
-			} else {
-				b.SetSquare(index, previous)
-			}
-		} else {
-			var err error
-			if previous == XX {
-				err = b.ClearSquare(index, current)
-			} else {
-				err = b.ClearSquare(index, current)
-				b.SetSquare(index, previous)
-			}
-			if err != nil {
-				return fmt.Errorf("undo %v %v %v: %w", StringFromBoardIndex(index), current, previous, err)
-			}
-		}
-	}
-	return nil
-}

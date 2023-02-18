@@ -134,7 +134,12 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 	}
 }
 
-func (g *GameState) performMove(move Move, update BoardUpdate) {
+func (g *GameState) performMove(move Move, update *BoardUpdate, b *Bitboards) error {
+	err := g.applyMoveToBitboards(b, move)
+	if err != nil {
+		return err
+	}
+
 	startPiece := g.Board[move.StartIndex]
 
 	g.EnPassantTarget = Empty[FileRank]()
@@ -165,64 +170,11 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 		g.PlayerAndCastlingSideAllowed[g.Player][Kingside] = false
 		g.PlayerAndCastlingSideAllowed[g.Player][Queenside] = false
 	}
+
+	return nil
 }
 
-func (g *GameState) undoUpdate(update BoardUpdate) {
-	g.Player = update.PrevPlayer
-	g.PlayerAndCastlingSideAllowed = update.PrevPlayerAndCastlingSideAllowed
-	g.EnPassantTarget = update.PrevEnPassantTarget
-	g.FullMoveClock = update.PrevFullMoveClock
-	g.HalfMoveClock = update.PrevHalfMoveClock
-
-	for i := update.Num - 1; i >= 0; i-- {
-		index := update.Indices[i]
-		piece := update.PrevPieces[i]
-
-		g.Board[index] = piece
-	}
-
-	g.MoveHistoryForDebugging = g.MoveHistoryForDebugging[:len(g.MoveHistoryForDebugging)-1]
-}
-func (g *GameState) enemy() Player {
-	return g.Player.Other()
-}
-
-func (g *GameState) whiteCanCastleKingside() bool {
-	return g.PlayerAndCastlingSideAllowed[White][Kingside]
-}
-func (g *GameState) whiteCanCastleQueenside() bool {
-	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
-}
-func (g *GameState) blackCanCastleKingside() bool {
-	return g.PlayerAndCastlingSideAllowed[White][Kingside]
-}
-func (g *GameState) blackCanCastleQueenside() bool {
-	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
-}
-
-func (g *GameState) CreateBitboards() Bitboards {
-	result := Bitboards{}
-	for i, piece := range g.Board {
-		if piece == XX {
-			continue
-		}
-		pieceType := piece.PieceType()
-		player := piece.Player()
-		result.Players[player].Pieces[pieceType] |= SingleBitboard(i)
-
-		if piece.IsWhite() {
-			result.Occupied |= SingleBitboard(i)
-			result.Players[White].Occupied |= SingleBitboard(i)
-		}
-		if piece.IsBlack() {
-			result.Occupied |= SingleBitboard(i)
-			result.Players[Black].Occupied |= SingleBitboard(i)
-		}
-	}
-	return result
-}
-
-func (g *GameState) ApplyMoveToBitboards(b *Bitboards, move Move) error {
+func (g *GameState) applyMoveToBitboards(b *Bitboards, move Move) error {
 	startIndex := move.StartIndex
 	endIndex := move.EndIndex
 
@@ -300,4 +252,93 @@ func (g *GameState) ApplyMoveToBitboards(b *Bitboards, move Move) error {
 	}
 
 	return nil
+}
+
+func (g *GameState) undoUpdate(update *BoardUpdate, b *Bitboards) error {
+	err := g.applyUndoToBitboards(update, b)
+	if err != nil {
+		return err
+	}
+
+	g.Player = update.PrevPlayer
+	g.PlayerAndCastlingSideAllowed = update.PrevPlayerAndCastlingSideAllowed
+	g.EnPassantTarget = update.PrevEnPassantTarget
+	g.FullMoveClock = update.PrevFullMoveClock
+	g.HalfMoveClock = update.PrevHalfMoveClock
+
+	for i := update.Num - 1; i >= 0; i-- {
+		index := update.Indices[i]
+		piece := update.PrevPieces[i]
+
+		g.Board[index] = piece
+	}
+
+	g.MoveHistoryForDebugging = g.MoveHistoryForDebugging[:len(g.MoveHistoryForDebugging)-1]
+	return nil
+}
+
+func (g *GameState) applyUndoToBitboards(update *BoardUpdate, b *Bitboards) error {
+	for i := update.Num - 1; i >= 0; i-- {
+		index := update.Indices[i]
+		current := update.Pieces[i]
+		previous := update.PrevPieces[i]
+
+		if current == XX {
+			if previous == XX {
+			} else {
+				b.SetSquare(index, previous)
+			}
+		} else {
+			var err error
+			if previous == XX {
+				err = b.ClearSquare(index, current)
+			} else {
+				err = b.ClearSquare(index, current)
+				b.SetSquare(index, previous)
+			}
+			if err != nil {
+				return fmt.Errorf("undo %v %v %v: %w", StringFromBoardIndex(index), current, previous, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (g *GameState) enemy() Player {
+	return g.Player.Other()
+}
+
+func (g *GameState) whiteCanCastleKingside() bool {
+	return g.PlayerAndCastlingSideAllowed[White][Kingside]
+}
+func (g *GameState) whiteCanCastleQueenside() bool {
+	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
+}
+func (g *GameState) blackCanCastleKingside() bool {
+	return g.PlayerAndCastlingSideAllowed[White][Kingside]
+}
+func (g *GameState) blackCanCastleQueenside() bool {
+	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
+}
+
+func (g *GameState) CreateBitboards() Bitboards {
+	result := Bitboards{}
+	for i, piece := range g.Board {
+		if piece == XX {
+			continue
+		}
+		pieceType := piece.PieceType()
+		player := piece.Player()
+		result.Players[player].Pieces[pieceType] |= SingleBitboard(i)
+
+		if piece.IsWhite() {
+			result.Occupied |= SingleBitboard(i)
+			result.Players[White].Occupied |= SingleBitboard(i)
+		}
+		if piece.IsBlack() {
+			result.Occupied |= SingleBitboard(i)
+			result.Players[Black].Occupied |= SingleBitboard(i)
+		}
+	}
+	return result
 }
