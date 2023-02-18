@@ -193,7 +193,10 @@ func serve() {
 
 				performMove()
 			} else if message.Rewind != nil {
-				runner.Rewind(*message.Rewind)
+				err := runner.Rewind(*message.Rewind)
+				if err != nil {
+					runner.Logger.Println("rewind %v: ", message.Rewind, err) // TODO reset
+				}
 			}
 
 			finalizeUpdate(update)
