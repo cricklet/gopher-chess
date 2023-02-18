@@ -5,6 +5,7 @@ import (
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/pkg/profile"
 )
@@ -12,7 +13,7 @@ import (
 var INF int = 999999
 
 func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
-	if KingIsInCheck(b, g.enemy(), g.Player) {
+	if KingIsInCheck(b, g.Enemy(), g.Player) {
 		return SearchResult{INF, 1, 1}, nil
 	}
 
@@ -39,7 +40,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 			return SearchResult{}, fmt.Errorf("setup evaluateCapturesInner %v: %w", move.String(), err)
 		}
 
-		err = g.performMove(move, &update, b)
+		err = g.PerformMove(move, &update, b)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("perform evaluateCapturesInner %v: %w", move.String(), err)
 		}
@@ -53,7 +54,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 		enemyScore := result.score
 		totalSearched += result.quiescenceSearched
 
-		err = g.undoUpdate(&update, b)
+		err = g.UndoUpdate(&update, b)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
 		}
@@ -89,7 +90,7 @@ type SearchResult struct {
 }
 
 func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int, depth int) (SearchResult, error) {
-	if KingIsInCheck(b, g.enemy(), g.Player) {
+	if KingIsInCheck(b, g.Enemy(), g.Player) {
 		return SearchResult{INF, 1, 0}, nil
 	}
 
@@ -118,7 +119,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		str := g.Board.String()
 		Ignore(str)
 
-		err = g.performMove(move, &update, b)
+		err = g.PerformMove(move, &update, b)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("perform evaluateSearch %v: %w", move.String(), err)
 		}
@@ -142,7 +143,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		totalSearched += result.totalSearched
 		quiescenceSearched += result.quiescenceSearched
 
-		err = g.undoUpdate(&update, b)
+		err = g.UndoUpdate(&update, b)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("undo evaluateSearch %v: %w", move.String(), err)
 		}
@@ -178,27 +179,27 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		update := BoardUpdate{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
-			return Empty[Move](), fmt.Errorf("setup Search %v => %v: %w", g.FenString(), move.String(), err)
+			return Empty[Move](), fmt.Errorf("setup Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
-		err = g.performMove(move, &update, b)
+		err = g.PerformMove(move, &update, b)
 		if err != nil {
-			return Empty[Move](), fmt.Errorf("perform Search %v => %v: %w", g.FenString(), move.String(), err)
+			return Empty[Move](), fmt.Errorf("perform Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
 		result, err := evaluateSearch(g, b,
 			-INF, INF, depth)
 		if err != nil {
-			return Empty[Move](), fmt.Errorf("evaluate Search %v => %v: %w", g.FenString(), move.String(), err)
+			return Empty[Move](), fmt.Errorf("evaluate Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
 		enemyScore := result.score
 		totalSearched += result.totalSearched
 		quiescenceSearched += result.quiescenceSearched
 
-		err = g.undoUpdate(&update, b)
+		err = g.UndoUpdate(&update, b)
 		if err != nil {
-			return Empty[Move](), fmt.Errorf("undo Search %v => %v: %w", g.FenString(), move.String(), err)
+			return Empty[Move](), fmt.Errorf("undo Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
 		currentScore := -enemyScore

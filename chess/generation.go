@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
@@ -343,7 +344,7 @@ func (e *BoardCorrupted) Error() string {
 
 func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) error {
 	player := g.Player
-	enemy := g.enemy()
+	enemy := g.Enemy()
 	potentialMoves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(potentialMoves)
 	GeneratePseudoMoves(b, g, potentialMoves)
@@ -355,7 +356,7 @@ func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) er
 			return fmt.Errorf("GenerateLegalMoves: %w", err)
 		}
 
-		err = g.performMove(move, &update, b)
+		err = g.PerformMove(move, &update, b)
 		if err != nil {
 			return &BoardCorrupted{err}
 		}
@@ -363,7 +364,7 @@ func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) er
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 
-		err = g.undoUpdate(&update, b)
+		err = g.UndoUpdate(&update, b)
 		if err != nil {
 			return fmt.Errorf("GenerateLegalMoves: %w", err)
 		}

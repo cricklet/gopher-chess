@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
@@ -70,7 +71,7 @@ func fenStringForBoard(b *BoardArray) string {
 	return s
 }
 
-func (g *GameState) FenString() string {
+func FenStringForGame(g *GameState) string {
 	s := ""
 	s += fmt.Sprintf("%v %v %v %v %v %v",
 		fenStringForBoard(&g.Board),

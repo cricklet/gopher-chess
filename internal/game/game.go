@@ -64,7 +64,7 @@ func isPawnSkip(startPiece Piece, move Move) bool {
 	return AbsDiff(move.StartIndex, move.EndIndex) == OffsetN+OffsetN
 }
 
-func enPassantTarget(move Move) int {
+func EnPassantTarget(move Move) int {
 	if move.EndIndex > move.StartIndex {
 		return move.StartIndex + OffsetN
 	} else {
@@ -134,7 +134,7 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 	}
 }
 
-func (g *GameState) performMove(move Move, update *BoardUpdate, b *Bitboards) error {
+func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) error {
 	err := g.applyMoveToBitboards(b, move)
 	if err != nil {
 		return err
@@ -144,7 +144,7 @@ func (g *GameState) performMove(move Move, update *BoardUpdate, b *Bitboards) er
 
 	g.EnPassantTarget = Empty[FileRank]()
 	if move.MoveType == QuietMove && isPawnSkip(startPiece, move) {
-		g.EnPassantTarget = Some(FileRankFromIndex(enPassantTarget(move)))
+		g.EnPassantTarget = Some(FileRankFromIndex(EnPassantTarget(move)))
 	}
 
 	for i := 0; i < update.Num; i++ {
@@ -254,7 +254,7 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, move Move) error {
 	return nil
 }
 
-func (g *GameState) undoUpdate(update *BoardUpdate, b *Bitboards) error {
+func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) error {
 	err := g.applyUndoToBitboards(update, b)
 	if err != nil {
 		return err
@@ -304,20 +304,20 @@ func (g *GameState) applyUndoToBitboards(update *BoardUpdate, b *Bitboards) erro
 	return nil
 }
 
-func (g *GameState) enemy() Player {
+func (g *GameState) Enemy() Player {
 	return g.Player.Other()
 }
 
-func (g *GameState) whiteCanCastleKingside() bool {
+func (g *GameState) WhiteCanCastleKingside() bool {
 	return g.PlayerAndCastlingSideAllowed[White][Kingside]
 }
-func (g *GameState) whiteCanCastleQueenside() bool {
+func (g *GameState) WhiteCanCastleQueenside() bool {
 	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
 }
-func (g *GameState) blackCanCastleKingside() bool {
+func (g *GameState) BlackCanCastleKingside() bool {
 	return g.PlayerAndCastlingSideAllowed[White][Kingside]
 }
-func (g *GameState) blackCanCastleQueenside() bool {
+func (g *GameState) BlackCanCastleQueenside() bool {
 	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
 }
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
@@ -41,7 +42,7 @@ func (r *Runner) LastHistory() *HistoryValue {
 func (r *Runner) Rewind(num int) error {
 	for i := 0; i < MinInt(num, len(r.history)); i++ {
 		h := r.history[len(r.history)-1]
-		err := r.g.undoUpdate(&h.update, r.b)
+		err := r.g.UndoUpdate(&h.update, r.b)
 		if err != nil {
 			return fmt.Errorf("Rewind: %w", err)
 		}
@@ -61,7 +62,7 @@ func (r *Runner) PerformMove(move Move) error {
 		return fmt.Errorf("PerformMove: %w", err)
 	}
 
-	err = r.g.performMove(move, &h.update, r.b)
+	err = r.g.PerformMove(move, &h.update, r.b)
 	if err != nil {
 		return fmt.Errorf("PerformMove: %w", err)
 	}
@@ -220,7 +221,7 @@ func (r *Runner) MovesForSelection(selection string) ([]FileRank, error) {
 }
 
 func (r *Runner) FenString() string {
-	return r.g.FenString()
+	return FenStringForGame(r.g)
 }
 
 func (r *Runner) Player() Player {

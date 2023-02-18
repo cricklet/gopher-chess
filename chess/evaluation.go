@@ -2,6 +2,7 @@ package chess
 
 import (
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
@@ -168,14 +169,14 @@ var PIECE_SCORES = []int{
 	0,
 }
 
-func (g *GameState) pieceScore(index int) int {
+func pieceScore(g *GameState, index int) int {
 	return PIECE_SCORES[g.Board[index].PieceType()]
 }
 
 func EvaluateMove(m *Move, g *GameState) int {
 	score := 0
 	if m.MoveType == CaptureMove {
-		score += g.pieceScore(m.EndIndex) - g.pieceScore(m.StartIndex)
+		score += pieceScore(g, m.EndIndex) - pieceScore(g, m.StartIndex)
 	}
 	if m.MoveType == EnPassantMove {
 		score += 100

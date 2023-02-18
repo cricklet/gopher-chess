@@ -12,6 +12,7 @@ import (
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 
 	"github.com/pkg/profile"
@@ -104,10 +105,10 @@ func TestNotationDecoding(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, g.EnPassantTarget.Value(), expectedLocation)
 
-	assert.Equal(t, g.whiteCanCastleKingside(), true)
-	assert.Equal(t, g.whiteCanCastleQueenside(), true)
-	assert.Equal(t, g.blackCanCastleKingside(), true)
-	assert.Equal(t, g.blackCanCastleQueenside(), true)
+	assert.Equal(t, g.WhiteCanCastleKingside(), true)
+	assert.Equal(t, g.WhiteCanCastleQueenside(), true)
+	assert.Equal(t, g.BlackCanCastleKingside(), true)
+	assert.Equal(t, g.BlackCanCastleQueenside(), true)
 
 	assert.Equal(t, g.HalfMoveClock, 0)
 	assert.Equal(t, g.FullMoveClock, 1)
@@ -132,10 +133,10 @@ func TestNotationDecoding2(t *testing.T) {
 
 	assert.Equal(t, true, g.EnPassantTarget.IsEmpty())
 
-	assert.Equal(t, g.whiteCanCastleKingside(), false)
-	assert.Equal(t, g.whiteCanCastleQueenside(), false)
-	assert.Equal(t, g.blackCanCastleKingside(), false)
-	assert.Equal(t, g.blackCanCastleQueenside(), false)
+	assert.Equal(t, g.WhiteCanCastleKingside(), false)
+	assert.Equal(t, g.WhiteCanCastleQueenside(), false)
+	assert.Equal(t, g.BlackCanCastleKingside(), false)
+	assert.Equal(t, g.BlackCanCastleQueenside(), false)
 
 	assert.Equal(t, g.HalfMoveClock, 99)
 	assert.Equal(t, g.FullMoveClock, 50)
@@ -1151,7 +1152,7 @@ func TestGameStateCopyingIsDeep(t *testing.T) {
 type PerftMap map[string]int
 
 func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, progress *chan int, perft *PerftMap) int {
-	if KingIsInCheck(b, g.enemy(), g.Player) {
+	if KingIsInCheck(b, g.Enemy(), g.Player) {
 		return 0
 	}
 
@@ -1168,19 +1169,19 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 		update := BoardUpdate{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
-			t.Error(fmt.Errorf("setup %v, %v: %w", g.FenString(), move, err))
+			t.Error(fmt.Errorf("setup %v, %v: %w", FenStringForGame(g), move, err))
 		}
 
-		err = g.performMove(move, &update, b)
+		err = g.PerformMove(move, &update, b)
 		if err != nil {
-			t.Error(fmt.Errorf("perform %v, %v: %w", g.FenString(), move, err))
+			t.Error(fmt.Errorf("perform %v, %v: %w", FenStringForGame(g), move, err))
 		}
 
 		countUnderMove := countAndPerftForDepth(t, g, b, n-1, nil, nil)
 
-		err = g.undoUpdate(&update, b)
+		err = g.UndoUpdate(&update, b)
 		if err != nil {
-			t.Error(fmt.Errorf("undo %v, %v: %w", g.FenString(), move, err))
+			t.Error(fmt.Errorf("undo %v, %v: %w", FenStringForGame(g), move, err))
 		}
 
 		num += countUnderMove
@@ -1280,7 +1281,7 @@ func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth 
 	if depth == 0 {
 		t.Error("0 depth not valid for stockfish")
 	}
-	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", g.FenString(), depth)
+	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", FenStringForGame(g), depth)
 	cmd := exec.Command("bash", "-c", input)
 	output, _ := cmd.CombinedOutput()
 
@@ -1368,16 +1369,16 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 		update := BoardUpdate{}
 		err := SetupBoardUpdate(&g, move, &update)
 		if err != nil {
-			t.Error(fmt.Errorf("setup %v => %v: %w", g.FenString(), move, err))
+			t.Error(fmt.Errorf("setup %v => %v: %w", FenStringForGame(&g), move, err))
 		}
 
-		err = g.performMove(move, &update, &b)
+		err = g.PerformMove(move, &update, &b)
 		if err != nil {
-			t.Error(fmt.Errorf("perform %v => %v: %w", g.FenString(), move, err))
+			t.Error(fmt.Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
 		}
 	}
 
-	assert.Equal(t, g.FenString(), initialState.expectedFen)
+	assert.Equal(t, FenStringForGame(&g), initialState.expectedFen)
 
 	for i := 1; i <= maxDepth; i++ {
 		incorrectMoves := computeIncorrectPerftMoves(t, &g, &b, i)
@@ -1403,24 +1404,24 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 			update := BoardUpdate{}
 			err := SetupBoardUpdate(&g, move, &update)
 			if err != nil {
-				t.Error(fmt.Errorf("setup %v => %v: %w", g.FenString(), move, err))
+				t.Error(fmt.Errorf("setup %v => %v: %w", FenStringForGame(&g), move, err))
 			}
 
-			err = g.performMove(move, &update, &b)
+			err = g.PerformMove(move, &update, &b)
 			if err != nil {
-				t.Error(fmt.Errorf("perform %v => %v: %w", g.FenString(), move, err))
+				t.Error(fmt.Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
 			}
 
 			result = append(result, findInvalidMoves(t,
 				InitialState{
 					initialState.fen,
 					append(initialState.moves, move),
-					g.FenString(),
+					FenStringForGame(&g),
 				}, maxDepth-1)...)
 
-			err = g.undoUpdate(&update, &b)
+			err = g.UndoUpdate(&update, &b)
 			if err != nil {
-				t.Error(fmt.Errorf("undo %v => %v: %w", g.FenString(), move, err))
+				t.Error(fmt.Errorf("undo %v => %v: %w", FenStringForGame(&g), move, err))
 			}
 		}
 	}
