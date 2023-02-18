@@ -1,4 +1,4 @@
-package chess
+package fen
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
-func fenStringForPlayer(p Player) string {
+func FenStringForPlayer(p Player) string {
 	if p == White {
 		return "w"
 	} else {
@@ -75,7 +75,7 @@ func FenStringForGame(g *GameState) string {
 	s := ""
 	s += fmt.Sprintf("%v %v %v %v %v %v",
 		fenStringForBoard(&g.Board),
-		fenStringForPlayer(g.Player),
+		FenStringForPlayer(g.Player),
 		fenStringForCastlingAllowed(g.PlayerAndCastlingSideAllowed),
 		fenStringForEnPassant(g.EnPassantTarget),
 		g.HalfMoveClock,

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	. "github.com/cricklet/chessgo/internal/fen"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 
