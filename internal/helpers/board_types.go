@@ -346,3 +346,23 @@ func (m Move) String() string {
 func (m Move) DebugString() string {
 	return fmt.Sprintf("%v%v, %v", StringFromBoardIndex(m.StartIndex), StringFromBoardIndex(m.EndIndex), m.MoveType)
 }
+
+type BoardUpdate struct {
+	Indices [4]int
+	Pieces  [4]Piece
+	Num     int
+
+	PrevPieces                       [4]Piece
+	PrevPlayer                       Player
+	PrevPlayerAndCastlingSideAllowed [2][2]bool
+	PrevEnPassantTarget              Optional[FileRank]
+	PrevHalfMoveClock                int
+	PrevFullMoveClock                int
+}
+
+func (u *BoardUpdate) Add(prevPiece Piece, index int, piece Piece) {
+	u.Indices[u.Num] = index
+	u.Pieces[u.Num] = piece
+	u.PrevPieces[u.Num] = prevPiece
+	u.Num++
+}

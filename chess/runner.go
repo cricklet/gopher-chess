@@ -226,5 +226,5 @@ func (r *Runner) FenString() string {
 }
 
 func (r *Runner) Player() Player {
-	return r.g.player
+	return r.g.Player
 }

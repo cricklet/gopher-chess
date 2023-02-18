@@ -146,7 +146,7 @@ func (b *Bitboards) GeneratePseudoCaptures(g *GameState, moves *[]Move) {
 }
 
 func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onlyCaptures bool) {
-	player := g.player
+	player := g.Player
 	playerBoards := b.Players[player]
 	enemyBoards := &b.Players[player.Other()]
 
@@ -201,8 +201,8 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 
 		// generate en-passant
 		{
-			if g.enPassantTarget.HasValue() {
-				enPassantBoard := SingleBitboard(IndexFromFileRank(g.enPassantTarget.Value()))
+			if g.EnPassantTarget.HasValue() {
+				enPassantBoard := SingleBitboard(IndexFromFileRank(g.EnPassantTarget.Value()))
 				for _, captureOffset := range []int{pushOffset + OffsetE, pushOffset + OffsetW} {
 					potential := playerBoards.Pieces[Pawn] & PremoveMaskFromOffset(captureOffset)
 					potential = RotateTowardsIndex64(potential, captureOffset)
@@ -258,7 +258,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 		// generate king castle
 		for _, castlingSide := range AllCastlingSides {
 			canCastle := true
-			if g.playerAndCastlingSideAllowed[player][castlingSide] {
+			if g.PlayerAndCastlingSideAllowed[player][castlingSide] {
 				requirements := AllCastlingRequirements[player][castlingSide]
 				if b.Occupied&requirements.empty != 0 {
 					canCastle = false
@@ -368,7 +368,7 @@ func (e *BoardCorrupted) Error() string {
 }
 
 func (b *Bitboards) generateLegalMoves(g *GameState, legalMovesOutput *[]Move) error {
-	player := g.player
+	player := g.Player
 	enemy := g.enemy()
 	potentialMoves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(potentialMoves)

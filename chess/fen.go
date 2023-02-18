@@ -74,11 +74,11 @@ func (g *GameState) FenString() string {
 	s := ""
 	s += fmt.Sprintf("%v %v %v %v %v %v",
 		fenStringForBoard(&g.Board),
-		fenStringForPlayer(g.player),
-		fenStringForCastlingAllowed(g.playerAndCastlingSideAllowed),
-		fenStringForEnPassant(g.enPassantTarget),
-		g.halfMoveClock,
-		g.fullMoveClock)
+		fenStringForPlayer(g.Player),
+		fenStringForCastlingAllowed(g.PlayerAndCastlingSideAllowed),
+		fenStringForEnPassant(g.EnPassantTarget),
+		g.HalfMoveClock,
+		g.FullMoveClock)
 
 	return s
 }
@@ -114,7 +114,7 @@ func GamestateFromFenString(s string) (GameState, error) {
 	}
 
 	if player, err := PlayerFromString(playerString); err == nil {
-		game.player = player
+		game.Player = player
 	} else {
 		return GameState{}, fmt.Errorf("invalid player '%v' in '%v'", playerString, s)
 	}
@@ -124,32 +124,32 @@ func GamestateFromFenString(s string) (GameState, error) {
 		case '-':
 			continue
 		case 'K':
-			game.playerAndCastlingSideAllowed[White][Kingside] = true
+			game.PlayerAndCastlingSideAllowed[White][Kingside] = true
 		case 'Q':
-			game.playerAndCastlingSideAllowed[White][Queenside] = true
+			game.PlayerAndCastlingSideAllowed[White][Queenside] = true
 		case 'k':
-			game.playerAndCastlingSideAllowed[Black][Kingside] = true
+			game.PlayerAndCastlingSideAllowed[Black][Kingside] = true
 		case 'q':
-			game.playerAndCastlingSideAllowed[Black][Queenside] = true
+			game.PlayerAndCastlingSideAllowed[Black][Queenside] = true
 		}
 	}
 
 	if enPassantTargetString == "-" {
-		game.enPassantTarget = Empty[FileRank]()
+		game.EnPassantTarget = Empty[FileRank]()
 	} else if enPassantTarget, err := FileRankFromString(enPassantTargetString); err == nil {
-		game.enPassantTarget = Some(enPassantTarget)
+		game.EnPassantTarget = Some(enPassantTarget)
 	} else {
 		return GameState{}, fmt.Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)
 	}
 
 	if halfMoveClock, err := strconv.ParseInt(string(halfMoveClockString), 10, 0); err == nil {
-		game.halfMoveClock = int(halfMoveClock)
+		game.HalfMoveClock = int(halfMoveClock)
 	} else {
 		return GameState{}, fmt.Errorf("invalid half move clock '%v' in '%v'", halfMoveClockString, s)
 	}
 
 	if fullMoveClock, err := strconv.ParseInt(string(fullMoveClockString), 10, 0); err == nil {
-		game.fullMoveClock = int(fullMoveClock)
+		game.FullMoveClock = int(fullMoveClock)
 	} else {
 		return GameState{}, fmt.Errorf("invalid full move clock '%v' in '%v'", fullMoveClockString, s)
 	}

@@ -9,33 +9,17 @@ import (
 
 type GameState struct {
 	Board                        BoardArray
-	player                       Player
-	playerAndCastlingSideAllowed [2][2]bool
-	enPassantTarget              Optional[FileRank]
-	halfMoveClock                int
-	fullMoveClock                int
-	moveHistoryForDebugging      []Move
-}
-
-type OldGameState struct {
-}
-
-type BoardUpdate struct {
-	Indices [4]int
-	Pieces  [4]Piece
-	Num     int
-
-	PrevPieces                       [4]Piece
-	PrevPlayer                       Player
-	PrevPlayerAndCastlingSideAllowed [2][2]bool
-	PrevEnPassantTarget              Optional[FileRank]
-	PrevHalfMoveClock                int
-	PrevFullMoveClock                int
+	Player                       Player
+	PlayerAndCastlingSideAllowed [2][2]bool
+	EnPassantTarget              Optional[FileRank]
+	HalfMoveClock                int
+	FullMoveClock                int
+	MoveHistoryForDebugging      []Move
 }
 
 func (g *GameState) HistoryString() string {
 	return strings.TrimSpace(strings.Join(
-		MapSlice(g.moveHistoryForDebugging, func(m Move) string { return m.String() }), " "))
+		MapSlice(g.MoveHistoryForDebugging, func(m Move) string { return m.String() }), " "))
 }
 
 func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
@@ -87,13 +71,6 @@ func enPassantTarget(move Move) int {
 	}
 }
 
-func (u *BoardUpdate) Add(g *GameState, index int, piece Piece) {
-	u.Indices[u.Num] = index
-	u.Pieces[u.Num] = piece
-	u.PrevPieces[u.Num] = g.Board[index]
-	u.Num++
-}
-
 func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 	startPiece := g.Board[move.StartIndex]
 
@@ -101,17 +78,17 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 	case QuietMove:
 		{
 			if startPiece.PieceType() == Pawn && SingleBitboard(move.EndIndex)&PawnPromotionBitboard != 0 {
-				output.Add(g, move.StartIndex, XX)
-				output.Add(g, move.EndIndex, PieceForPlayer[g.player][Queen])
+				output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
+				output.Add(g.Board[move.EndIndex], move.EndIndex, PieceForPlayer[g.Player][Queen])
 			} else {
-				output.Add(g, move.StartIndex, XX)
-				output.Add(g, move.EndIndex, startPiece)
+				output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
+				output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
 			}
 		}
 	case CaptureMove:
 		{
-			output.Add(g, move.StartIndex, XX)
-			output.Add(g, move.EndIndex, startPiece)
+			output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
+			output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
 		}
 	case EnPassantMove:
 		{
@@ -122,9 +99,9 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 			}
 
 			captureIndex := move.EndIndex + Offsets[backwardsDir]
-			output.Add(g, captureIndex, XX)
-			output.Add(g, move.StartIndex, XX)
-			output.Add(g, move.EndIndex, startPiece)
+			output.Add(g.Board[captureIndex], captureIndex, XX)
+			output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
+			output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
 		}
 	case CastlingMove:
 		{
@@ -134,46 +111,46 @@ func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 			}
 			rookPiece := g.Board[rookStartIndex]
 
-			output.Add(g, move.StartIndex, XX)
-			output.Add(g, rookStartIndex, XX)
-			output.Add(g, move.EndIndex, startPiece)
-			output.Add(g, rookEndIndex, rookPiece)
+			output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
+			output.Add(g.Board[rookStartIndex], rookStartIndex, XX)
+			output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
+			output.Add(g.Board[rookEndIndex], rookEndIndex, rookPiece)
 		}
 	}
 
-	output.PrevPlayer = g.player
-	output.PrevPlayerAndCastlingSideAllowed = g.playerAndCastlingSideAllowed
-	output.PrevEnPassantTarget = g.enPassantTarget
-	output.PrevFullMoveClock = g.fullMoveClock
-	output.PrevHalfMoveClock = g.halfMoveClock
+	output.PrevPlayer = g.Player
+	output.PrevPlayerAndCastlingSideAllowed = g.PlayerAndCastlingSideAllowed
+	output.PrevEnPassantTarget = g.EnPassantTarget
+	output.PrevFullMoveClock = g.FullMoveClock
+	output.PrevHalfMoveClock = g.HalfMoveClock
 
 	return nil
 }
 
 func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player Player, side CastlingSide) {
 	if moveBitboard&AllCastlingRequirements[player][side].pieces != 0 {
-		g.playerAndCastlingSideAllowed[player][side] = false
+		g.PlayerAndCastlingSideAllowed[player][side] = false
 	}
 }
 
 func (g *GameState) performMove(move Move, update BoardUpdate) {
 	startPiece := g.Board[move.StartIndex]
 
-	g.enPassantTarget = Empty[FileRank]()
+	g.EnPassantTarget = Empty[FileRank]()
 	if move.MoveType == QuietMove && isPawnSkip(startPiece, move) {
-		g.enPassantTarget = Some(FileRankFromIndex(enPassantTarget(move)))
+		g.EnPassantTarget = Some(FileRankFromIndex(enPassantTarget(move)))
 	}
 
 	for i := 0; i < update.Num; i++ {
 		g.Board[update.Indices[i]] = update.Pieces[i]
 	}
 
-	g.halfMoveClock++
-	if g.player == Black {
-		g.fullMoveClock++
+	g.HalfMoveClock++
+	if g.Player == Black {
+		g.FullMoveClock++
 	}
-	g.player = g.player.Other()
-	g.moveHistoryForDebugging = append(g.moveHistoryForDebugging, move)
+	g.Player = g.Player.Other()
+	g.MoveHistoryForDebugging = append(g.MoveHistoryForDebugging, move)
 
 	startBitboard := SingleBitboard(move.StartIndex)
 	endBitboard := SingleBitboard(move.EndIndex)
@@ -184,17 +161,17 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 	g.updateCastlingRequirementsFor(moveBitboard, Black, Queenside)
 
 	if move.MoveType == CastlingMove {
-		g.playerAndCastlingSideAllowed[g.player][Kingside] = false
-		g.playerAndCastlingSideAllowed[g.player][Queenside] = false
+		g.PlayerAndCastlingSideAllowed[g.Player][Kingside] = false
+		g.PlayerAndCastlingSideAllowed[g.Player][Queenside] = false
 	}
 }
 
 func (g *GameState) undoUpdate(update BoardUpdate) {
-	g.player = update.PrevPlayer
-	g.playerAndCastlingSideAllowed = update.PrevPlayerAndCastlingSideAllowed
-	g.enPassantTarget = update.PrevEnPassantTarget
-	g.fullMoveClock = update.PrevFullMoveClock
-	g.halfMoveClock = update.PrevHalfMoveClock
+	g.Player = update.PrevPlayer
+	g.PlayerAndCastlingSideAllowed = update.PrevPlayerAndCastlingSideAllowed
+	g.EnPassantTarget = update.PrevEnPassantTarget
+	g.FullMoveClock = update.PrevFullMoveClock
+	g.HalfMoveClock = update.PrevHalfMoveClock
 
 	for i := update.Num - 1; i >= 0; i-- {
 		index := update.Indices[i]
@@ -203,23 +180,23 @@ func (g *GameState) undoUpdate(update BoardUpdate) {
 		g.Board[index] = piece
 	}
 
-	g.moveHistoryForDebugging = g.moveHistoryForDebugging[:len(g.moveHistoryForDebugging)-1]
+	g.MoveHistoryForDebugging = g.MoveHistoryForDebugging[:len(g.MoveHistoryForDebugging)-1]
 }
 func (g *GameState) enemy() Player {
-	return g.player.Other()
+	return g.Player.Other()
 }
 
 func (g *GameState) whiteCanCastleKingside() bool {
-	return g.playerAndCastlingSideAllowed[White][Kingside]
+	return g.PlayerAndCastlingSideAllowed[White][Kingside]
 }
 func (g *GameState) whiteCanCastleQueenside() bool {
-	return g.playerAndCastlingSideAllowed[Black][Queenside]
+	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
 }
 func (g *GameState) blackCanCastleKingside() bool {
-	return g.playerAndCastlingSideAllowed[White][Kingside]
+	return g.PlayerAndCastlingSideAllowed[White][Kingside]
 }
 func (g *GameState) blackCanCastleQueenside() bool {
-	return g.playerAndCastlingSideAllowed[Black][Queenside]
+	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
 }
 
 func (g *GameState) CreateBitboards() Bitboards {

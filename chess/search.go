@@ -11,7 +11,7 @@ import (
 var INF int = 999999
 
 func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
-	if b.kingIsInCheck(g.enemy(), g.player) {
+	if b.kingIsInCheck(g.enemy(), g.Player) {
 		return SearchResult{INF, 1, 1}, nil
 	}
 
@@ -21,7 +21,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 	b.GenerateSortedPseudoCaptures(g, moves)
 
 	if len(*moves) == 0 {
-		score := b.evaluate(g.player)
+		score := b.evaluate(g.Player)
 		return SearchResult{score, 1, 1}, nil
 	}
 
@@ -73,7 +73,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 }
 
 func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
-	standPat := b.evaluate(g.player)
+	standPat := b.evaluate(g.Player)
 	if standPat > enemyCanForceScore {
 		return SearchResult{enemyCanForceScore, 1, 1}, nil
 	} else if standPat > playerCanForceScore {
@@ -90,12 +90,12 @@ type SearchResult struct {
 }
 
 func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int, depth int) (SearchResult, error) {
-	if b.kingIsInCheck(g.enemy(), g.player) {
+	if b.kingIsInCheck(g.enemy(), g.Player) {
 		return SearchResult{INF, 1, 0}, nil
 	}
 
 	if depth == 0 {
-		score := b.evaluate(g.player)
+		score := b.evaluate(g.Player)
 		return SearchResult{score, 1, 0}, nil
 	}
 

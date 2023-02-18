@@ -97,19 +97,19 @@ func TestNotationDecoding(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, WN, WR,
 	}.AsBoardArray().String())
 
-	assert.Equal(t, g.player, Black)
+	assert.Equal(t, g.Player, Black)
 
 	expectedLocation, err := FileRankFromString("e3")
 	assert.Nil(t, err)
-	assert.Equal(t, g.enPassantTarget.Value(), expectedLocation)
+	assert.Equal(t, g.EnPassantTarget.Value(), expectedLocation)
 
 	assert.Equal(t, g.whiteCanCastleKingside(), true)
 	assert.Equal(t, g.whiteCanCastleQueenside(), true)
 	assert.Equal(t, g.blackCanCastleKingside(), true)
 	assert.Equal(t, g.blackCanCastleQueenside(), true)
 
-	assert.Equal(t, g.halfMoveClock, 0)
-	assert.Equal(t, g.fullMoveClock, 1)
+	assert.Equal(t, g.HalfMoveClock, 0)
+	assert.Equal(t, g.FullMoveClock, 1)
 }
 
 func TestNotationDecoding2(t *testing.T) {
@@ -127,17 +127,17 @@ func TestNotationDecoding2(t *testing.T) {
 		XX, XX, XX, XX, XX, XX, XX, XX,
 		XX, XX, XX, XX, XX, XX, XX, XX,
 	}.AsBoardArray())
-	assert.Equal(t, g.player, White)
+	assert.Equal(t, g.Player, White)
 
-	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
+	assert.Equal(t, true, g.EnPassantTarget.IsEmpty())
 
 	assert.Equal(t, g.whiteCanCastleKingside(), false)
 	assert.Equal(t, g.whiteCanCastleQueenside(), false)
 	assert.Equal(t, g.blackCanCastleKingside(), false)
 	assert.Equal(t, g.blackCanCastleQueenside(), false)
 
-	assert.Equal(t, g.halfMoveClock, 99)
-	assert.Equal(t, g.fullMoveClock, 50)
+	assert.Equal(t, g.HalfMoveClock, 99)
+	assert.Equal(t, g.FullMoveClock, 50)
 }
 
 func TestUCI(t *testing.T) {
@@ -469,7 +469,7 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, XX, WR,
 	}.AsBoardArray().String(), g.Board.String())
 
-	assert.Equal(t, g.enPassantTarget.Value().String(), "g6")
+	assert.Equal(t, g.EnPassantTarget.Value().String(), "g6")
 
 	bitboards := g.CreateBitboards()
 
@@ -683,9 +683,9 @@ func TestWhiteCastling(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
-	assert.Equal(t, White, g.player)
-	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
+	assert.Equal(t, true, g.EnPassantTarget.IsEmpty())
+	assert.Equal(t, White, g.Player)
+	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.PlayerAndCastlingSideAllowed)
 
 	bitboards := g.CreateBitboards()
 
@@ -779,9 +779,9 @@ func TestBlackCastling(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.Nil(t, err)
 
-	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
-	assert.Equal(t, Black, g.player)
-	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
+	assert.Equal(t, true, g.EnPassantTarget.IsEmpty())
+	assert.Equal(t, Black, g.Player)
+	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.PlayerAndCastlingSideAllowed)
 
 	bitboards := g.CreateBitboards()
 
@@ -1126,31 +1126,31 @@ func TestBitboardsCopyingIsDeep(t *testing.T) {
 func TestGameStateCopyingIsDeep(t *testing.T) {
 	b := GameState{}
 	b.Board[0] = WQ
-	b.halfMoveClock = 9
-	b.playerAndCastlingSideAllowed[0][0] = true
-	b.playerAndCastlingSideAllowed[0][1] = false
+	b.HalfMoveClock = 9
+	b.PlayerAndCastlingSideAllowed[0][0] = true
+	b.PlayerAndCastlingSideAllowed[0][1] = false
 
 	c := b
 	c.Board[0] = BQ
-	c.halfMoveClock = 11
-	c.playerAndCastlingSideAllowed[0][0] = false
-	c.playerAndCastlingSideAllowed[0][1] = true
+	c.HalfMoveClock = 11
+	c.PlayerAndCastlingSideAllowed[0][0] = false
+	c.PlayerAndCastlingSideAllowed[0][1] = true
 
 	assert.Equal(t, b.Board[0], WQ)
-	assert.Equal(t, b.halfMoveClock, 9)
-	assert.Equal(t, b.playerAndCastlingSideAllowed[0][0], true)
-	assert.Equal(t, b.playerAndCastlingSideAllowed[0][1], false)
+	assert.Equal(t, b.HalfMoveClock, 9)
+	assert.Equal(t, b.PlayerAndCastlingSideAllowed[0][0], true)
+	assert.Equal(t, b.PlayerAndCastlingSideAllowed[0][1], false)
 
 	assert.Equal(t, c.Board[0], BQ)
-	assert.Equal(t, c.halfMoveClock, 11)
-	assert.Equal(t, c.playerAndCastlingSideAllowed[0][0], false)
-	assert.Equal(t, c.playerAndCastlingSideAllowed[0][1], true)
+	assert.Equal(t, c.HalfMoveClock, 11)
+	assert.Equal(t, c.PlayerAndCastlingSideAllowed[0][0], false)
+	assert.Equal(t, c.PlayerAndCastlingSideAllowed[0][1], true)
 }
 
 type PerftMap map[string]int
 
 func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, progress *chan int, perft *PerftMap) int {
-	if b.kingIsInCheck(g.enemy(), g.player) {
+	if b.kingIsInCheck(g.enemy(), g.Player) {
 		return 0
 	}
 
