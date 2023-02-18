@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/cricklet/chessgo/internal/helpers"
+
 	"github.com/pkg/profile"
 	"github.com/schollz/progressbar/v3"
 	"github.com/stretchr/testify/assert"
@@ -43,24 +45,24 @@ func TestBoardPrint(t *testing.T) {
 func TestLocationDecoding(t *testing.T) {
 	location, err := FileRankFromString("a1")
 	assert.Nil(t, err)
-	assert.Equal(t, location, FileRank{0, 0})
+	assert.Equal(t, location, FileRank{File: 0, Rank: 0})
 
 	game, err := GamestateFromFenString("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
 	assert.Nil(t, err)
 
-	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), WR.String())
+	assert.Equal(t, PieceAtFileRank(game.Board, location).String(), WR.String())
 
 	location, err = FileRankFromString("e4")
 	assert.Nil(t, err)
-	assert.Equal(t, location, FileRank{4, 3})
+	assert.Equal(t, location, FileRank{File: 4, Rank: 3})
 
-	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), WP.String())
+	assert.Equal(t, PieceAtFileRank(game.Board, location).String(), WP.String())
 
 	location, err = FileRankFromString("d8")
 	assert.Nil(t, err)
-	assert.Equal(t, location, FileRank{3, 7})
+	assert.Equal(t, location, FileRank{File: 3, Rank: 7})
 
-	assert.Equal(t, pieceAtFileRank(game.Board, location).String(), BQ.String())
+	assert.Equal(t, PieceAtFileRank(game.Board, location).String(), BQ.String())
 
 	location, err = FileRankFromString("a1")
 	assert.Nil(t, err)
@@ -95,7 +97,7 @@ func TestNotationDecoding(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, WN, WR,
 	}.AsBoardArray().String())
 
-	assert.Equal(t, g.player, BLACK)
+	assert.Equal(t, g.player, Black)
 
 	expectedLocation, err := FileRankFromString("e3")
 	assert.Nil(t, err)
@@ -267,7 +269,7 @@ func TestBitboardSetup(t *testing.T) {
 		"11110111",
 		"11111111",
 	}, "\n"))
-	assert.Equal(t, bitboards.players[White].pieces[PAWN].String(), strings.Join([]string{
+	assert.Equal(t, bitboards.players[White].pieces[Pawn].String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -367,7 +369,7 @@ func TestEvaluation(t *testing.T) {
 	}, "\n"), g.Board.String())
 
 	assert.Equal(t, bitboards.evaluateDevelopment(White), 2*DEVELOPMENT_SCALE)
-	assert.Equal(t, bitboards.evaluateDevelopment(BLACK), -2*DEVELOPMENT_SCALE)
+	assert.Equal(t, bitboards.evaluateDevelopment(Black), -2*DEVELOPMENT_SCALE)
 
 }
 
@@ -554,7 +556,7 @@ func TestEachIndexOfOne(t *testing.T) {
 	result := []string{}
 	buffer := GetIndicesBuffer()
 	for _, index := range *board.EachIndexOfOne(buffer) {
-		result = append(result, stringFromBoardIndex(index))
+		result = append(result, StringFromBoardIndex(index))
 	}
 	ReleaseIndicesBuffer(buffer)
 
@@ -573,10 +575,10 @@ func TestStringFromBoardIndex(t *testing.T) {
 
 		assert.Equal(t, fileRank.String(), str)
 
-		i := boardIndexFromString(str)
+		i := BoardIndexFromString(str)
 		j := IndexFromFileRank(fileRank)
-		assert.Equal(t, str, stringFromBoardIndex(i))
-		assert.Equal(t, str, stringFromBoardIndex(j))
+		assert.Equal(t, str, StringFromBoardIndex(i))
+		assert.Equal(t, str, StringFromBoardIndex(j))
 	}
 }
 
@@ -592,7 +594,7 @@ func TestBitboardFromStrings(t *testing.T) {
 			"00000000",
 			"00000000",
 		}).String(),
-		SingleBitboard(boardIndexFromString("c7")).String())
+		SingleBitboard(BoardIndexFromString("c7")).String())
 }
 
 func TestBlockerMasks(t *testing.T) {
@@ -607,7 +609,7 @@ func TestBlockerMasks(t *testing.T) {
 			"01110110",
 			"00000000",
 		}).String(),
-		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("e2")].String())
+		ROOK_MAGIC_TABLE.blockerMasks[BoardIndexFromString("e2")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -620,7 +622,7 @@ func TestBlockerMasks(t *testing.T) {
 			"00010000",
 			"00000000",
 		}).String(),
-		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("d5")].String())
+		ROOK_MAGIC_TABLE.blockerMasks[BoardIndexFromString("d5")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -633,7 +635,7 @@ func TestBlockerMasks(t *testing.T) {
 			"10000000",
 			"01111110",
 		}).String(),
-		ROOK_MAGIC_TABLE.blockerMasks[boardIndexFromString("a1")].String())
+		ROOK_MAGIC_TABLE.blockerMasks[BoardIndexFromString("a1")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -646,7 +648,7 @@ func TestBlockerMasks(t *testing.T) {
 			"00000010",
 			"00000000",
 		}).String(),
-		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("d5")].String())
+		BISHOP_MAGIC_TABLE.blockerMasks[BoardIndexFromString("d5")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -659,7 +661,7 @@ func TestBlockerMasks(t *testing.T) {
 			"01000000",
 			"00000000",
 		}).String(),
-		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("a1")].String())
+		BISHOP_MAGIC_TABLE.blockerMasks[BoardIndexFromString("a1")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -672,7 +674,7 @@ func TestBlockerMasks(t *testing.T) {
 			"00000010",
 			"00000000",
 		}).String(),
-		BISHOP_MAGIC_TABLE.blockerMasks[boardIndexFromString("h1")].String())
+		BISHOP_MAGIC_TABLE.blockerMasks[BoardIndexFromString("h1")].String())
 }
 
 func TestWhiteCastling(t *testing.T) {
@@ -778,7 +780,7 @@ func TestBlackCastling(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, true, g.enPassantTarget.IsEmpty())
-	assert.Equal(t, BLACK, g.player)
+	assert.Equal(t, Black, g.player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.playerAndCastlingSideAllowed)
 
 	bitboards := SetupBitboards(&g)
@@ -907,7 +909,7 @@ func TestAttackMap(t *testing.T) {
 			"10111101",
 			"01111110",
 		}).String(),
-		bitboards.dangerBoard(BLACK).String())
+		bitboards.dangerBoard(Black).String())
 }
 
 func TestKnightMasks(t *testing.T) {
@@ -922,7 +924,7 @@ func TestKnightMasks(t *testing.T) {
 			"00100000",
 			"00000000",
 		}).String(),
-		KnightAttackMasks[boardIndexFromString("a1")].String())
+		KnightAttackMasks[BoardIndexFromString("a1")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -935,7 +937,7 @@ func TestKnightMasks(t *testing.T) {
 			"00010100",
 			"00000000",
 		}).String(),
-		KnightAttackMasks[boardIndexFromString("e4")].String())
+		KnightAttackMasks[BoardIndexFromString("e4")].String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -948,7 +950,7 @@ func TestKnightMasks(t *testing.T) {
 			"00000000",
 			"00000100",
 		}).String(),
-		KnightAttackMasks[boardIndexFromString("h2")].String())
+		KnightAttackMasks[BoardIndexFromString("h2")].String())
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
 			"00000000",
@@ -960,7 +962,7 @@ func TestKnightMasks(t *testing.T) {
 			"00000000",
 			"00000000",
 		}).String(),
-		KnightAttackMasks[boardIndexFromString("h8")].String())
+		KnightAttackMasks[BoardIndexFromString("h8")].String())
 }
 
 func TestCheck(t *testing.T) {
@@ -1105,20 +1107,20 @@ func TestBitboardsCopyingIsDeep(t *testing.T) {
 	b := Bitboards{}
 	b.occupied = 7
 	b.players[White].occupied = 7
-	b.players[White].pieces[ROOK] = 7
+	b.players[White].pieces[Rook] = 7
 
 	c := b
 	c.occupied = 11
 	c.players[White].occupied = 11
-	c.players[White].pieces[ROOK] = 11
+	c.players[White].pieces[Rook] = 11
 
 	assert.Equal(t, b.occupied, Bitboard(7))
 	assert.Equal(t, b.players[White].occupied, Bitboard(7))
-	assert.Equal(t, b.players[White].pieces[ROOK], Bitboard(7))
+	assert.Equal(t, b.players[White].pieces[Rook], Bitboard(7))
 
 	assert.Equal(t, c.occupied, Bitboard(11))
 	assert.Equal(t, c.players[White].occupied, Bitboard(11))
-	assert.Equal(t, c.players[White].pieces[ROOK], Bitboard(11))
+	assert.Equal(t, c.players[White].pieces[Rook], Bitboard(11))
 }
 
 func TestGameStateCopyingIsDeep(t *testing.T) {
@@ -1166,13 +1168,13 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 		previous := OldGameState{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
-			t.Error(fmt.Errorf("setup %v, %v: %w", g.fenString(), move, err))
+			t.Error(fmt.Errorf("setup %v, %v: %w", g.FenString(), move, err))
 		}
 		RecordCurrentState(g, &previous)
 
 		err = b.PerformMove(g, move)
 		if err != nil {
-			t.Error(fmt.Errorf("perform %v, %v: %w", g.fenString(), move, err))
+			t.Error(fmt.Errorf("perform %v, %v: %w", g.FenString(), move, err))
 		}
 		g.performMove(move, update)
 
@@ -1180,7 +1182,7 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 
 		err = b.UndoUpdate(update)
 		if err != nil {
-			t.Error(fmt.Errorf("undo %v, %v: %w", g.fenString(), move, err))
+			t.Error(fmt.Errorf("undo %v, %v: %w", g.FenString(), move, err))
 		}
 		g.undoUpdate(previous, update)
 
@@ -1281,7 +1283,7 @@ func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth 
 	if depth == 0 {
 		t.Error("0 depth not valid for stockfish")
 	}
-	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", g.fenString(), depth)
+	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", g.FenString(), depth)
 	cmd := exec.Command("bash", "-c", input)
 	output, _ := cmd.CombinedOutput()
 
@@ -1369,17 +1371,17 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 		update := BoardUpdate{}
 		err := SetupBoardUpdate(&g, move, &update)
 		if err != nil {
-			t.Error(fmt.Errorf("setup %v => %v: %w", g.fenString(), move, err))
+			t.Error(fmt.Errorf("setup %v => %v: %w", g.FenString(), move, err))
 		}
 		err = b.PerformMove(&g, move)
 		if err != nil {
-			t.Error(fmt.Errorf("perform %v => %v: %w", g.fenString(), move, err))
+			t.Error(fmt.Errorf("perform %v => %v: %w", g.FenString(), move, err))
 		}
 
 		g.performMove(move, update)
 	}
 
-	assert.Equal(t, g.fenString(), initialState.expectedFen)
+	assert.Equal(t, g.FenString(), initialState.expectedFen)
 
 	for i := 1; i <= maxDepth; i++ {
 		incorrectMoves := computeIncorrectPerftMoves(t, &g, &b, i)
@@ -1400,19 +1402,19 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 			result = append(result, search.String())
 			totalInvalidMoves++
 		} else {
-			move := g.moveFromString(search.move)
+			move := g.MoveFromString(search.move)
 
 			update, previous := BoardUpdate{}, OldGameState{}
 			err := SetupBoardUpdate(&g, move, &update)
 			if err != nil {
-				t.Error(fmt.Errorf("setup %v => %v: %w", g.fenString(), move, err))
+				t.Error(fmt.Errorf("setup %v => %v: %w", g.FenString(), move, err))
 			}
 
 			RecordCurrentState(&g, &previous)
 
 			err = b.PerformMove(&g, move)
 			if err != nil {
-				t.Error(fmt.Errorf("perform %v => %v: %w", g.fenString(), move, err))
+				t.Error(fmt.Errorf("perform %v => %v: %w", g.FenString(), move, err))
 			}
 			g.performMove(move, update)
 
@@ -1420,12 +1422,12 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 				InitialState{
 					initialState.fen,
 					append(initialState.moves, move),
-					g.fenString(),
+					g.FenString(),
 				}, maxDepth-1)...)
 
 			err = b.UndoUpdate(update)
 			if err != nil {
-				t.Error(fmt.Errorf("undo %v => %v: %w", g.fenString(), move, err))
+				t.Error(fmt.Errorf("undo %v => %v: %w", g.FenString(), move, err))
 			}
 			g.undoUpdate(previous, update)
 		}
@@ -1485,7 +1487,7 @@ func TestMovesAtDepthForPawnOutOfBoundsCapture(t *testing.T) {
 
 type TestBuffer []int
 
-var GetTestBuffer, ReleaseTestBuffer, StatsTestBuffer = createPool(func() TestBuffer { return make(TestBuffer, 0, 64) }, func(x *TestBuffer) { *x = (*x)[:0] })
+var GetTestBuffer, ReleaseTestBuffer, StatsTestBuffer = CreatePool(func() TestBuffer { return make(TestBuffer, 0, 64) }, func(x *TestBuffer) { *x = (*x)[:0] })
 
 func RecursivelySetBuffer(t *testing.T, limit int, x *TestBuffer) {
 	if limit <= 0 {
@@ -1551,7 +1553,7 @@ func TestMovesAtDepth(t *testing.T) {
 
 type TestSlice []int
 
-var GetTestSlice, ReleaseTestSlice, StatsTestSlice = createPool(
+var GetTestSlice, ReleaseTestSlice, StatsTestSlice = CreatePool(
 	func() TestSlice { return make(TestSlice, 0, 64) },
 	func(x *TestSlice) { *x = (*x)[:0] },
 )
@@ -1570,7 +1572,7 @@ func (xs *TestArray) add(x int) {
 // 	return xs._values[i]
 // }
 
-var GetTestArray, ReleaseTestArray, StatsTestArray = createPool(
+var GetTestArray, ReleaseTestArray, StatsTestArray = CreatePool(
 	func() TestArray { return TestArray{} },
 	func(x *TestArray) { x.size = 0 },
 )
@@ -1712,7 +1714,7 @@ func TestPlayerFromPiece(t *testing.T) {
 	for i := 0; i < testNum; i++ {
 		for j := 0; j <= int(BP); j++ {
 			piece := Piece(j)
-			_ = piece.player()
+			_ = piece.Player()
 		}
 		if i%1000 == 0 {
 			_ = ifProgress.Add(1000)
@@ -1724,7 +1726,7 @@ func TestPlayerFromPiece(t *testing.T) {
 	for i := 0; i < testNum; i++ {
 		for j := 0; j <= int(BP); j++ {
 			piece := Piece(j)
-			_ = piece.player2()
+			_ = piece.PlayerLookup()
 		}
 		if i%1000 == 0 {
 			_ = lookupProgress.Add(1000)

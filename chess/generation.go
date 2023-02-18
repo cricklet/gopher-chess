@@ -7,50 +7,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
-type MoveType int
-
-const (
-	QUIET_MOVE MoveType = iota
-	CAPTURE_MOVE
-	CASTLING_MOVE
-	EN_PASSANT_MOVE
-)
-
-type Move struct {
-	moveType   MoveType
-	startIndex int
-	endIndex   int
-	evaluation Optional[int]
-}
-
-type ReusableIndicesBuffers struct {
-	startBuffer *IndicesBuffer
-	endBuffer   *IndicesBuffer
-}
-
-func SetupBuffers() ReusableIndicesBuffers {
-	return ReusableIndicesBuffers{GetIndicesBuffer(), GetIndicesBuffer()}
-}
-
-func (r ReusableIndicesBuffers) Release() {
-	ReleaseIndicesBuffer(r.startBuffer)
-	ReleaseIndicesBuffer(r.endBuffer)
-}
-
-func moveFromString(s string, m MoveType) Move {
-	first := s[0:2]
-	second := s[2:4]
-	return Move{m, boardIndexFromString(first), boardIndexFromString(second), Empty[int]()}
-}
-
-func (m Move) String() string {
-	return stringFromBoardIndex(m.startIndex) + stringFromBoardIndex(m.endIndex)
-}
-
-func (m Move) DebugString() string {
-	return fmt.Sprintf("%v%v, %v", stringFromBoardIndex(m.startIndex), stringFromBoardIndex(m.endIndex), m.moveType)
-}
-
 func generateWalkMovesWithMagic(
 	pieces Bitboard,
 	allOccupied Bitboard,
@@ -77,7 +33,7 @@ func generateWalkMovesWithMagic(
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.NextIndexOfOne()
-				output = append(output, Move{QUIET_MOVE, startIndex, endIndex, Empty[int]()})
+				output = append(output, Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex, Evaluation: Empty[int]()})
 			}
 		}
 		{
@@ -85,7 +41,7 @@ func generateWalkMovesWithMagic(
 			for tempCapture != 0 {
 				captureIndex, tempCapture = tempCapture.NextIndexOfOne()
 
-				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex, Empty[int]()})
+				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex, Evaluation: Empty[int]()})
 			}
 		}
 	}
@@ -142,7 +98,7 @@ func generateJumpMovesByLookup(
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.NextIndexOfOne()
-				output = append(output, Move{QUIET_MOVE, startIndex, endIndex, Empty[int]()})
+				output = append(output, Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex, Evaluation: Empty[int]()})
 			}
 		}
 		{
@@ -150,7 +106,7 @@ func generateJumpMovesByLookup(
 			for tempCapture != 0 {
 				captureIndex, tempCapture = tempCapture.NextIndexOfOne()
 
-				output = append(output, Move{CAPTURE_MOVE, startIndex, captureIndex, Empty[int]()})
+				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex, Evaluation: Empty[int]()})
 			}
 		}
 	}
@@ -158,7 +114,7 @@ func generateJumpMovesByLookup(
 	return output
 }
 
-var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = createPool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
+var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = CreatePool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
 func (b *Bitboards) GeneratePseudoMoves(g *GameState, moves *[]Move) {
 	b.generatePseudoMovesInternal(g, moves, false /* onlyCaptures */)
@@ -167,22 +123,22 @@ func (b *Bitboards) GenerateSortedPseudoMoves(g *GameState, moves *[]Move) {
 	b.GeneratePseudoMoves(g, moves)
 
 	for i := range *moves {
-		(*moves)[i].evaluation = Some((*moves)[i].Evaluate(g))
+		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], g))
 	}
 
 	sort.SliceStable(*moves, func(i, j int) bool {
-		return (*moves)[i].evaluation.Value() > (*moves)[j].evaluation.Value()
+		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
 	})
 }
 func (b *Bitboards) GenerateSortedPseudoCaptures(g *GameState, moves *[]Move) {
 	b.GeneratePseudoCaptures(g, moves)
 
 	for i := range *moves {
-		(*moves)[i].evaluation = Some((*moves)[i].Evaluate(g))
+		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], g))
 	}
 
 	sort.SliceStable(*moves, func(i, j int) bool {
-		return (*moves)[i].evaluation.Value() > (*moves)[j].evaluation.Value()
+		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
 	})
 }
 func (b *Bitboards) GeneratePseudoCaptures(g *GameState, moves *[]Move) {
@@ -199,20 +155,20 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 
 		// generate one step
 		if !onlyCaptures {
-			potential := RotateTowardsIndex64(playerBoards.pieces[PAWN]&PremoveMaskFromOffset(pushOffset), pushOffset)
+			potential := RotateTowardsIndex64(playerBoards.pieces[Pawn]&PremoveMaskFromOffset(pushOffset), pushOffset)
 			potential = potential & ^b.occupied
 
 			index, tempPotential := 0, Bitboard(potential)
 			for tempPotential != 0 {
 				index, tempPotential = tempPotential.NextIndexOfOne()
 
-				*moves = append(*moves, Move{QUIET_MOVE, index - pushOffset, index, Empty[int]()})
+				*moves = append(*moves, Move{MoveType: QuietMove, StartIndex: index - pushOffset, EndIndex: index, Evaluation: Empty[int]()})
 			}
 		}
 
 		// generate skip step
 		if !onlyCaptures {
-			potential := playerBoards.pieces[PAWN]
+			potential := playerBoards.pieces[Pawn]
 			potential = potential & MaskStartingPawnsForPlayer(player)
 			potential = RotateTowardsIndex64(potential, pushOffset)
 			potential = potential & ^b.occupied
@@ -223,14 +179,14 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 			for tempPotential != 0 {
 				index, tempPotential = tempPotential.NextIndexOfOne()
 
-				*moves = append(*moves, Move{QUIET_MOVE, index - 2*pushOffset, index, Empty[int]()})
+				*moves = append(*moves, Move{MoveType: QuietMove, StartIndex: index - 2*pushOffset, EndIndex: index, Evaluation: Empty[int]()})
 			}
 		}
 
 		// generate captures
 		{
 			for _, captureOffset := range PawnCaptureOffsets[player] {
-				potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
+				potential := playerBoards.pieces[Pawn] & PremoveMaskFromOffset(captureOffset)
 				potential = RotateTowardsIndex64(potential, captureOffset)
 				potential = potential & enemyBoards.occupied
 
@@ -238,7 +194,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 				for tempPotential != 0 {
 					index, tempPotential = tempPotential.NextIndexOfOne()
 
-					*moves = append(*moves, Move{CAPTURE_MOVE, index - captureOffset, index, Empty[int]()})
+					*moves = append(*moves, Move{MoveType: CaptureMove, StartIndex: index - captureOffset, EndIndex: index, Evaluation: Empty[int]()})
 				}
 			}
 		}
@@ -248,7 +204,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 			if g.enPassantTarget.HasValue() {
 				enPassantBoard := SingleBitboard(IndexFromFileRank(g.enPassantTarget.Value()))
 				for _, captureOffset := range []int{pushOffset + OffsetE, pushOffset + OffsetW} {
-					potential := playerBoards.pieces[PAWN] & PremoveMaskFromOffset(captureOffset)
+					potential := playerBoards.pieces[Pawn] & PremoveMaskFromOffset(captureOffset)
 					potential = RotateTowardsIndex64(potential, captureOffset)
 					potential = potential & enPassantBoard
 
@@ -256,7 +212,7 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 					for tempPotential != 0 {
 						index, tempPotential = tempPotential.NextIndexOfOne()
 
-						*moves = append(*moves, Move{EN_PASSANT_MOVE, index - captureOffset, index, Empty[int]()})
+						*moves = append(*moves, Move{MoveType: EnPassantMove, StartIndex: index - captureOffset, EndIndex: index, Evaluation: Empty[int]()})
 					}
 				}
 			}
@@ -284,23 +240,23 @@ func (b *Bitboards) generatePseudoMovesInternal(g *GameState, moves *[]Move, onl
 		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NW, *moves)
 		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SW, *moves)
 
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[ROOK], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[BISHOP], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.pieces[QUEEN], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[Rook], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[Bishop], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[Queen], b.occupied, playerBoards.occupied, ROOK_MAGIC_TABLE, onlyCaptures, *moves)
+		*moves = generateWalkMovesWithMagic(playerBoards.pieces[Queen], b.occupied, playerBoards.occupied, BISHOP_MAGIC_TABLE, onlyCaptures, *moves)
 	}
 
 	{
 		// generate knight moves
-		*moves = generateJumpMovesByLookup(playerBoards.pieces[KNIGHT], b.occupied, playerBoards.occupied, KnightAttackMasks, onlyCaptures, *moves)
+		*moves = generateJumpMovesByLookup(playerBoards.pieces[Knight], b.occupied, playerBoards.occupied, KnightAttackMasks, onlyCaptures, *moves)
 
 		// generate king moves
-		*moves = generateJumpMovesByLookup(playerBoards.pieces[KING], b.occupied, playerBoards.occupied, KingAttackMasks, onlyCaptures, *moves)
+		*moves = generateJumpMovesByLookup(playerBoards.pieces[King], b.occupied, playerBoards.occupied, KingAttackMasks, onlyCaptures, *moves)
 	}
 
 	if !onlyCaptures {
 		// generate king castle
-		for _, castlingSide := range CASTLING_SIDES {
+		for _, castlingSide := range AllCastlingSides {
 			canCastle := true
 			if g.playerAndCastlingSideAllowed[player][castlingSide] {
 				requirements := AllCastlingRequirements[player][castlingSide]
@@ -332,7 +288,7 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
 
 		potential := BISHOP_MAGIC_TABLE.moves[startIndex][magicIndex]
-		potential = potential & (enemyBitboards.pieces[BISHOP] | enemyBitboards.pieces[QUEEN])
+		potential = potential & (enemyBitboards.pieces[Bishop] | enemyBitboards.pieces[Queen])
 
 		if potential != 0 {
 			return true
@@ -345,7 +301,7 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 		magicIndex := magicIndex(magicValues.Magic, blockerBoard, magicValues.BitsInMagicIndex)
 
 		potential := ROOK_MAGIC_TABLE.moves[startIndex][magicIndex]
-		potential = potential & (enemyBitboards.pieces[ROOK] | enemyBitboards.pieces[QUEEN])
+		potential = potential & (enemyBitboards.pieces[Rook] | enemyBitboards.pieces[Queen])
 
 		if potential != 0 {
 			return true
@@ -357,7 +313,7 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	// Pawn attacks
 	{
 		enemyPlayer := player.Other()
-		enemyPawns := enemyBitboards.pieces[PAWN]
+		enemyPawns := enemyBitboards.pieces[Pawn]
 		captureOffset0 := PawnCaptureOffsets[enemyPlayer][0]
 		captureOffset1 := PawnCaptureOffsets[enemyPlayer][1]
 		captureMask0 := enemyPawns & PremoveMaskFromOffset(captureOffset0)
@@ -372,12 +328,12 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	{
 		{
 			knightMask := KnightAttackMasks[startIndex]
-			potential := enemyBitboards.pieces[KNIGHT] & knightMask
+			potential := enemyBitboards.pieces[Knight] & knightMask
 			attackers |= potential
 		}
 		{
 			kingMask := KingAttackMasks[startIndex]
-			potential := enemyBitboards.pieces[KING] & kingMask
+			potential := enemyBitboards.pieces[King] & kingMask
 			attackers |= potential
 		}
 	}
@@ -386,7 +342,7 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 }
 
 func (b *Bitboards) kingIsInCheck(player Player, enemy Player) bool {
-	kingBoard := b.players[player].pieces[KING]
+	kingBoard := b.players[player].pieces[King]
 	kingIndex := kingBoard.FirstIndexOfOne()
 	return playerIndexIsAttacked(player, kingIndex, b.occupied, &b.players[enemy])
 }

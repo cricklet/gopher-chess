@@ -1,4 +1,4 @@
-package chess
+package helpers
 
 import "fmt"
 
@@ -6,15 +6,15 @@ type File uint
 type Rank uint
 
 type FileRank struct {
-	file File
-	rank Rank
+	File File
+	Rank Rank
 }
 
 type Player uint
 
 const (
 	White Player = iota
-	BLACK
+	Black
 )
 
 type Piece uint
@@ -38,13 +38,13 @@ const (
 type PieceType uint
 
 const (
-	ROOK PieceType = iota
-	KNIGHT
-	BISHOP
-	KING
-	QUEEN
-	PAWN
-	INVALID
+	Rook PieceType = iota
+	Knight
+	Bishop
+	King
+	Queen
+	Pawn
+	InvalidPiece
 )
 
 func (f File) String() string {
@@ -58,7 +58,7 @@ func (r Rank) String() string {
 	}[r]
 }
 
-func rankFromChar(c byte) (Rank, error) {
+func RankFromChar(c byte) (Rank, error) {
 	rank := int(c - '1')
 	if rank < 0 || rank >= 8 {
 		return 0, fmt.Errorf("rank invalid %v", c)
@@ -66,7 +66,7 @@ func rankFromChar(c byte) (Rank, error) {
 	return Rank(rank), nil
 }
 
-func fileFromChar(c byte) (File, error) {
+func FileFromChar(c byte) (File, error) {
 	file := int(c - 'a')
 	if file < 0 || file >= 8 {
 		return 0, fmt.Errorf("file invalid %v", c)
@@ -74,12 +74,12 @@ func fileFromChar(c byte) (File, error) {
 	return File(file), nil
 }
 
-func stringFromBoardIndex(index int) string {
+func StringFromBoardIndex(index int) string {
 	return FileRankFromIndex(index).String()
 }
 
 func (v FileRank) String() string {
-	return v.file.String() + v.rank.String()
+	return v.File.String() + v.Rank.String()
 }
 
 func FileRankFromString(s string) (FileRank, error) {
@@ -87,8 +87,8 @@ func FileRankFromString(s string) (FileRank, error) {
 		return FileRank{}, fmt.Errorf("invalid location %v", s)
 	}
 
-	file, fileErr := fileFromChar(s[0])
-	rank, rankErr := rankFromChar(s[1])
+	file, fileErr := FileFromChar(s[0])
+	rank, rankErr := RankFromChar(s[1])
 
 	if fileErr != nil || rankErr != nil {
 		return FileRank{}, fmt.Errorf("invalid location %v with errors %w, %w", s, fileErr, rankErr)
@@ -97,10 +97,10 @@ func FileRankFromString(s string) (FileRank, error) {
 	return FileRank{file, rank}, nil
 }
 
-func playerFromString(c string) (Player, error) {
+func PlayerFromString(c string) (Player, error) {
 	switch c {
 	case "b":
-		return BLACK, nil
+		return Black, nil
 	case "w":
 		return White, nil
 	default:
@@ -108,21 +108,21 @@ func playerFromString(c string) (Player, error) {
 	}
 }
 
-var PIECE_TYPE_LOOKUP [16]PieceType = func() [16]PieceType {
+var PieceTypeLookup [16]PieceType = func() [16]PieceType {
 	result := [16]PieceType{}
-	result[XX] = INVALID
-	result[WR] = ROOK
-	result[WN] = KNIGHT
-	result[WB] = BISHOP
-	result[WK] = KING
-	result[WQ] = QUEEN
-	result[WP] = PAWN
-	result[BR] = ROOK
-	result[BN] = KNIGHT
-	result[BB] = BISHOP
-	result[BK] = KING
-	result[BQ] = QUEEN
-	result[BP] = PAWN
+	result[XX] = InvalidPiece
+	result[WR] = Rook
+	result[WN] = Knight
+	result[WB] = Bishop
+	result[WK] = King
+	result[WQ] = Queen
+	result[WP] = Pawn
+	result[BR] = Rook
+	result[BN] = Knight
+	result[BB] = Bishop
+	result[BK] = King
+	result[BQ] = Queen
+	result[BP] = Pawn
 	return result
 }()
 
@@ -137,56 +137,56 @@ var PIECE_TYPE_LOOKUP [16]PieceType = func() [16]PieceType {
 // 	return PieceType((p - 1) % 6)
 // }
 
-func (p Piece) pieceType() PieceType {
-	return PIECE_TYPE_LOOKUP[p]
+func (p Piece) PieceType() PieceType {
+	return PieceTypeLookup[p]
 }
 
-func (p PieceType) isValid() bool {
-	return p >= ROOK && p <= PAWN
+func (p PieceType) IsValid() bool {
+	return p >= Rook && p <= Pawn
 }
 
-var PLAYER_FOR_PIECE [16]Player = func() [16]Player {
+var PlayerForPiece [16]Player = func() [16]Player {
 	result := [16]Player{}
 	for i := WR; i <= WP; i++ {
 		result[i] = White
 	}
 	for i := BR; i <= BP; i++ {
-		result[i] = BLACK
+		result[i] = Black
 	}
 	return result
 }()
 
-func (p Piece) player() Player {
+func (p Piece) Player() Player {
 	if p < BR {
 		return White
 	}
-	return BLACK
+	return Black
 }
 
-func (p Piece) player2() Player {
-	return PLAYER_FOR_PIECE[p]
+func (p Piece) PlayerLookup() Player {
+	return PlayerForPiece[p]
 }
 
 func (p Player) Other() Player {
 	return 1 - p
 }
 
-var PIECE_FOR_PLAYER [2][8]Piece = func() [2][8]Piece {
+var PieceForPlayer [2][8]Piece = func() [2][8]Piece {
 	result := [2][8]Piece{}
 
-	result[White][ROOK] = WR
-	result[White][KNIGHT] = WN
-	result[White][BISHOP] = WB
-	result[White][KING] = WK
-	result[White][QUEEN] = WQ
-	result[White][PAWN] = WP
+	result[White][Rook] = WR
+	result[White][Knight] = WN
+	result[White][Bishop] = WB
+	result[White][King] = WK
+	result[White][Queen] = WQ
+	result[White][Pawn] = WP
 
-	result[BLACK][ROOK] = BR
-	result[BLACK][KNIGHT] = BN
-	result[BLACK][BISHOP] = BB
-	result[BLACK][KING] = BK
-	result[BLACK][QUEEN] = BQ
-	result[BLACK][PAWN] = BP
+	result[Black][Rook] = BR
+	result[Black][Knight] = BN
+	result[Black][Bishop] = BB
+	result[Black][King] = BK
+	result[Black][Queen] = BQ
+	result[Black][Pawn] = BP
 
 	return result
 }()
@@ -195,7 +195,7 @@ var PIECE_FOR_PLAYER [2][8]Piece = func() [2][8]Piece {
 // 	return PIECE_FOR_PLAYER[player][p]
 // }
 
-func pieceFromString(c rune) (Piece, error) {
+func PieceFromString(c rune) (Piece, error) {
 	switch c {
 	case 'R':
 		return WR, nil
@@ -244,11 +244,11 @@ func (p Piece) String() string {
 	}[p]
 }
 
-func (p Piece) isWhite() bool {
+func (p Piece) IsWhite() bool {
 	return p <= WP && p >= WR
 }
 
-func (p Piece) isBlack() bool {
+func (p Piece) IsBlack() bool {
 	return p <= BP && p >= BR
 }
 
@@ -286,12 +286,12 @@ func (b BoardArray) String() string {
 	return result
 }
 
-func pieceAtFileRank(board BoardArray, location FileRank) Piece {
+func PieceAtFileRank(board BoardArray, location FileRank) Piece {
 	return board[IndexFromFileRank(location)]
 }
 
 func IndexFromFileRank(location FileRank) int {
-	return int(location.rank)*8 + int(location.file)
+	return int(location.Rank)*8 + int(location.File)
 }
 
 func FileRankFromIndex(index int) FileRank {
@@ -300,7 +300,7 @@ func FileRankFromIndex(index int) FileRank {
 	return FileRank{f, r}
 }
 
-func boardIndexFromString(s string) int {
+func BoardIndexFromString(s string) int {
 	location, err := FileRankFromString(s)
 	if err != nil {
 		panic(err)
@@ -315,4 +315,34 @@ const (
 	Queenside
 )
 
-var CASTLING_SIDES = [2]CastlingSide{Kingside, Queenside}
+var AllCastlingSides = [2]CastlingSide{Kingside, Queenside}
+
+type MoveType int
+
+const (
+	QuietMove MoveType = iota
+	CaptureMove
+	CastlingMove
+	EnPassantMove
+)
+
+type Move struct {
+	MoveType   MoveType
+	StartIndex int
+	EndIndex   int
+	Evaluation Optional[int]
+}
+
+func MoveFromString(s string, m MoveType) Move {
+	first := s[0:2]
+	second := s[2:4]
+	return Move{m, BoardIndexFromString(first), BoardIndexFromString(second), Empty[int]()}
+}
+
+func (m Move) String() string {
+	return StringFromBoardIndex(m.StartIndex) + StringFromBoardIndex(m.EndIndex)
+}
+
+func (m Move) DebugString() string {
+	return fmt.Sprintf("%v%v, %v", StringFromBoardIndex(m.StartIndex), StringFromBoardIndex(m.EndIndex), m.MoveType)
+}

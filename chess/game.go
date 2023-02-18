@@ -38,50 +38,51 @@ func (g *GameState) HistoryString() string {
 }
 
 func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
-	if startPieceType != PAWN {
+	if startPieceType != Pawn {
 		return false
 	}
 
 	start := FileRankFromIndex(startIndex)
 	end := FileRankFromIndex(endIndex)
 
-	return AbsDiff(int(start.file), int(end.file)) == 1 && AbsDiff(int(start.rank), int(end.rank)) == 1
+	return AbsDiff(int(start.File), int(end.File)) == 1 && AbsDiff(int(start.Rank), int(end.Rank)) == 1
 }
 
-func (g *GameState) moveFromString(s string) Move {
-	start := boardIndexFromString(s[0:2])
-	end := boardIndexFromString(s[2:4])
+func (g *GameState) MoveFromString(s string) Move {
+	start := BoardIndexFromString(s[0:2])
+	end := BoardIndexFromString(s[2:4])
 
 	var moveType MoveType
 	if g.Board[end] == XX {
-		startPieceType := g.Board[start].pieceType()
+		startPieceType := g.Board[start].PieceType()
 		// either a quiet, castle, or en passant
-		if startPieceType == KING && AbsDiff(start, end) == 2 {
-			moveType = CASTLING_MOVE
+		if startPieceType == King && AbsDiff(start, end) == 2 {
+			moveType = CastlingMove
 		} else if isPawnCapture(startPieceType, start, end) {
-			moveType = EN_PASSANT_MOVE
+			moveType = EnPassantMove
 		} else {
-			moveType = QUIET_MOVE
+			moveType = QuietMove
 		}
 	} else {
-		moveType = CAPTURE_MOVE
+		moveType = CaptureMove
 	}
-	return Move{moveType, start, end, Empty[int]()}
+	return Move{
+		MoveType: moveType, StartIndex: start, EndIndex: end, Evaluation: Empty[int]()}
 }
 
 func isPawnSkip(startPiece Piece, move Move) bool {
-	if move.moveType != QUIET_MOVE || startPiece.pieceType() != PAWN {
+	if move.MoveType != QuietMove || startPiece.PieceType() != Pawn {
 		return false
 	}
 
-	return AbsDiff(move.startIndex, move.endIndex) == OffsetN+OffsetN
+	return AbsDiff(move.StartIndex, move.EndIndex) == OffsetN+OffsetN
 }
 
 func enPassantTarget(move Move) int {
-	if move.endIndex > move.startIndex {
-		return move.startIndex + OffsetN
+	if move.EndIndex > move.StartIndex {
+		return move.StartIndex + OffsetN
 	} else {
-		return move.startIndex + OffsetS
+		return move.StartIndex + OffsetS
 	}
 }
 
@@ -93,48 +94,48 @@ func (u *BoardUpdate) Add(g *GameState, index int, piece Piece) {
 }
 
 func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
-	startPiece := g.Board[move.startIndex]
+	startPiece := g.Board[move.StartIndex]
 
-	switch move.moveType {
-	case QUIET_MOVE:
+	switch move.MoveType {
+	case QuietMove:
 		{
-			if startPiece.pieceType() == PAWN && SingleBitboard(move.endIndex)&PawnPromotionBitboard != 0 {
-				output.Add(g, move.startIndex, XX)
-				output.Add(g, move.endIndex, PIECE_FOR_PLAYER[g.player][QUEEN])
+			if startPiece.PieceType() == Pawn && SingleBitboard(move.EndIndex)&PawnPromotionBitboard != 0 {
+				output.Add(g, move.StartIndex, XX)
+				output.Add(g, move.EndIndex, PieceForPlayer[g.player][Queen])
 			} else {
-				output.Add(g, move.startIndex, XX)
-				output.Add(g, move.endIndex, startPiece)
+				output.Add(g, move.StartIndex, XX)
+				output.Add(g, move.EndIndex, startPiece)
 			}
 		}
-	case CAPTURE_MOVE:
+	case CaptureMove:
 		{
-			output.Add(g, move.startIndex, XX)
-			output.Add(g, move.endIndex, startPiece)
+			output.Add(g, move.StartIndex, XX)
+			output.Add(g, move.EndIndex, startPiece)
 		}
-	case EN_PASSANT_MOVE:
+	case EnPassantMove:
 		{
-			startPlayer := startPiece.player()
+			startPlayer := startPiece.Player()
 			backwardsDir := S
-			if startPlayer == BLACK {
+			if startPlayer == Black {
 				backwardsDir = N
 			}
 
-			captureIndex := move.endIndex + Offsets[backwardsDir]
+			captureIndex := move.EndIndex + Offsets[backwardsDir]
 			output.Add(g, captureIndex, XX)
-			output.Add(g, move.startIndex, XX)
-			output.Add(g, move.endIndex, startPiece)
+			output.Add(g, move.StartIndex, XX)
+			output.Add(g, move.EndIndex, startPiece)
 		}
-	case CASTLING_MOVE:
+	case CastlingMove:
 		{
-			rookStartIndex, rookEndIndex, err := RookMoveForCastle(move.startIndex, move.endIndex)
+			rookStartIndex, rookEndIndex, err := RookMoveForCastle(move.StartIndex, move.EndIndex)
 			if err != nil {
 				return err
 			}
 			rookPiece := g.Board[rookStartIndex]
 
-			output.Add(g, move.startIndex, XX)
+			output.Add(g, move.StartIndex, XX)
 			output.Add(g, rookStartIndex, XX)
-			output.Add(g, move.endIndex, startPiece)
+			output.Add(g, move.EndIndex, startPiece)
 			output.Add(g, rookEndIndex, rookPiece)
 		}
 	}
@@ -157,10 +158,10 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 }
 
 func (g *GameState) performMove(move Move, update BoardUpdate) {
-	startPiece := g.Board[move.startIndex]
+	startPiece := g.Board[move.StartIndex]
 
 	g.enPassantTarget = Empty[FileRank]()
-	if move.moveType == QUIET_MOVE && isPawnSkip(startPiece, move) {
+	if move.MoveType == QuietMove && isPawnSkip(startPiece, move) {
 		g.enPassantTarget = Some(FileRankFromIndex(enPassantTarget(move)))
 	}
 
@@ -169,21 +170,21 @@ func (g *GameState) performMove(move Move, update BoardUpdate) {
 	}
 
 	g.halfMoveClock++
-	if g.player == BLACK {
+	if g.player == Black {
 		g.fullMoveClock++
 	}
 	g.player = g.player.Other()
 	g.moveHistoryForDebugging = append(g.moveHistoryForDebugging, move)
 
-	startBitboard := SingleBitboard(move.startIndex)
-	endBitboard := SingleBitboard(move.endIndex)
+	startBitboard := SingleBitboard(move.StartIndex)
+	endBitboard := SingleBitboard(move.EndIndex)
 	moveBitboard := startBitboard | endBitboard
 	g.updateCastlingRequirementsFor(moveBitboard, White, Kingside)
 	g.updateCastlingRequirementsFor(moveBitboard, White, Queenside)
-	g.updateCastlingRequirementsFor(moveBitboard, BLACK, Kingside)
-	g.updateCastlingRequirementsFor(moveBitboard, BLACK, Queenside)
+	g.updateCastlingRequirementsFor(moveBitboard, Black, Kingside)
+	g.updateCastlingRequirementsFor(moveBitboard, Black, Queenside)
 
-	if move.moveType == CASTLING_MOVE {
+	if move.MoveType == CastlingMove {
 		g.playerAndCastlingSideAllowed[g.player][Kingside] = false
 		g.playerAndCastlingSideAllowed[g.player][Queenside] = false
 	}
@@ -213,11 +214,11 @@ func (g *GameState) whiteCanCastleKingside() bool {
 	return g.playerAndCastlingSideAllowed[White][Kingside]
 }
 func (g *GameState) whiteCanCastleQueenside() bool {
-	return g.playerAndCastlingSideAllowed[BLACK][Queenside]
+	return g.playerAndCastlingSideAllowed[Black][Queenside]
 }
 func (g *GameState) blackCanCastleKingside() bool {
 	return g.playerAndCastlingSideAllowed[White][Kingside]
 }
 func (g *GameState) blackCanCastleQueenside() bool {
-	return g.playerAndCastlingSideAllowed[BLACK][Queenside]
+	return g.playerAndCastlingSideAllowed[Black][Queenside]
 }

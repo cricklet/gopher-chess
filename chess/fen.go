@@ -8,7 +8,7 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
-func (p Player) fenString() string {
+func fenStringForPlayer(p Player) string {
 	if p == White {
 		return "w"
 	} else {
@@ -16,7 +16,7 @@ func (p Player) fenString() string {
 	}
 }
 
-var FEN_STRING_FOR_CASTLING = [2][2]string{
+var fenStringForCastling = [2][2]string{
 	{"K", "Q"},
 	{"k", "q"},
 }
@@ -26,7 +26,7 @@ func fenStringForCastlingAllowed(playerAndCastlingSideAllowed [2][2]bool) string
 	for i := 0; i < 2; i++ {
 		for j := 0; j < 2; j++ {
 			if playerAndCastlingSideAllowed[i][j] {
-				s += FEN_STRING_FOR_CASTLING[i][j]
+				s += fenStringForCastling[i][j]
 			}
 		}
 	}
@@ -43,12 +43,12 @@ func fenStringForEnPassant(enPassant Optional[FileRank]) string {
 	return enPassant.Value().String()
 }
 
-func (b *BoardArray) fenString() string {
+func fenStringForBoard(b *BoardArray) string {
 	s := ""
 	for rank := 7; rank >= 0; rank-- {
 		numSpaces := 0
 		for file := 0; file < 8; file++ {
-			index := IndexFromFileRank(FileRank{File(file), Rank(rank)})
+			index := IndexFromFileRank(FileRank{File: File(file), Rank: Rank(rank)})
 			piece := b[index]
 			if piece == XX {
 				numSpaces++
@@ -70,11 +70,11 @@ func (b *BoardArray) fenString() string {
 	return s
 }
 
-func (g *GameState) fenString() string {
+func (g *GameState) FenString() string {
 	s := ""
 	s += fmt.Sprintf("%v %v %v %v %v %v",
-		g.Board.fenString(),
-		g.player.fenString(),
+		fenStringForBoard(&g.Board),
+		fenStringForPlayer(g.player),
 		fenStringForCastlingAllowed(g.playerAndCastlingSideAllowed),
 		fenStringForEnPassant(g.enPassantTarget),
 		g.halfMoveClock,
@@ -104,16 +104,16 @@ func GamestateFromFenString(s string) (GameState, error) {
 			fileIndex = 0
 		} else if indicesToSkip, err := strconv.ParseInt(string(c), 10, 0); err == nil {
 			fileIndex += File(indicesToSkip)
-		} else if p, err := pieceFromString(c); err == nil {
+		} else if p, err := PieceFromString(c); err == nil {
 			// note, we insert pieces into the board in inverse order so the 0th index refers to a1
-			game.Board[IndexFromFileRank(FileRank{fileIndex, rankIndex})] = p
+			game.Board[IndexFromFileRank(FileRank{File: fileIndex, Rank: rankIndex})] = p
 			fileIndex++
 		} else {
 			return GameState{}, fmt.Errorf("unknown character '%v' in '%v'", c, s)
 		}
 	}
 
-	if player, err := playerFromString(playerString); err == nil {
+	if player, err := PlayerFromString(playerString); err == nil {
 		game.player = player
 	} else {
 		return GameState{}, fmt.Errorf("invalid player '%v' in '%v'", playerString, s)
@@ -128,9 +128,9 @@ func GamestateFromFenString(s string) (GameState, error) {
 		case 'Q':
 			game.playerAndCastlingSideAllowed[White][Queenside] = true
 		case 'k':
-			game.playerAndCastlingSideAllowed[BLACK][Kingside] = true
+			game.playerAndCastlingSideAllowed[Black][Kingside] = true
 		case 'q':
-			game.playerAndCastlingSideAllowed[BLACK][Queenside] = true
+			game.playerAndCastlingSideAllowed[Black][Queenside] = true
 		}
 	}
 

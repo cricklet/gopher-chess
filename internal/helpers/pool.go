@@ -1,4 +1,4 @@
-package chess
+package helpers
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ func (s PoolStats) String() string {
 	return fmt.Sprint("creates: ", s.creates, ", resets: ", s.resets, ", hits: ", s.hits)
 }
 
-func createPool[T any](create func() T, reset func(*T)) (func() *T, func(*T), func() PoolStats) {
+func CreatePool[T any](create func() T, reset func(*T)) (func() *T, func(*T), func() PoolStats) {
 	availableBuffer := [256]*T{}
 	startIndex := 0
 	endIndex := 0

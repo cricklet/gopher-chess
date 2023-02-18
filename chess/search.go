@@ -28,7 +28,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 	totalSearched := 0
 
 	for _, move := range *moves {
-		if move.evaluation.Value() < 200 {
+		if move.Evaluation.Value() < 200 {
 			continue
 		}
 
@@ -132,7 +132,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		g.performMove(move, update)
 
 		var result SearchResult
-		if depth == 1 && move.moveType == CAPTURE_MOVE {
+		if depth == 1 && move.MoveType == CaptureMove {
 			result, err = evaluateCaptures(g, b,
 				-enemyCanForceScore,
 				-playerCanForceScore)
@@ -187,20 +187,20 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		update, previous := BoardUpdate{}, OldGameState{}
 		err := SetupBoardUpdate(g, move, &update)
 		if err != nil {
-			return Empty[Move](), fmt.Errorf("setup Search %v => %v: %w", g.fenString(), move.String(), err)
+			return Empty[Move](), fmt.Errorf("setup Search %v => %v: %w", g.FenString(), move.String(), err)
 		}
 		RecordCurrentState(g, &previous)
 
 		err = b.PerformMove(g, move)
 		if err != nil {
-			return Empty[Move](), fmt.Errorf("perform Search %v => %v: %w", g.fenString(), move.String(), err)
+			return Empty[Move](), fmt.Errorf("perform Search %v => %v: %w", g.FenString(), move.String(), err)
 		}
 		g.performMove(move, update)
 
 		result, err := evaluateSearch(g, b,
 			-INF, INF, depth)
 		if err != nil {
-			return Empty[Move](), fmt.Errorf("evaluate Search %v => %v: %w", g.fenString(), move.String(), err)
+			return Empty[Move](), fmt.Errorf("evaluate Search %v => %v: %w", g.FenString(), move.String(), err)
 		}
 
 		enemyScore := result.score
@@ -209,7 +209,7 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 
 		err = b.UndoUpdate(update)
 		if err != nil {
-			return Empty[Move](), fmt.Errorf("undo Search %v => %v: %w", g.fenString(), move.String(), err)
+			return Empty[Move](), fmt.Errorf("undo Search %v => %v: %w", g.FenString(), move.String(), err)
 		}
 		g.undoUpdate(previous, update)
 

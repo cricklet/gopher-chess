@@ -126,11 +126,11 @@ func evaluateDevelopment(b Bitboard, e []EvaluationBitboard) int {
 
 func (b *Bitboards) evaluateDevelopment(player Player) int {
 	development := 0
-	development += evaluateDevelopment(b.players[player].pieces[ROOK], ROOK_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[KNIGHT], KNIGHT_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[BISHOP], BISHOP_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[QUEEN], QUEEN_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[PAWN], PAWN_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[Rook], ROOK_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[Knight], KNIGHT_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[Bishop], BISHOP_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[Queen], QUEEN_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.players[player].pieces[Pawn], PAWN_DEVELOPMENT_BITBOARDS[player])
 	return development
 }
 
@@ -138,18 +138,18 @@ func (b *Bitboards) evaluate(player Player) int {
 	enemy := player.Other()
 
 	pieceValues :=
-		500*OnesCount(b.players[player].pieces[ROOK]) +
-			300*OnesCount(b.players[player].pieces[KNIGHT]) +
-			350*OnesCount(b.players[player].pieces[BISHOP]) +
-			900*OnesCount(b.players[player].pieces[QUEEN]) +
-			100*OnesCount(b.players[player].pieces[PAWN])
+		500*OnesCount(b.players[player].pieces[Rook]) +
+			300*OnesCount(b.players[player].pieces[Knight]) +
+			350*OnesCount(b.players[player].pieces[Bishop]) +
+			900*OnesCount(b.players[player].pieces[Queen]) +
+			100*OnesCount(b.players[player].pieces[Pawn])
 
 	enemyValues :=
-		500*OnesCount(b.players[enemy].pieces[ROOK]) +
-			300*OnesCount(b.players[enemy].pieces[KNIGHT]) +
-			350*OnesCount(b.players[enemy].pieces[BISHOP]) +
-			900*OnesCount(b.players[enemy].pieces[QUEEN]) +
-			100*OnesCount(b.players[enemy].pieces[PAWN])
+		500*OnesCount(b.players[enemy].pieces[Rook]) +
+			300*OnesCount(b.players[enemy].pieces[Knight]) +
+			350*OnesCount(b.players[enemy].pieces[Bishop]) +
+			900*OnesCount(b.players[enemy].pieces[Queen]) +
+			100*OnesCount(b.players[enemy].pieces[Pawn])
 
 	developmentValues := b.evaluateDevelopment(player)
 	enemyDevelopmentValues := b.evaluateDevelopment(enemy)
@@ -168,28 +168,28 @@ var PIECE_SCORES = []int{
 }
 
 func (g *GameState) pieceScore(index int) int {
-	return PIECE_SCORES[g.Board[index].pieceType()]
+	return PIECE_SCORES[g.Board[index].PieceType()]
 }
 
-func (m *Move) Evaluate(g *GameState) int {
+func EvaluateMove(m *Move, g *GameState) int {
 	score := 0
-	if m.moveType == CAPTURE_MOVE {
-		score += g.pieceScore(m.endIndex) - g.pieceScore(m.startIndex)
+	if m.MoveType == CaptureMove {
+		score += g.pieceScore(m.EndIndex) - g.pieceScore(m.StartIndex)
 	}
-	if m.moveType == EN_PASSANT_MOVE {
+	if m.MoveType == EnPassantMove {
 		score += 100
 	}
-	if m.moveType == CASTLING_MOVE {
+	if m.MoveType == CastlingMove {
 		score += 500
 	}
 
 	startDevelopment := evaluateDevelopment(
-		SingleBitboard(m.endIndex),
-		DEVELOPMENT_BITBOARDS[g.Board[m.startIndex].pieceType()][g.player])
+		SingleBitboard(m.EndIndex),
+		DEVELOPMENT_BITBOARDS[g.Board[m.StartIndex].PieceType()][g.player])
 	endDevelopment :=
 		evaluateDevelopment(
-			SingleBitboard(m.startIndex),
-			DEVELOPMENT_BITBOARDS[g.Board[m.startIndex].pieceType()][g.player])
+			SingleBitboard(m.StartIndex),
+			DEVELOPMENT_BITBOARDS[g.Board[m.StartIndex].PieceType()][g.player])
 
 	score += startDevelopment - endDevelopment
 	return score

@@ -74,7 +74,7 @@ func (r *Runner) PerformMove(move Move) error {
 }
 
 func (r *Runner) PerformMoveFromString(s string) error {
-	return r.PerformMove(r.g.moveFromString(s))
+	return r.PerformMove(r.g.MoveFromString(s))
 }
 
 func (r *Runner) PerformMoves(startPos string, moves []string) error {
@@ -95,7 +95,7 @@ func (r *Runner) PerformMoves(startPos string, moves []string) error {
 	}
 
 	for i := startIndex; i < len(moves); i++ {
-		err := r.PerformMove(r.g.moveFromString(moves[i]))
+		err := r.PerformMove(r.g.MoveFromString(moves[i]))
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func (r *Runner) PerformMoves(startPos string, moves []string) error {
 
 func (r *Runner) SetupPosition(position Position) error {
 	if r.Logger == nil {
-		r.Logger = &DEFAULT_LOGGER
+		r.Logger = &DefaultLogger
 	}
 	if !r.IsNew() {
 		return errors.New("please use ucinewgame")
@@ -124,7 +124,7 @@ func (r *Runner) SetupPosition(position Position) error {
 	r.startPos = position.fen
 
 	for _, m := range position.moves {
-		err := r.PerformMove(r.g.moveFromString(m))
+		err := r.PerformMove(r.g.MoveFromString(m))
 		if err != nil {
 			return err
 		}
@@ -216,15 +216,15 @@ func (r *Runner) MovesForSelection(selection string) ([]FileRank, error) {
 	}
 
 	moves := FilterSlice(legalMoves, func(m Move) bool {
-		return m.startIndex == selectionIndex
+		return m.StartIndex == selectionIndex
 	})
 	return MapSlice(moves, func(m Move) FileRank {
-		return FileRankFromIndex(m.endIndex)
+		return FileRankFromIndex(m.EndIndex)
 	}), nil
 }
 
 func (r *Runner) FenString() string {
-	return r.g.fenString()
+	return r.g.FenString()
 }
 
 func (r *Runner) Player() Player {

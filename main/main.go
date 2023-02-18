@@ -74,8 +74,8 @@ func serve() {
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		runner := chessgo.Runner{}
-		userPlayer := chessgo.White
-		computerPlayer := chessgo.BLACK
+		userPlayer := White
+		computerPlayer := Black
 
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -98,7 +98,7 @@ func serve() {
 
 		var finalizeUpdate = func(update UpdateToWeb) {
 			update.FenString = runner.FenString()
-			if runner.Player() == chessgo.White {
+			if runner.Player() == White {
 				update.Player = "white"
 			} else {
 				update.Player = "black"
@@ -164,9 +164,9 @@ func serve() {
 				}
 			} else if message.UserPlayer != nil {
 				if *message.UserPlayer == "white" {
-					userPlayer = chessgo.White
+					userPlayer = White
 				} else {
-					userPlayer = chessgo.BLACK
+					userPlayer = Black
 				}
 				computerPlayer = userPlayer.Other()
 
@@ -182,7 +182,7 @@ func serve() {
 					}
 					update.PossibleMoves = MapSlice(
 						result,
-						func(v chessgo.FileRank) string {
+						func(v FileRank) string {
 							return v.String()
 						})
 				}
