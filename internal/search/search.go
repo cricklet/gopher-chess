@@ -102,9 +102,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 	}
 
 	moves := GetMovesBuffer()
-	defer func() {
-		ReleaseMovesBuffer(moves)
-	}()
+	defer ReleaseMovesBuffer(moves)
 
 	GenerateSortedPseudoMoves(b, g, moves)
 
@@ -117,9 +115,6 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("setup evaluateSearch %v: %w", move.String(), err)
 		}
-
-		str := g.Board.String()
-		Ignore(str)
 
 		err = g.PerformMove(move, &update, b)
 		if err != nil {
