@@ -1,4 +1,4 @@
-package chess
+package runner
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	. "github.com/cricklet/chessgo/internal/fen"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	. "github.com/cricklet/chessgo/internal/search"
 )
 
 type Runner struct {

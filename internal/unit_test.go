@@ -1,4 +1,4 @@
-package chess
+package internal
 
 import (
 	"fmt"
@@ -15,6 +15,8 @@ import (
 	. "github.com/cricklet/chessgo/internal/fen"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	. "github.com/cricklet/chessgo/internal/runner"
+	. "github.com/cricklet/chessgo/internal/search"
 
 	"github.com/pkg/profile"
 	"github.com/schollz/progressbar/v3"

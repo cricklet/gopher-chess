@@ -10,8 +10,8 @@ import (
 	"runtime/debug"
 	"strings"
 
-	chessgo "github.com/cricklet/chessgo/chess"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	. "github.com/cricklet/chessgo/internal/runner"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -73,7 +73,7 @@ func serve() {
 	var upgrader = websocket.Upgrader{}
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
-		runner := chessgo.Runner{}
+		runner := Runner{}
 		userPlayer := White
 		computerPlayer := Black
 
@@ -251,7 +251,7 @@ func main() {
 		log.Println("starting webserver")
 		serve()
 	} else {
-		r := chessgo.Runner{}
+		r := Runner{}
 
 		scanner := bufio.NewScanner(os.Stdin)
 

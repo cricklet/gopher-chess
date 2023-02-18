@@ -1,13 +1,13 @@
-package chess
+package search
 
 import (
 	"fmt"
 	"sort"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	. "github.com/cricklet/chessgo/internal/evaluation"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	. "github.com/cricklet/chessgo/internal/search"
 )
 
 func generateWalkMovesWithMagic(

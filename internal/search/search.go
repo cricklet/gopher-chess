@@ -1,14 +1,14 @@
-package chess
+package search
 
 import (
 	"fmt"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	. "github.com/cricklet/chessgo/internal/evaluation"
 	. "github.com/cricklet/chessgo/internal/fen"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	. "github.com/cricklet/chessgo/internal/search"
 	"github.com/pkg/profile"
 )
 
@@ -53,8 +53,8 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("recurse evaluateCapturesInner %v: %w", move.String(), err)
 		}
-		enemyScore := result.score
-		totalSearched += result.quiescenceSearched
+		enemyScore := result.Score
+		totalSearched += result.QuiescenceSearched
 
 		err = g.UndoUpdate(&update, b)
 		if err != nil {
@@ -86,9 +86,9 @@ func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemy
 }
 
 type SearchResult struct {
-	score              int
-	totalSearched      int
-	quiescenceSearched int
+	Score              int
+	TotalSearched      int
+	QuiescenceSearched int
 }
 
 func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int, depth int) (SearchResult, error) {
@@ -141,9 +141,9 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 			return SearchResult{}, fmt.Errorf("%v %v: %w", move.String(), depth, err)
 		}
 
-		enemyScore := result.score
-		totalSearched += result.totalSearched
-		quiescenceSearched += result.quiescenceSearched
+		enemyScore := result.Score
+		totalSearched += result.TotalSearched
+		quiescenceSearched += result.QuiescenceSearched
 
 		err = g.UndoUpdate(&update, b)
 		if err != nil {
@@ -195,9 +195,9 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 			return Empty[Move](), fmt.Errorf("evaluate Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
-		enemyScore := result.score
-		totalSearched += result.totalSearched
-		quiescenceSearched += result.quiescenceSearched
+		enemyScore := result.Score
+		totalSearched += result.TotalSearched
+		quiescenceSearched += result.QuiescenceSearched
 
 		err = g.UndoUpdate(&update, b)
 		if err != nil {
@@ -205,7 +205,7 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		}
 
 		currentScore := -enemyScore
-		logger.Println(i, "/", len(*moves), "searched", result.totalSearched, "with initial search", result.totalSearched-result.quiescenceSearched, "and ending captures", result.quiescenceSearched, "under", move.String(), "and found score", currentScore)
+		logger.Println(i, "/", len(*moves), "searched", result.TotalSearched, "with initial search", result.TotalSearched-result.QuiescenceSearched, "and ending captures", result.QuiescenceSearched, "under", move.String(), "and found score", currentScore)
 
 		if currentScore > bestScoreSoFar {
 			bestScoreSoFar = currentScore
