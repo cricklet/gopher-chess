@@ -11,13 +11,13 @@ import (
 type Bitboard uint64
 
 type PlayerBitboards struct {
-	occupied Bitboard
-	pieces   [6]Bitboard // indexed via PieceType
+	Occupied Bitboard
+	Pieces   [6]Bitboard // indexed via PieceType
 }
 
 type Bitboards struct {
-	occupied Bitboard
-	players  [2]PlayerBitboards
+	Occupied Bitboard
+	Players  [2]PlayerBitboards
 }
 
 type Dir int
@@ -428,15 +428,15 @@ func SetupBitboards(g *GameState) Bitboards {
 		}
 		pieceType := piece.PieceType()
 		player := piece.Player()
-		result.players[player].pieces[pieceType] |= SingleBitboard(i)
+		result.Players[player].Pieces[pieceType] |= SingleBitboard(i)
 
 		if piece.IsWhite() {
-			result.occupied |= SingleBitboard(i)
-			result.players[White].occupied |= SingleBitboard(i)
+			result.Occupied |= SingleBitboard(i)
+			result.Players[White].Occupied |= SingleBitboard(i)
 		}
 		if piece.IsBlack() {
-			result.occupied |= SingleBitboard(i)
-			result.players[Black].occupied |= SingleBitboard(i)
+			result.Occupied |= SingleBitboard(i)
+			result.Players[Black].Occupied |= SingleBitboard(i)
 		}
 	}
 	return result
@@ -460,9 +460,9 @@ func (b *Bitboards) ClearSquare(index int, piece Piece) error {
 	oneBitboard := SingleBitboard(index)
 	zeroBitboard := ^oneBitboard
 
-	b.occupied &= zeroBitboard
-	b.players[player].occupied &= zeroBitboard
-	b.players[player].pieces[pieceType] &= zeroBitboard
+	b.Occupied &= zeroBitboard
+	b.Players[player].Occupied &= zeroBitboard
+	b.Players[player].Pieces[pieceType] &= zeroBitboard
 
 	return nil
 }
@@ -472,9 +472,9 @@ func (b *Bitboards) SetSquare(index int, piece Piece) {
 	pieceType := piece.PieceType()
 	oneBitboard := SingleBitboard(index)
 
-	b.occupied |= oneBitboard
-	b.players[player].occupied |= oneBitboard
-	b.players[player].pieces[pieceType] |= oneBitboard
+	b.Occupied |= oneBitboard
+	b.Players[player].Occupied |= oneBitboard
+	b.Players[player].Pieces[pieceType] |= oneBitboard
 }
 
 func (b *Bitboards) PerformMove(originalState *GameState, move Move) error {

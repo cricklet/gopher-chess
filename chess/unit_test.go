@@ -249,7 +249,7 @@ func TestBitboardSetup(t *testing.T) {
 	}.AsBoardArray().String())
 
 	bitboards := SetupBitboards(&g)
-	assert.Equal(t, bitboards.occupied.String(), strings.Join([]string{
+	assert.Equal(t, bitboards.Occupied.String(), strings.Join([]string{
 		"11111111",
 		"11111111",
 		"00000000",
@@ -259,7 +259,7 @@ func TestBitboardSetup(t *testing.T) {
 		"11110111",
 		"11111111",
 	}, "\n"))
-	assert.Equal(t, bitboards.players[White].occupied.String(), strings.Join([]string{
+	assert.Equal(t, bitboards.Players[White].Occupied.String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -269,7 +269,7 @@ func TestBitboardSetup(t *testing.T) {
 		"11110111",
 		"11111111",
 	}, "\n"))
-	assert.Equal(t, bitboards.players[White].pieces[Pawn].String(), strings.Join([]string{
+	assert.Equal(t, bitboards.Players[White].Pieces[Pawn].String(), strings.Join([]string{
 		"00000000",
 		"00000000",
 		"00000000",
@@ -1105,22 +1105,22 @@ func TestPin(t *testing.T) {
 
 func TestBitboardsCopyingIsDeep(t *testing.T) {
 	b := Bitboards{}
-	b.occupied = 7
-	b.players[White].occupied = 7
-	b.players[White].pieces[Rook] = 7
+	b.Occupied = 7
+	b.Players[White].Occupied = 7
+	b.Players[White].Pieces[Rook] = 7
 
 	c := b
-	c.occupied = 11
-	c.players[White].occupied = 11
-	c.players[White].pieces[Rook] = 11
+	c.Occupied = 11
+	c.Players[White].Occupied = 11
+	c.Players[White].Pieces[Rook] = 11
 
-	assert.Equal(t, b.occupied, Bitboard(7))
-	assert.Equal(t, b.players[White].occupied, Bitboard(7))
-	assert.Equal(t, b.players[White].pieces[Rook], Bitboard(7))
+	assert.Equal(t, b.Occupied, Bitboard(7))
+	assert.Equal(t, b.Players[White].Occupied, Bitboard(7))
+	assert.Equal(t, b.Players[White].Pieces[Rook], Bitboard(7))
 
-	assert.Equal(t, c.occupied, Bitboard(11))
-	assert.Equal(t, c.players[White].occupied, Bitboard(11))
-	assert.Equal(t, c.players[White].pieces[Rook], Bitboard(11))
+	assert.Equal(t, c.Occupied, Bitboard(11))
+	assert.Equal(t, c.Players[White].Occupied, Bitboard(11))
+	assert.Equal(t, c.Players[White].Pieces[Rook], Bitboard(11))
 }
 
 func TestGameStateCopyingIsDeep(t *testing.T) {

@@ -126,11 +126,11 @@ func evaluateDevelopment(b Bitboard, e []EvaluationBitboard) int {
 
 func (b *Bitboards) evaluateDevelopment(player Player) int {
 	development := 0
-	development += evaluateDevelopment(b.players[player].pieces[Rook], ROOK_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[Knight], KNIGHT_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[Bishop], BISHOP_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[Queen], QUEEN_DEVELOPMENT_BITBOARDS[player])
-	development += evaluateDevelopment(b.players[player].pieces[Pawn], PAWN_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.Players[player].Pieces[Rook], ROOK_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.Players[player].Pieces[Knight], KNIGHT_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.Players[player].Pieces[Bishop], BISHOP_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.Players[player].Pieces[Queen], QUEEN_DEVELOPMENT_BITBOARDS[player])
+	development += evaluateDevelopment(b.Players[player].Pieces[Pawn], PAWN_DEVELOPMENT_BITBOARDS[player])
 	return development
 }
 
@@ -138,18 +138,18 @@ func (b *Bitboards) evaluate(player Player) int {
 	enemy := player.Other()
 
 	pieceValues :=
-		500*OnesCount(b.players[player].pieces[Rook]) +
-			300*OnesCount(b.players[player].pieces[Knight]) +
-			350*OnesCount(b.players[player].pieces[Bishop]) +
-			900*OnesCount(b.players[player].pieces[Queen]) +
-			100*OnesCount(b.players[player].pieces[Pawn])
+		500*OnesCount(b.Players[player].Pieces[Rook]) +
+			300*OnesCount(b.Players[player].Pieces[Knight]) +
+			350*OnesCount(b.Players[player].Pieces[Bishop]) +
+			900*OnesCount(b.Players[player].Pieces[Queen]) +
+			100*OnesCount(b.Players[player].Pieces[Pawn])
 
 	enemyValues :=
-		500*OnesCount(b.players[enemy].pieces[Rook]) +
-			300*OnesCount(b.players[enemy].pieces[Knight]) +
-			350*OnesCount(b.players[enemy].pieces[Bishop]) +
-			900*OnesCount(b.players[enemy].pieces[Queen]) +
-			100*OnesCount(b.players[enemy].pieces[Pawn])
+		500*OnesCount(b.Players[enemy].Pieces[Rook]) +
+			300*OnesCount(b.Players[enemy].Pieces[Knight]) +
+			350*OnesCount(b.Players[enemy].Pieces[Bishop]) +
+			900*OnesCount(b.Players[enemy].Pieces[Queen]) +
+			100*OnesCount(b.Players[enemy].Pieces[Pawn])
 
 	developmentValues := b.evaluateDevelopment(player)
 	enemyDevelopmentValues := b.evaluateDevelopment(enemy)
