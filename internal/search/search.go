@@ -232,3 +232,78 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 
 	return bestMoveSoFar, nil
 }
+
+/*
+type BestMove struct {
+	move Move
+	score int
+	depth int
+	scoreType
+		Best // either exact score (eg part of a best-sequence) or the best we've found (eg improved alpha)
+		Refutation // a move that was good enough that the enemy will try to avoid it (eg improved beta)
+}
+
+type SearchCache struct {
+	map[ZobristHash]BestMove
+}
+
+type Searcher struct {
+	maxDepth int
+	principleVariation [64]Move
+	principleVariationLength int
+
+	cache *SearchCache
+}
+
+func (s *Searcher) Evaluate(g, b, depth, playerCanForceScore, enemyCanForceScore) {
+	GenerateSortedPseudoMoves(g, b, &moves)
+
+	bestMove := Empty[Move]()
+	bestScore := -Inf
+
+	previousBestMove := InPrincipleVariation(...) ?
+		s.principleVariation[depth] :
+		s.cache.BestMove(g)
+
+	for _, m := range Concat(previousBestMove, moves) {
+		g.PerformMove(previousBestMove)
+		enemyScore = Evaluate(g, b, depth + 1)
+		g.UndoMove()
+
+		if score >= enemyCanForceScore {
+			// Refutation move, enemy will avoid.
+			s.cache.Add(g, m, score, s.maxDepth - depth, Refutation)
+			return enemyCanForceScore
+		} else if score > playerCanForceScore {
+			playerCanForceScore = score
+		}
+
+		if score > bestScore {
+			bestMove = m
+			bestScore = score
+		}
+	}
+
+	s.cache.Add(g, bestMove, bestScore, s.maxDepth - depth, Best)
+	return playerCanForceScore
+}
+
+func (s *Searcher) Search(g, b, outOfTime *bool) {
+	GenerateSortedPseudoMoves(g, b, &moves)
+
+	for ; s.maxDepth < 8; s.maxDepth ++ {
+		for m := range moves {
+			g.PerformMove(m)
+			m.evaluation := Some(s.Evaluate(g, b, 0))
+			g.UndoMove()
+		}
+
+		if outOfTime {
+			break
+		}
+	}
+
+	Sort(&moves)
+	return Last(moves)
+}
+*/
