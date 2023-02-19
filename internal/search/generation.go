@@ -352,12 +352,7 @@ func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) er
 
 	for _, move := range *potentialMoves {
 		update := BoardUpdate{}
-		err := SetupBoardUpdate(g, move, &update)
-		if err != nil {
-			return fmt.Errorf("GenerateLegalMoves: %w", err)
-		}
-
-		err = g.PerformMove(move, &update, b)
+		err := g.PerformMove(move, &update, b)
 		if err != nil {
 			return &BoardCorrupted{err}
 		}

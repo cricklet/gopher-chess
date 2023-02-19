@@ -59,12 +59,7 @@ func (r *Runner) PerformMove(move Move) error {
 	h := r.LastHistory()
 	h.move = move
 
-	err := SetupBoardUpdate(r.g, move, &h.update)
-	if err != nil {
-		return fmt.Errorf("PerformMove: %w", err)
-	}
-
-	err = r.g.PerformMove(move, &h.update, r.b)
+	err := r.g.PerformMove(move, &h.update, r.b)
 	if err != nil {
 		return fmt.Errorf("PerformMove: %w", err)
 	}

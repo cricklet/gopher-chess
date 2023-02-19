@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -12,11 +13,93 @@ import (
 	"github.com/pkg/profile"
 )
 
-var INF int = 999999
+var Inf int = 999999
 
+type Searcher struct {
+	g *GameState
+	b *Bitboards
+
+	maxDepth                 int
+	principleVariation       [64]Move
+	principleVariationLength int
+}
+
+func (s *Searcher) Evaluate(currentDepth int, playerCanForceScore int, enemyCanForceScore int) int {
+	moves := GetMovesBuffer()
+	defer ReleaseMovesBuffer(moves)
+
+	GenerateSortedPseudoMoves(s.b, s.g, moves)
+
+	// bestMove := Empty[Move]()
+	// bestScore := -Inf
+
+	// previousBestMove := InPrincipleVariation(...) ?
+	// 	s.principleVariation[depth] :
+	// 	s.cache.BestMove(g)
+
+	// for _, m := range Concat(previousBestMove, moves) {
+	// 	g.PerformMove(previousBestMove)
+	// 	enemyScore = Evaluate(g, b, depth + 1)
+	// 	g.UndoMove()
+
+	// 	if score >= enemyCanForceScore {
+	// 		// Refutation move, enemy will avoid.
+	// 		s.cache.Add(g, m, score, s.maxDepth - depth, Refutation)
+	// 		return enemyCanForceScore
+	// 	} else if score > playerCanForceScore {
+	// 		playerCanForceScore = score
+	// 	}
+
+	// 	if score > bestScore {
+	// 		bestMove = m
+	// 		bestScore = score
+	// 	}
+	// }
+
+	// s.cache.Add(g, bestMove, bestScore, s.maxDepth - depth, Best)
+	return playerCanForceScore
+}
+
+func (s *Searcher) Search(outOfTime *bool) (Optional[Move], error) {
+	moves := GetMovesBuffer()
+	defer ReleaseMovesBuffer(moves)
+
+	GenerateSortedPseudoMoves(s.b, s.g, moves)
+
+	for ; s.maxDepth < 8; s.maxDepth++ {
+		for _, m := range *moves {
+			update := BoardUpdate{}
+			err := s.g.PerformMove(m, &update, s.b)
+			if err != nil {
+				return Empty[Move](), fmt.Errorf("Search/PerformMove %v: %w", m.String(), err)
+			}
+
+			m.Evaluation = Some(s.Evaluate(0, -Inf, Inf))
+
+			err = s.g.UndoUpdate(&update, s.b)
+			if err != nil {
+				return Empty[Move](), fmt.Errorf("Search/PerformMove %v: %w", m.String(), err)
+			}
+		}
+
+		if *outOfTime {
+			break
+		}
+	}
+
+	if len(*moves) == 0 {
+		// Check mate?
+		return Empty[Move](), nil
+	}
+
+	sort.SliceStable(*moves, func(i, j int) bool {
+		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
+	})
+	return Some((*moves)[len(*moves)-1]), nil
+}
 func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
 	if KingIsInCheck(b, g.Enemy(), g.Player) {
-		return SearchResult{INF, 1, 1}, nil
+		return SearchResult{Inf, 1, 1}, nil
 	}
 
 	moves := GetMovesBuffer()
@@ -37,12 +120,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 		}
 
 		update := BoardUpdate{}
-		err := SetupBoardUpdate(g, move, &update)
-		if err != nil {
-			return SearchResult{}, fmt.Errorf("setup evaluateCapturesInner %v: %w", move.String(), err)
-		}
-
-		err = g.PerformMove(move, &update, b)
+		err := g.PerformMove(move, &update, b)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("perform evaluateCapturesInner %v: %w", move.String(), err)
 		}
@@ -93,7 +171,7 @@ type SearchResult struct {
 
 func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int, depth int) (SearchResult, error) {
 	if KingIsInCheck(b, g.Enemy(), g.Player) {
-		return SearchResult{INF, 1, 0}, nil
+		return SearchResult{Inf, 1, 0}, nil
 	}
 
 	if depth == 0 {
@@ -111,12 +189,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 
 	for _, move := range *moves {
 		update := BoardUpdate{}
-		err := SetupBoardUpdate(g, move, &update)
-		if err != nil {
-			return SearchResult{}, fmt.Errorf("setup evaluateSearch %v: %w", move.String(), err)
-		}
-
-		err = g.PerformMove(move, &update, b)
+		err := g.PerformMove(move, &update, b)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("perform evaluateSearch %v: %w", move.String(), err)
 		}
@@ -165,7 +238,7 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 	GenerateSortedPseudoMoves(b, g, moves)
 
 	bestMoveSoFar := Empty[Move]()
-	bestScoreSoFar := -INF
+	bestScoreSoFar := -Inf
 
 	quiescenceSearched := 0
 	totalSearched := 0
@@ -174,18 +247,13 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 
 	for i, move := range *moves {
 		update := BoardUpdate{}
-		err := SetupBoardUpdate(g, move, &update)
-		if err != nil {
-			return Empty[Move](), fmt.Errorf("setup Search %v => %v: %w", FenStringForGame(g), move.String(), err)
-		}
-
-		err = g.PerformMove(move, &update, b)
+		err := g.PerformMove(move, &update, b)
 		if err != nil {
 			return Empty[Move](), fmt.Errorf("perform Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
 		result, err := evaluateSearch(g, b,
-			-INF, INF, depth)
+			-Inf, Inf, depth)
 		if err != nil {
 			return Empty[Move](), fmt.Errorf("evaluate Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}

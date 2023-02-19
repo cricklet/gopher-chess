@@ -72,7 +72,7 @@ func EnPassantTarget(move Move) int {
 	}
 }
 
-func SetupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
+func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 	startPiece := g.Board[move.StartIndex]
 
 	switch move.MoveType {
@@ -135,6 +135,8 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 }
 
 func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) error {
+	setupBoardUpdate(g, move, update)
+
 	err := g.applyMoveToBitboards(b, move)
 	if err != nil {
 		return err

@@ -1148,12 +1148,7 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 
 	for _, move := range *moves {
 		update := BoardUpdate{}
-		err := SetupBoardUpdate(g, move, &update)
-		if err != nil {
-			t.Error(fmt.Errorf("setup %v, %v: %w", FenStringForGame(g), move, err))
-		}
-
-		err = g.PerformMove(move, &update, b)
+		err := g.PerformMove(move, &update, b)
 		if err != nil {
 			t.Error(fmt.Errorf("perform %v, %v: %w", FenStringForGame(g), move, err))
 		}
@@ -1348,12 +1343,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 
 	for _, move := range initialState.moves {
 		update := BoardUpdate{}
-		err := SetupBoardUpdate(&g, move, &update)
-		if err != nil {
-			t.Error(fmt.Errorf("setup %v => %v: %w", FenStringForGame(&g), move, err))
-		}
-
-		err = g.PerformMove(move, &update, &b)
+		err := g.PerformMove(move, &update, &b)
 		if err != nil {
 			t.Error(fmt.Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
 		}
@@ -1383,12 +1373,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 			move := g.MoveFromString(search.move)
 
 			update := BoardUpdate{}
-			err := SetupBoardUpdate(&g, move, &update)
-			if err != nil {
-				t.Error(fmt.Errorf("setup %v => %v: %w", FenStringForGame(&g), move, err))
-			}
-
-			err = g.PerformMove(move, &update, &b)
+			err := g.PerformMove(move, &update, &b)
 			if err != nil {
 				t.Error(fmt.Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
 			}
