@@ -1,7 +1,9 @@
 package search
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -71,4 +73,9 @@ func TestPointlessSacrifice(t *testing.T) {
 	assert.Nil(t, err)
 
 	fmt.Println(result.Value().String())
+
+	output, err := json.MarshalIndent(searcher.DebugTreeRoot, "", " ")
+	assert.Nil(t, err)
+	err = os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.json", output, 0600)
+	assert.Nil(t, err)
 }

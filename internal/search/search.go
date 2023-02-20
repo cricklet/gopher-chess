@@ -15,46 +15,141 @@ import (
 
 var Inf int = 999999
 
+type SearchDebugTree struct {
+	Move           string
+	FenString      string
+	StartingAlpha  int
+	StartingBeta   int
+	EndingAlpha    int
+	EndingBeta     int
+	ReturnedScore  int
+	MoveEvaluation MoveEvaluation
+	Children       []SearchDebugTree
+}
+
+func (tree *SearchDebugTree) AddChild(move Move, fenString string, alpha, beta int) *SearchDebugTree {
+	tree.Children = append(tree.Children, SearchDebugTree{
+		Move:          move.String(),
+		FenString:     fenString,
+		StartingAlpha: alpha,
+		StartingBeta:  beta,
+		Children:      []SearchDebugTree{},
+	})
+	return &tree.Children[len(tree.Children)-1]
+}
+
+func (child *SearchDebugTree) Finalize(alpha, beta, score int, evaluation MoveEvaluation) {
+	child.EndingAlpha = alpha
+	child.EndingBeta = beta
+	child.ReturnedScore = score
+	child.MoveEvaluation = evaluation
+}
+
 type searcher struct {
 	Logger    Logger
 	Game      *GameState
 	Bitboards *Bitboards
 
-	// alpha            int
-	// beta             int
-	// maximizingPlayer Player
-	// minimizingPlayer Player
+	alpha            int
+	beta             int
+	maximizingPlayer Player
+	minimizingPlayer Player
 
 	evaluateWhenNumMovesApplied int
 
-	currentLine [200]Move
-
-	BestLine       [200]Move
-	BestLineLength int
-	BestLineScore  int
-
 	DebugTotalEvaluations         int
 	DebugEvaluationsThisIteration int
+
+	DebugTreeRoot SearchDebugTree
 }
 
 func NewSearcher(logger Logger, game *GameState, bitboards *Bitboards) searcher {
 	return searcher{
-		Logger:    logger,
-		Game:      game,
-		Bitboards: bitboards,
+		Logger:           logger,
+		Game:             game,
+		Bitboards:        bitboards,
+		alpha:            -Inf,
+		beta:             Inf,
+		maximizingPlayer: game.Player,
+		minimizingPlayer: game.Enemy(),
+		DebugTreeRoot:    SearchDebugTree{},
 	}
 }
 
-func (s *searcher) Evaluate(numMovesApplied int, playerCanForceScore int, enemyCanForceScore int) (int, error) {
-	if KingIsInCheck(s.Bitboards, s.Game.Enemy(), s.Game.Player) {
-		return Inf, nil
-	}
+type MoveEvaluation int
+
+const (
+	IllegalMove MoveEvaluation = iota
+	AllMove
+	BestMove
+	RefutationMove
+)
+
+func (s *searcher) EvaluateMove(numMovesApplied int, move Move, debugTree *SearchDebugTree) (int, MoveEvaluation, error) {
+	var moveScore int
+	moveEvaluation := AllMove
+
+	childDebugTree := debugTree.AddChild(move, FenStringForGame(s.Game), s.alpha, s.beta)
+	defer childDebugTree.Finalize(s.alpha, s.beta, moveScore, moveEvaluation)
 
 	if numMovesApplied == s.evaluateWhenNumMovesApplied {
 		s.DebugTotalEvaluations++
 		s.DebugEvaluationsThisIteration++
-		return Evaluate(s.Bitboards, s.Game.Player), nil
+		moveScore = Evaluate(s.Bitboards, s.maximizingPlayer)
+		return moveScore, AllMove, nil
 	}
+
+	update := BoardUpdate{}
+	err := s.Game.PerformMove(move, &update, s.Bitboards)
+	if err != nil {
+		return 0, moveEvaluation, err
+	}
+
+	if KingIsInCheck(s.Bitboards, s.Game.Enemy(), s.Game.Player) {
+		moveEvaluation = IllegalMove
+		if s.maximizingPlayer == s.Game.Enemy() {
+			moveScore = Inf
+		} else {
+			moveScore = -Inf
+		}
+	} else {
+		moveScore, moveEvaluation, err = s.Evaluate(numMovesApplied+1, childDebugTree)
+		if err != nil {
+			return 0, moveEvaluation, err
+		}
+	}
+
+	err = s.Game.UndoUpdate(&update, s.Bitboards)
+	if err != nil {
+		return 0, moveEvaluation, fmt.Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
+	}
+
+	if s.maximizingPlayer == s.Game.Player {
+		if moveScore >= s.beta {
+			moveEvaluation = RefutationMove
+			return s.beta, moveEvaluation, nil
+		} else if moveScore > s.alpha {
+			moveEvaluation = BestMove
+			s.alpha = moveScore
+		}
+	} else {
+		if moveScore <= s.alpha {
+			moveEvaluation = RefutationMove
+			return s.alpha, moveEvaluation, nil
+		} else if moveScore < s.beta {
+			moveEvaluation = BestMove
+			s.beta = moveScore
+		}
+	}
+	return moveScore, moveEvaluation, nil
+}
+
+func (s *searcher) Evaluate(
+	numMovesApplied int,
+	debugTree *SearchDebugTree,
+	// TODO exhaust captures
+) (int, MoveEvaluation, error) {
+	evaluation := AllMove
 
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
@@ -62,56 +157,21 @@ func (s *searcher) Evaluate(numMovesApplied int, playerCanForceScore int, enemyC
 	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
 
 	for _, move := range *moves {
-		s.currentLine[numMovesApplied] = move
-
-		update := BoardUpdate{}
-		err := s.Game.PerformMove(move, &update, s.Bitboards)
+		score, evaluation, err := s.EvaluateMove(numMovesApplied, move, debugTree)
 		if err != nil {
-			return 0, err
+			return 0, evaluation, err
 		}
 
-		var enemyScore int
-		if numMovesApplied == s.evaluateWhenNumMovesApplied-1 && move.MoveType == CaptureMove {
-			enemyScore, err = evaluateCaptures2(
-				s.Game, s.Bitboards,
-				-enemyCanForceScore,
-				-playerCanForceScore)
-		} else {
-			enemyScore, err = s.Evaluate(
-				numMovesApplied+1,
-				-enemyCanForceScore,
-				-playerCanForceScore)
-		}
-		if err != nil {
-			return 0, err
-		}
-
-		err = s.Game.UndoUpdate(&update, s.Bitboards)
-		if err != nil {
-			return 0, fmt.Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
-		}
-
-		currentScore := -enemyScore
-		if currentScore >= enemyCanForceScore {
-			// move is a suitable refutation -- it's good enough that the enemy will avoid this path
-			// s.Logger.Println("refutation", move.String(), currentScore, enemyCanForceScore)
-			return enemyCanForceScore, nil
-		}
-
-		if currentScore > playerCanForceScore {
-			// move is a potential principle line -- it's our best option and the enemy can't avoid it
-			// s.Logger.Println("principle line", move.String(), currentScore, playerCanForceScore)
-			playerCanForceScore = currentScore
-
-			s.BestLineScore = currentScore
-			s.BestLineLength = numMovesApplied
-			for i := 0; i < numMovesApplied+1; i++ {
-				s.BestLine[i] = s.currentLine[i]
-			}
+		if evaluation == RefutationMove {
+			return score, evaluation, nil
 		}
 	}
 
-	return playerCanForceScore, nil
+	if s.maximizingPlayer == s.Game.Player {
+		return s.alpha, evaluation, nil
+	} else {
+		return s.beta, evaluation, nil
+	}
 }
 
 func (s *searcher) Search(outOfTime *bool) (Optional[Move], error) {
@@ -120,24 +180,38 @@ func (s *searcher) Search(outOfTime *bool) (Optional[Move], error) {
 
 	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
 
-	for s.evaluateWhenNumMovesApplied = 2; s.evaluateWhenNumMovesApplied <= 10; s.evaluateWhenNumMovesApplied++ {
+	for s.evaluateWhenNumMovesApplied = 3; s.evaluateWhenNumMovesApplied <= 10; s.evaluateWhenNumMovesApplied++ {
+		s.DebugTreeRoot = SearchDebugTree{}
+		s.DebugEvaluationsThisIteration = 0
+
 		for _, m := range *moves {
-			s.currentLine[0] = m
+			err := func() error {
+				var err error
+				var score int
+				childDebugTree := s.DebugTreeRoot.AddChild(m, FenStringForGame(s.Game), s.alpha, s.beta)
+				defer childDebugTree.Finalize(s.alpha, s.beta, score, 0)
 
-			update := BoardUpdate{}
-			err := s.Game.PerformMove(m, &update, s.Bitboards)
-			if err != nil {
-				return Empty[Move](), err
-			}
+				update := BoardUpdate{}
+				err = s.Game.PerformMove(m, &update, s.Bitboards)
+				if err != nil {
+					return err
+				}
 
-			enemyScore, err := s.Evaluate(1, -Inf, Inf)
-			if err != nil {
-				return Empty[Move](), err
-			}
+				score, _, err = s.Evaluate(1, &s.DebugTreeRoot)
+				if err != nil {
+					return err
+				}
 
-			m.Evaluation = Some(enemyScore)
+				m.Evaluation = Some(score)
 
-			err = s.Game.UndoUpdate(&update, s.Bitboards)
+				err = s.Game.UndoUpdate(&update, s.Bitboards)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			}()
+
 			if err != nil {
 				return Empty[Move](), err
 			}
@@ -147,10 +221,6 @@ func (s *searcher) Search(outOfTime *bool) (Optional[Move], error) {
 			}
 		}
 
-		if s.BestLineLength == 0 {
-			return Empty[Move](), fmt.Errorf("failed to find best line for %v", FenStringForGame(s.Game))
-		}
-
 		sort.SliceStable(*moves, func(i, j int) bool {
 			return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
 		})
@@ -158,7 +228,9 @@ func (s *searcher) Search(outOfTime *bool) (Optional[Move], error) {
 		s.Logger.Println("evaluated up to", s.evaluateWhenNumMovesApplied,
 			"- iteration evals", s.DebugEvaluationsThisIteration,
 			"- total evals", s.DebugTotalEvaluations,
-			"- best move", s.BestLine[0], s.BestLineScore)
+			"- alpha", s.alpha,
+			"- beta", s.beta,
+			"- best move", (*moves)[0].String())
 
 		if *outOfTime {
 			break
@@ -238,14 +310,14 @@ func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemy
 	return evaluateCapturesInner(g, b, playerCanForceScore, enemyCanForceScore)
 }
 
-func evaluateCaptures2(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (int, error) {
-	result, err := evaluateCaptures(g, b, playerCanForceScore, enemyCanForceScore)
-	if err != nil {
-		return 0, err
-	}
+// func evaluateCaptures2(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (int, error) {
+// 	result, err := evaluateCaptures(g, b, playerCanForceScore, enemyCanForceScore)
+// 	if err != nil {
+// 		return 0, err
+// 	}
 
-	return result.Score, nil
-}
+// 	return result.Score, nil
+// }
 
 type SearchResult struct {
 	Score              int
