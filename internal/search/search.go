@@ -107,8 +107,6 @@ type searcher struct {
 	Game      *GameState
 	Bitboards *Bitboards
 
-	Alpha            int
-	Beta             int
 	MaximizingPlayer Player
 
 	DebugTotalEvaluations int
@@ -121,8 +119,6 @@ func NewSearcher(logger Logger, game *GameState, bitboards *Bitboards) searcher 
 		OutOfTime:        false,
 		Game:             game,
 		Bitboards:        bitboards,
-		Alpha:            -Inf,
-		Beta:             Inf,
 		MaximizingPlayer: game.Player,
 		DebugTree: SearchDebugTree{
 			FenString: FenStringForGame(game),
@@ -138,85 +134,95 @@ func (s *searcher) scoreDirectionForPlayer(player Player) int {
 	}
 }
 
-func (s *searcher) EvaluateMove(move Move, depth int) (int, *SearchDebugNode, []error) {
-	var bestScore int
-	var errors []error
+func (s *searcher) EvaluateMoves(alpha int, beta int, depth int) (int, []SearchDebugNode, []error) {
+	var returnDebug []SearchDebugNode
+	var returnScore int
+	var returnErrors []error
 
-	movePlayer := s.Game.Player
-	nextPlayer := movePlayer.Other()
+	player := s.Game.Player
 
-	debugNode := createNode(move, s.Alpha, s.Beta)
-	defer func() { debugNode.finalize(s.Alpha, s.Beta, bestScore) }()
+	moves := GetMovesBuffer()
+	defer ReleaseMovesBuffer(moves)
+
+	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
+
+	for i := range *moves {
+		score, debugChild, childErrors := s.EvaluateMove((*moves)[i], alpha, beta, depth)
+		returnDebug = append(returnDebug, *debugChild)
+
+		if len(childErrors) > 0 {
+			returnErrors = append(returnErrors, childErrors...)
+			return score, returnDebug, returnErrors
+		}
+
+		(*moves)[i].Evaluation = Some(score)
+	}
+
+	if s.MaximizingPlayer == player {
+		SortMaxFirst(moves, func(m Move) int {
+			return m.Evaluation.Value()
+		})
+		SortMaxFirst(&returnDebug, func(n SearchDebugNode) int {
+			return n.ReturnedScore
+		})
+		returnScore = (*moves)[0].Evaluation.Value()
+	} else {
+		SortMinFirst(moves, func(m Move) int {
+			return m.Evaluation.Value()
+		})
+		SortMinFirst(&returnDebug, func(n SearchDebugNode) int {
+			return n.ReturnedScore
+		})
+		returnScore = (*moves)[0].Evaluation.Value()
+	}
+
+	// if s.MaximizingPlayer == nextPlayer {
+	// 	if bestScore <= alpha {
+	// 		bestScore = alpha
+	// 	} else if bestScore < beta {
+	// 		beta = bestScore
+	// 	}
+	// } else {
+	// 	if bestScore >= beta {
+	// 		bestScore = beta
+	// 	} else if bestScore > alpha {
+	// 		alpha = bestScore
+	// 	}
+	// }
+
+	return returnScore, returnDebug, returnErrors
+}
+
+func (s *searcher) EvaluateMove(move Move, alpha int, beta int, depth int) (int, *SearchDebugNode, []error) {
+	var returnScore int
+	var returnErrors []error
+
+	returnNode := createNode(move, alpha, beta)
+	defer func() { returnNode.finalize(alpha, beta, returnScore) }()
 
 	var update BoardUpdate
 	err := s.Game.PerformMove(move, &update, s.Bitboards)
 	if err != nil {
-		errors = append(errors, err)
-		return 0, debugNode, errors
+		returnErrors = append(returnErrors, err)
+		return returnScore, returnNode, returnErrors
 	}
 
 	defer func() {
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
-		errors = append(errors, err)
+		returnErrors = append(returnErrors, err)
 	}()
 
 	if depth == 1 {
 		s.DebugTotalEvaluations++
-		bestScore = Evaluate(s.Bitboards, s.MaximizingPlayer)
+		returnScore = Evaluate(s.Bitboards, s.MaximizingPlayer)
 	} else {
-		moves := GetMovesBuffer()
-		defer ReleaseMovesBuffer(moves)
-
-		GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
-
-		for i := range *moves {
-			score, debugChild, childErrors := s.EvaluateMove((*moves)[i], depth-1)
-			debugNode.Children = append(debugNode.Children, *debugChild)
-
-			if len(childErrors) > 0 {
-				errors = append(errors, childErrors...)
-				return score, debugNode, errors
-			}
-
-			(*moves)[i].Evaluation = Some(score)
-		}
-
-		if s.MaximizingPlayer == nextPlayer {
-			SortMaxFirst(moves, func(m Move) int {
-				return m.Evaluation.Value()
-			})
-			SortMaxFirst(&debugNode.Children, func(n SearchDebugNode) int {
-				return n.ReturnedScore
-			})
-			bestScore = (*moves)[0].Evaluation.Value()
-		} else {
-			SortMinFirst(moves, func(m Move) int {
-				return m.Evaluation.Value()
-			})
-			SortMinFirst(&debugNode.Children, func(n SearchDebugNode) int {
-				return n.ReturnedScore
-			})
-			bestScore = (*moves)[0].Evaluation.Value()
+		returnScore, returnNode.Children, returnErrors = s.EvaluateMoves(alpha, beta, depth-1)
+		if returnErrors != nil {
+			return returnScore, returnNode, returnErrors
 		}
 	}
 
-	if s.MaximizingPlayer == nextPlayer {
-		if bestScore <= s.Alpha {
-			// Refutation whoops
-			// bestScore = s.Alpha
-		} else if bestScore < s.Beta {
-			// s.Beta = bestScore
-		}
-	} else {
-		if bestScore >= s.Beta {
-			// Refutation whoops
-			// bestScore = s.Beta
-		} else if bestScore > s.Alpha {
-			// s.Alpha = bestScore
-		}
-	}
-
-	return bestScore, debugNode, errors
+	return returnScore, returnNode, returnErrors
 }
 
 func (s *searcher) Search() (Optional[Move], []error) {
@@ -229,7 +235,7 @@ func (s *searcher) Search() (Optional[Move], []error) {
 		debugSearches := s.DebugTree.addIteration()
 
 		for i := range *moves {
-			score, debugNode, errs := s.EvaluateMove((*moves)[i], depth)
+			score, debugNode, errs := s.EvaluateMove((*moves)[i], -Inf, Inf, depth)
 			*debugSearches = append(*debugSearches, *debugNode)
 
 			if len(errs) > 0 {
@@ -248,8 +254,6 @@ func (s *searcher) Search() (Optional[Move], []error) {
 
 		s.Logger.Println("evaluated ",
 			"- total evals", s.DebugTotalEvaluations,
-			"- alpha", s.Alpha,
-			"- beta", s.Beta,
 			"- best move", (*moves)[0].String(),
 			"- score", (*moves)[0].Evaluation.Value())
 
