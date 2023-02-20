@@ -78,7 +78,7 @@ func TestPointlessSacrifice(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	err = os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.tree", []byte(searcher.DebugTree.Sprint(1)), 0600)
+	err = os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.tree", []byte(searcher.DebugTree.Sprint(4)), 0600)
 	assert.Nil(t, err)
-	fmt.Println(searcher.DebugTree.Sprint(1))
+	fmt.Println(searcher.DebugTree.Sprint(2))
 }
