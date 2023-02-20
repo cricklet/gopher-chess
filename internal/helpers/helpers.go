@@ -3,6 +3,7 @@ package helpers
 import (
 	"path/filepath"
 	"runtime"
+	"sort"
 )
 
 type Success bool
@@ -42,6 +43,44 @@ func ReduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
 		u = f(u, t)
 	}
 	return u
+}
+
+func SortMaxFirst[T any](ts *[]T, f func(T) int) {
+	sort.SliceStable(*ts, func(i, j int) bool {
+		return f((*ts)[j]) < f((*ts)[i])
+	})
+}
+func SortMinFirst[T any](ts *[]T, f func(T) int) {
+	sort.SliceStable(*ts, func(i, j int) bool {
+		return f((*ts)[i]) < f((*ts)[j])
+	})
+}
+func IndexOfMax[T any](ts []T, f func(T) int) int {
+	bestValue := f(ts[0])
+	bestIndex := 0
+
+	for i, t := range ts {
+		newValue := f(t)
+		if newValue > bestValue {
+			bestValue = newValue
+			bestIndex = i
+		}
+	}
+	return bestIndex
+}
+
+func IndexOfMin[T any](ts []T, f func(T) int) int {
+	bestValue := f(ts[0])
+	bestIndex := 0
+
+	for i, t := range ts {
+		newValue := f(t)
+		if newValue < bestValue {
+			bestValue = newValue
+			bestIndex = i
+		}
+	}
+	return bestIndex
 }
 
 func SingleUint8(indexFromTheRight int) uint8 {

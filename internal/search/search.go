@@ -2,7 +2,7 @@ package search
 
 import (
 	"fmt"
-	"sort"
+	"strings"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -43,8 +43,8 @@ func (tree *SearchDebugTree) addIteration() *[]SearchDebugNode {
 	return &tree.SearchIterations[len(tree.SearchIterations)-1]
 }
 
-func createNode(move Move, alpha int, beta int) SearchDebugNode {
-	return SearchDebugNode{
+func createNode(move Move, alpha int, beta int) *SearchDebugNode {
+	return &SearchDebugNode{
 		Move:          move.String(),
 		StartingAlpha: alpha,
 		StartingBeta:  beta,
@@ -58,41 +58,42 @@ func (child *SearchDebugNode) finalize(alpha, beta, score int) {
 	child.ReturnedScore = score
 }
 
-func (node *SearchDebugNode) Sprint(indent int, prefix string) string {
+func (node *SearchDebugNode) Sprint(indent int, prefix string, depth int) string {
+	if depth == 0 {
+		return ""
+	}
 	result := ""
 	for i := 0; i < indent; i++ {
 		result += " "
 	}
-	result += fmt.Sprint(prefix, " ", node.Move, " <", node.StartingAlpha, ",", node.StartingBeta, "> => <", node.EndingAlpha, ",", node.EndingBeta, ">")
+	result += fmt.Sprintf("%v %v [%v %v] => [%v %v] %v", prefix, node.Move, node.StartingAlpha, node.StartingBeta, node.EndingAlpha, node.EndingBeta, node.ReturnedScore)
 	result += "\n"
 
 	numChildren := len(node.Children)
 
 	for i, child := range node.Children {
-		childPrefix := fmt.Sprintf("(%v/%v)", i, numChildren)
-		result += child.Sprint(indent+2, childPrefix)
+		childPrefix := fmt.Sprintf("(%v/%v)", i+1, numChildren)
+		result += child.Sprint(indent+2, childPrefix, depth-1)
 	}
 	return result
 }
 
-func (node *SearchDebugTree) Sprint() string {
-	result := ""
-	result += node.FenString
-	result += "\n"
+func (node *SearchDebugTree) Sprint(depth int) string {
+	result := node.FenString + "\n"
+	urlString := "http://0.0.0.0:8002/white/fen/" + node.FenString
+	result += strings.ReplaceAll(urlString, " ", "%20") + "\n"
 
 	numIterations := len(node.SearchIterations)
 
 	f := func(i int) {
 		searchRoots := node.SearchIterations[i]
 		numSearchRoots := len(searchRoots)
-		result += fmt.Sprintf("  search (%v/%v, %v)\n", i, numIterations, numSearchRoots)
+		result += fmt.Sprintf("  search (%v/%v, %v)\n", i+1, numIterations, numSearchRoots)
 		for j, root := range searchRoots {
-			result += root.Sprint(4, fmt.Sprintf("(%v/%v)", j, numSearchRoots))
+			result += root.Sprint(4, fmt.Sprintf("(%v/%v)", j, numSearchRoots), depth)
 		}
 	}
 
-	f(0)
-	f(len(node.SearchIterations) - 2)
 	f(len(node.SearchIterations) - 1)
 
 	return result
@@ -137,18 +138,21 @@ func (s *searcher) scoreDirectionForPlayer(player Player) int {
 	}
 }
 
-func (s *searcher) EvaluateMove(move Move) (int, SearchDebugNode, []error) {
+func (s *searcher) EvaluateMove(move Move, depth int) (int, *SearchDebugNode, []error) {
 	var score int
 	var errors []error
 
-	debugChild := createNode(move, s.Alpha, s.Beta)
-	defer debugChild.finalize(s.Alpha, s.Beta, score)
+	movePlayer := s.Game.Player
+	nextPlayer := movePlayer.Other()
+
+	debugNode := createNode(move, s.Alpha, s.Beta)
+	defer func() { debugNode.finalize(s.Alpha, s.Beta, score) }()
 
 	var update BoardUpdate
 	err := s.Game.PerformMove(move, &update, s.Bitboards)
 	if err != nil {
 		errors = append(errors, err)
-		return 0, debugChild, errors
+		return 0, debugNode, errors
 	}
 
 	defer func() {
@@ -156,10 +160,47 @@ func (s *searcher) EvaluateMove(move Move) (int, SearchDebugNode, []error) {
 		errors = append(errors, err)
 	}()
 
-	s.DebugTotalEvaluations++
-	score = Evaluate(s.Bitboards, s.MaximizingPlayer)
+	if depth == 1 {
+		s.DebugTotalEvaluations++
+		score = Evaluate(s.Bitboards, s.MaximizingPlayer)
+	} else {
+		moves := GetMovesBuffer()
+		defer ReleaseMovesBuffer(moves)
 
-	return score, debugChild, errors
+		GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
+
+		for i := range *moves {
+			score, debugChild, childErrors := s.EvaluateMove((*moves)[i], depth-1)
+			debugNode.Children = append(debugNode.Children, *debugChild)
+
+			if len(childErrors) > 0 {
+				errors = append(errors, childErrors...)
+				return score, debugNode, errors
+			}
+
+			(*moves)[i].Evaluation = Some(score)
+		}
+
+		if s.MaximizingPlayer == nextPlayer {
+			SortMaxFirst(moves, func(m Move) int {
+				return m.Evaluation.Value()
+			})
+			SortMaxFirst(&debugNode.Children, func(n SearchDebugNode) int {
+				return n.ReturnedScore
+			})
+			score = (*moves)[0].Evaluation.Value()
+		} else {
+			SortMinFirst(moves, func(m Move) int {
+				return m.Evaluation.Value()
+			})
+			SortMinFirst(&debugNode.Children, func(n SearchDebugNode) int {
+				return n.ReturnedScore
+			})
+			score = (*moves)[0].Evaluation.Value()
+		}
+	}
+
+	return score, debugNode, errors
 }
 
 func (s *searcher) Search() (Optional[Move], []error) {
@@ -172,29 +213,29 @@ func (s *searcher) Search() (Optional[Move], []error) {
 		debugSearches := s.DebugTree.addIteration()
 
 		for i := range *moves {
-			score, debugNode, errs := s.EvaluateMove((*moves)[i])
-			*debugSearches = append(*debugSearches, debugNode)
+			score, debugNode, errs := s.EvaluateMove((*moves)[i], depth)
+			*debugSearches = append(*debugSearches, *debugNode)
 
 			if len(errs) > 0 {
 				return Empty[Move](), nil
 			}
 
 			(*moves)[i].Evaluation = Some(score)
-
-			if s.OutOfTime {
-				break
-			}
 		}
 
-		sort.SliceStable(*moves, func(i, j int) bool {
-			return (*moves)[j].Evaluation.Value() < (*moves)[i].Evaluation.Value()
+		SortMaxFirst(moves, func(m Move) int {
+			return m.Evaluation.Value()
+		})
+		SortMaxFirst(debugSearches, func(n SearchDebugNode) int {
+			return n.ReturnedScore
 		})
 
 		s.Logger.Println("evaluated ",
 			"- total evals", s.DebugTotalEvaluations,
 			"- alpha", s.Alpha,
 			"- beta", s.Beta,
-			"- best move", (*moves)[0].String())
+			"- best move", (*moves)[0].String(),
+			"- score", (*moves)[0].Evaluation.Value())
 
 		if s.OutOfTime {
 			break

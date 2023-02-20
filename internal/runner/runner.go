@@ -200,7 +200,7 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 		}()
 
 		go func() {
-			time.Sleep(1 * time.Second)
+			time.Sleep(2 * time.Second)
 			searcher.OutOfTime = true
 		}()
 
@@ -211,7 +211,7 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 		if move.IsEmpty() {
 			return result, errors.New("no legal moves")
 		}
-		result = append(result, fmt.Sprintf("bestmove %v", move.Value().String()))
+		result = append(result, fmt.Sprintf("bestmove %v %v", move.Value().String(), move.Value().Evaluation.Value()))
 	}
 	return result, nil
 }

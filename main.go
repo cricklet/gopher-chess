@@ -128,7 +128,9 @@ func serve() {
 			bestMoveString := FindInSlice(result, func(v string) bool {
 				return strings.HasPrefix(v, "bestmove ")
 			})
-			runner.Logger.Println("found move", bestMoveString)
+			if bestMoveString.HasValue() {
+				runner.Logger.Println("found move", bestMoveString.Value())
+			}
 			if bestMoveString.HasValue() {
 				err := runner.PerformMoveFromString(
 					strings.TrimPrefix(bestMoveString.Value(), "bestmove "))

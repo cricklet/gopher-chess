@@ -65,7 +65,7 @@ func TestPointlessSacrifice(t *testing.T) {
 	}()
 
 	go func() {
-		time.Sleep(time.Millisecond * 10)
+		time.Sleep(time.Millisecond * 100)
 		searcher.OutOfTime = true
 	}()
 
@@ -77,7 +77,8 @@ func TestPointlessSacrifice(t *testing.T) {
 	fmt.Println(game.Board.String())
 
 	assert.Nil(t, err)
-	err = os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.tree", []byte(searcher.DebugTree.Sprint()), 0600)
-	fmt.Println(searcher.DebugTree.Sprint())
+
+	err = os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.tree", []byte(searcher.DebugTree.Sprint(Inf)), 0600)
 	assert.Nil(t, err)
+	fmt.Println(searcher.DebugTree.Sprint(1))
 }
