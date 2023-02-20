@@ -2,7 +2,6 @@ package search
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -16,70 +15,119 @@ import (
 var Inf int = 999999
 
 type Searcher struct {
-	g *GameState
-	b *Bitboards
+	Logger    Logger
+	Game      *GameState
+	Bitboards *Bitboards
 
-	maxDepth                 int
-	principleVariation       [64]Move
-	principleVariationLength int
+	evaluateWhenNumMovesApplied int
+
+	currentLine [200]Move
+
+	BestLine       [200]Move
+	BestLineLength int
+
+	DebugTotalEvaluations int
 }
 
-func (s *Searcher) Evaluate(currentDepth int, playerCanForceScore int, enemyCanForceScore int) int {
+func (s *Searcher) Evaluate(numMovesApplied int, playerCanForceScore int, enemyCanForceScore int) (int, error) {
+	if KingIsInCheck(s.Bitboards, s.Game.Enemy(), s.Game.Player) {
+		return Inf, nil
+	}
+
+	if numMovesApplied == s.evaluateWhenNumMovesApplied {
+		s.DebugTotalEvaluations++
+		return Evaluate(s.Bitboards, s.Game.Player), nil
+	}
+
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	GenerateSortedPseudoMoves(s.b, s.g, moves)
+	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
 
-	// bestMove := Empty[Move]()
-	// bestScore := -Inf
+	for _, move := range *moves {
+		s.currentLine[numMovesApplied] = move
 
-	// previousBestMove := InPrincipleVariation(...) ?
-	// 	s.principleVariation[depth] :
-	// 	s.cache.BestMove(g)
+		update := BoardUpdate{}
+		err := s.Game.PerformMove(move, &update, s.Bitboards)
+		if err != nil {
+			return 0, err
+		}
 
-	// for _, m := range Concat(previousBestMove, moves) {
-	// 	g.PerformMove(previousBestMove)
-	// 	enemyScore = Evaluate(g, b, depth + 1)
-	// 	g.UndoMove()
+		var enemyScore int
+		if numMovesApplied == s.evaluateWhenNumMovesApplied-1 && move.MoveType == CaptureMove {
+			enemyScore, err = evaluateCaptures2(
+				s.Game, s.Bitboards,
+				-enemyCanForceScore,
+				-playerCanForceScore)
+		} else {
+			enemyScore, err = s.Evaluate(
+				numMovesApplied+1,
+				-enemyCanForceScore,
+				-playerCanForceScore)
+		}
+		if err != nil {
+			return 0, err
+		}
 
-	// 	if score >= enemyCanForceScore {
-	// 		// Refutation move, enemy will avoid.
-	// 		s.cache.Add(g, m, score, s.maxDepth - depth, Refutation)
-	// 		return enemyCanForceScore
-	// 	} else if score > playerCanForceScore {
-	// 		playerCanForceScore = score
-	// 	}
+		err = s.Game.UndoUpdate(&update, s.Bitboards)
+		if err != nil {
+			return 0, fmt.Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
+		}
 
-	// 	if score > bestScore {
-	// 		bestMove = m
-	// 		bestScore = score
-	// 	}
-	// }
+		currentScore := -enemyScore
+		if currentScore >= enemyCanForceScore {
+			// move is a suitable refutation -- it's good enough that the enemy will avoid this path
+			// s.Logger.Println("refutation", move.String(), currentScore, enemyCanForceScore)
+			return enemyCanForceScore, nil
+		}
 
-	// s.cache.Add(g, bestMove, bestScore, s.maxDepth - depth, Best)
-	return playerCanForceScore
+		if currentScore > playerCanForceScore {
+			// move is a potential principle line -- it's our best option and the enemy can't avoid it
+			// s.Logger.Println("principle line", move.String(), currentScore, playerCanForceScore)
+			playerCanForceScore = currentScore
+
+			s.BestLineLength = numMovesApplied
+			for i := 0; i < numMovesApplied+1; i++ {
+				s.BestLine[i] = s.currentLine[i]
+			}
+		}
+	}
+
+	return playerCanForceScore, nil
 }
 
 func (s *Searcher) Search(outOfTime *bool) (Optional[Move], error) {
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	GenerateSortedPseudoMoves(s.b, s.g, moves)
+	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
 
-	for ; s.maxDepth < 8; s.maxDepth++ {
+	for s.evaluateWhenNumMovesApplied = 2; s.evaluateWhenNumMovesApplied <= 5; s.evaluateWhenNumMovesApplied++ {
 		for _, m := range *moves {
+			s.currentLine[0] = m
+
 			update := BoardUpdate{}
-			err := s.g.PerformMove(m, &update, s.b)
+			err := s.Game.PerformMove(m, &update, s.Bitboards)
 			if err != nil {
-				return Empty[Move](), fmt.Errorf("Search/PerformMove %v: %w", m.String(), err)
+				return Empty[Move](), err
 			}
 
-			m.Evaluation = Some(s.Evaluate(0, -Inf, Inf))
-
-			err = s.g.UndoUpdate(&update, s.b)
+			enemyScore, err := s.Evaluate(1, -Inf, Inf)
+			s.Logger.Println(m, -enemyScore)
 			if err != nil {
-				return Empty[Move](), fmt.Errorf("Search/PerformMove %v: %w", m.String(), err)
+				return Empty[Move](), err
 			}
+
+			m.Evaluation = Some(-enemyScore)
+
+			err = s.Game.UndoUpdate(&update, s.Bitboards)
+			if err != nil {
+				return Empty[Move](), err
+			}
+		}
+
+		if s.BestLineLength == 0 {
+			return Empty[Move](), fmt.Errorf("failed to find best line for %v", FenStringForGame(s.Game))
 		}
 
 		if *outOfTime {
@@ -88,15 +136,13 @@ func (s *Searcher) Search(outOfTime *bool) (Optional[Move], error) {
 	}
 
 	if len(*moves) == 0 {
-		// Check mate?
+		// Checkmate
 		return Empty[Move](), nil
 	}
 
-	sort.SliceStable(*moves, func(i, j int) bool {
-		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
-	})
-	return Some((*moves)[len(*moves)-1]), nil
+	return Some(s.BestLine[0]), nil
 }
+
 func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
 	if KingIsInCheck(b, g.Enemy(), g.Player) {
 		return SearchResult{Inf, 1, 1}, nil
@@ -115,7 +161,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 	totalSearched := 0
 
 	for _, move := range *moves {
-		if move.Evaluation.Value() < 200 {
+		if move.Evaluation.Value() < 100 {
 			continue
 		}
 
@@ -161,6 +207,15 @@ func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemy
 	}
 
 	return evaluateCapturesInner(g, b, playerCanForceScore, enemyCanForceScore)
+}
+
+func evaluateCaptures2(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (int, error) {
+	result, err := evaluateCaptures(g, b, playerCanForceScore, enemyCanForceScore)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.Score, nil
 }
 
 type SearchResult struct {

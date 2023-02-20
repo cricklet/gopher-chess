@@ -333,6 +333,10 @@ type Move struct {
 	Evaluation Optional[int]
 }
 
+func SameMove(m1 Move, m2 Move) bool {
+	return m1.StartIndex == m2.StartIndex && m1.EndIndex == m2.EndIndex
+}
+
 func MoveFromString(s string, m MoveType) Move {
 	first := s[0:2]
 	second := s[2:4]

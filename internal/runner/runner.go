@@ -184,7 +184,10 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move, err := Search(r.g, r.b, 4, r.Logger)
+		// move, err := Search(r.g, r.b, 4, r.Logger)
+		outOfTime := false
+		searcher := Searcher{Logger: r.Logger, Game: r.g, Bitboards: r.b}
+		move, err := searcher.Search(&outOfTime)
 		if err != nil {
 			return result, err
 		}
