@@ -84,7 +84,7 @@ func serve() {
 
 		runner.Logger = &LogForwarding{
 			func(message string) {
-				log.Print("logging", message)
+				log.Print("logging: ", message)
 				bytes, err := json.Marshal([]string{"server: " + message})
 				if err != nil {
 					fmt.Fprintln(os.Stderr, fmt.Sprint("logging: json marshal: ", err))

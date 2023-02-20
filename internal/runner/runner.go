@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/fen"
@@ -184,10 +186,25 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		// move, err := Search(r.g, r.b, 4, r.Logger)
 		outOfTime := false
-		searcher := Searcher{Logger: r.Logger, Game: r.g, Bitboards: r.b}
-		move, err := searcher.Search(&outOfTime)
+		var wg sync.WaitGroup
+
+		var move Optional[Move]
+		var err error
+
+		wg.Add(1)
+		go func() {
+			searcher := NewSearcher(r.Logger, r.g, r.b)
+			move, err = searcher.Search(&outOfTime)
+			wg.Done()
+		}()
+
+		go func() {
+			time.Sleep(1 * time.Second)
+			outOfTime = true
+		}()
+
+		wg.Wait()
 		if err != nil {
 			return result, err
 		}

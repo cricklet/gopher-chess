@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -14,10 +15,15 @@ import (
 
 var Inf int = 999999
 
-type Searcher struct {
+type searcher struct {
 	Logger    Logger
 	Game      *GameState
 	Bitboards *Bitboards
+
+	// alpha            int
+	// beta             int
+	// maximizingPlayer Player
+	// minimizingPlayer Player
 
 	evaluateWhenNumMovesApplied int
 
@@ -25,17 +31,28 @@ type Searcher struct {
 
 	BestLine       [200]Move
 	BestLineLength int
+	BestLineScore  int
 
-	DebugTotalEvaluations int
+	DebugTotalEvaluations         int
+	DebugEvaluationsThisIteration int
 }
 
-func (s *Searcher) Evaluate(numMovesApplied int, playerCanForceScore int, enemyCanForceScore int) (int, error) {
+func NewSearcher(logger Logger, game *GameState, bitboards *Bitboards) searcher {
+	return searcher{
+		Logger:    logger,
+		Game:      game,
+		Bitboards: bitboards,
+	}
+}
+
+func (s *searcher) Evaluate(numMovesApplied int, playerCanForceScore int, enemyCanForceScore int) (int, error) {
 	if KingIsInCheck(s.Bitboards, s.Game.Enemy(), s.Game.Player) {
 		return Inf, nil
 	}
 
 	if numMovesApplied == s.evaluateWhenNumMovesApplied {
 		s.DebugTotalEvaluations++
+		s.DebugEvaluationsThisIteration++
 		return Evaluate(s.Bitboards, s.Game.Player), nil
 	}
 
@@ -86,6 +103,7 @@ func (s *Searcher) Evaluate(numMovesApplied int, playerCanForceScore int, enemyC
 			// s.Logger.Println("principle line", move.String(), currentScore, playerCanForceScore)
 			playerCanForceScore = currentScore
 
+			s.BestLineScore = currentScore
 			s.BestLineLength = numMovesApplied
 			for i := 0; i < numMovesApplied+1; i++ {
 				s.BestLine[i] = s.currentLine[i]
@@ -96,13 +114,13 @@ func (s *Searcher) Evaluate(numMovesApplied int, playerCanForceScore int, enemyC
 	return playerCanForceScore, nil
 }
 
-func (s *Searcher) Search(outOfTime *bool) (Optional[Move], error) {
+func (s *searcher) Search(outOfTime *bool) (Optional[Move], error) {
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
 	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
 
-	for s.evaluateWhenNumMovesApplied = 2; s.evaluateWhenNumMovesApplied <= 5; s.evaluateWhenNumMovesApplied++ {
+	for s.evaluateWhenNumMovesApplied = 2; s.evaluateWhenNumMovesApplied <= 10; s.evaluateWhenNumMovesApplied++ {
 		for _, m := range *moves {
 			s.currentLine[0] = m
 
@@ -113,16 +131,19 @@ func (s *Searcher) Search(outOfTime *bool) (Optional[Move], error) {
 			}
 
 			enemyScore, err := s.Evaluate(1, -Inf, Inf)
-			s.Logger.Println(m, -enemyScore)
 			if err != nil {
 				return Empty[Move](), err
 			}
 
-			m.Evaluation = Some(-enemyScore)
+			m.Evaluation = Some(enemyScore)
 
 			err = s.Game.UndoUpdate(&update, s.Bitboards)
 			if err != nil {
 				return Empty[Move](), err
+			}
+
+			if *outOfTime {
+				break
 			}
 		}
 
@@ -130,17 +151,25 @@ func (s *Searcher) Search(outOfTime *bool) (Optional[Move], error) {
 			return Empty[Move](), fmt.Errorf("failed to find best line for %v", FenStringForGame(s.Game))
 		}
 
+		sort.SliceStable(*moves, func(i, j int) bool {
+			return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
+		})
+
+		s.Logger.Println("evaluated up to", s.evaluateWhenNumMovesApplied,
+			"- iteration evals", s.DebugEvaluationsThisIteration,
+			"- total evals", s.DebugTotalEvaluations,
+			"- best move", s.BestLine[0], s.BestLineScore)
+
 		if *outOfTime {
 			break
 		}
 	}
 
 	if len(*moves) == 0 {
-		// Checkmate
 		return Empty[Move](), nil
 	}
 
-	return Some(s.BestLine[0]), nil
+	return Some((*moves)[0]), nil
 }
 
 func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
@@ -370,7 +399,7 @@ type SearchCache struct {
 	map[ZobristHash]BestMove
 }
 
-type Searcher struct {
+type searcher struct {
 	maxDepth int
 	principleVariation [64]Move
 	principleVariationLength int
@@ -378,7 +407,7 @@ type Searcher struct {
 	cache *SearchCache
 }
 
-func (s *Searcher) Evaluate(g, b, depth, playerCanForceScore, enemyCanForceScore) {
+func (s *searcher) Evaluate(g, b, depth, playerCanForceScore, enemyCanForceScore) {
 	GenerateSortedPseudoMoves(g, b, &moves)
 
 	bestMove := Empty[Move]()
@@ -411,7 +440,7 @@ func (s *Searcher) Evaluate(g, b, depth, playerCanForceScore, enemyCanForceScore
 	return playerCanForceScore
 }
 
-func (s *Searcher) Search(g, b, outOfTime *bool) {
+func (s *searcher) Search(g, b, outOfTime *bool) {
 	GenerateSortedPseudoMoves(g, b, &moves)
 
 	for ; s.maxDepth < 8; s.maxDepth ++ {
