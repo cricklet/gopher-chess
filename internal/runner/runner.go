@@ -186,27 +186,27 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		outOfTime := false
 		var wg sync.WaitGroup
 
 		var move Optional[Move]
-		var err error
+		var errs []error
+
+		searcher := NewSearcher(r.Logger, r.g, r.b)
 
 		wg.Add(1)
 		go func() {
-			searcher := NewSearcher(r.Logger, r.g, r.b)
-			move, err = searcher.Search(&outOfTime)
+			move, errs = searcher.Search()
 			wg.Done()
 		}()
 
 		go func() {
 			time.Sleep(1 * time.Second)
-			outOfTime = true
+			searcher.OutOfTime = true
 		}()
 
 		wg.Wait()
-		if err != nil {
-			return result, err
+		if len(errs) != 0 {
+			return result, errors.Join(errs...)
 		}
 		if move.IsEmpty() {
 			return result, errors.New("no legal moves")

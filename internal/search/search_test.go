@@ -20,25 +20,26 @@ func TestOpening(t *testing.T) {
 	bitboards := game.CreateBitboards()
 
 	searcher := NewSearcher(&DefaultLogger, &game, &bitboards)
-	outOfTime := false
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	var result Optional[Move]
+	var errs []error
 
 	go func() {
-		result, err = searcher.Search(&outOfTime)
+		result, errs = searcher.Search()
 		wg.Done()
 	}()
 
 	go func() {
 		time.Sleep(time.Second)
-		outOfTime = true
+		searcher.OutOfTime = true
 	}()
 
 	wg.Wait()
 	assert.Nil(t, err)
+	assert.Empty(t, errs)
 
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true}
 
@@ -52,24 +53,25 @@ func TestPointlessSacrifice(t *testing.T) {
 	bitboards := game.CreateBitboards()
 
 	searcher := NewSearcher(&DefaultLogger, &game, &bitboards)
-	outOfTime := false
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	var result Optional[Move]
+	var errs []error
 
 	go func() {
-		result, err = searcher.Search(&outOfTime)
+		result, errs = searcher.Search()
 		wg.Done()
 	}()
 
 	go func() {
 		time.Sleep(time.Second)
-		outOfTime = true
+		searcher.OutOfTime = true
 	}()
 
 	wg.Wait()
+	assert.Empty(t, errs)
 	assert.Nil(t, err)
 
 	fmt.Println(result.Value().String())
