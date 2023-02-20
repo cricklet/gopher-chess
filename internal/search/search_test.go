@@ -1,7 +1,6 @@
 package search
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -66,7 +65,7 @@ func TestPointlessSacrifice(t *testing.T) {
 	}()
 
 	go func() {
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond * 10)
 		searcher.OutOfTime = true
 	}()
 
@@ -75,9 +74,10 @@ func TestPointlessSacrifice(t *testing.T) {
 	assert.Nil(t, err)
 
 	fmt.Println(result.Value().String())
+	fmt.Println(game.Board.String())
 
-	output, err := json.MarshalIndent(searcher.DebugTreeRoot, "", " ")
 	assert.Nil(t, err)
-	err = os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.json", output, 0600)
+	err = os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.tree", []byte(searcher.DebugTree.Sprint()), 0600)
+	fmt.Println(searcher.DebugTree.Sprint())
 	assert.Nil(t, err)
 }
