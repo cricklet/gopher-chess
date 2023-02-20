@@ -139,14 +139,14 @@ func (s *searcher) scoreDirectionForPlayer(player Player) int {
 }
 
 func (s *searcher) EvaluateMove(move Move, depth int) (int, *SearchDebugNode, []error) {
-	var score int
+	var bestScore int
 	var errors []error
 
 	movePlayer := s.Game.Player
 	nextPlayer := movePlayer.Other()
 
 	debugNode := createNode(move, s.Alpha, s.Beta)
-	defer func() { debugNode.finalize(s.Alpha, s.Beta, score) }()
+	defer func() { debugNode.finalize(s.Alpha, s.Beta, bestScore) }()
 
 	var update BoardUpdate
 	err := s.Game.PerformMove(move, &update, s.Bitboards)
@@ -162,7 +162,7 @@ func (s *searcher) EvaluateMove(move Move, depth int) (int, *SearchDebugNode, []
 
 	if depth == 1 {
 		s.DebugTotalEvaluations++
-		score = Evaluate(s.Bitboards, s.MaximizingPlayer)
+		bestScore = Evaluate(s.Bitboards, s.MaximizingPlayer)
 	} else {
 		moves := GetMovesBuffer()
 		defer ReleaseMovesBuffer(moves)
@@ -188,7 +188,7 @@ func (s *searcher) EvaluateMove(move Move, depth int) (int, *SearchDebugNode, []
 			SortMaxFirst(&debugNode.Children, func(n SearchDebugNode) int {
 				return n.ReturnedScore
 			})
-			score = (*moves)[0].Evaluation.Value()
+			bestScore = (*moves)[0].Evaluation.Value()
 		} else {
 			SortMinFirst(moves, func(m Move) int {
 				return m.Evaluation.Value()
@@ -196,11 +196,27 @@ func (s *searcher) EvaluateMove(move Move, depth int) (int, *SearchDebugNode, []
 			SortMinFirst(&debugNode.Children, func(n SearchDebugNode) int {
 				return n.ReturnedScore
 			})
-			score = (*moves)[0].Evaluation.Value()
+			bestScore = (*moves)[0].Evaluation.Value()
 		}
 	}
 
-	return score, debugNode, errors
+	if s.MaximizingPlayer == nextPlayer {
+		if bestScore <= s.Alpha {
+			// Refutation whoops
+			// bestScore = s.Alpha
+		} else if bestScore < s.Beta {
+			// s.Beta = bestScore
+		}
+	} else {
+		if bestScore >= s.Beta {
+			// Refutation whoops
+			// bestScore = s.Beta
+		} else if bestScore > s.Alpha {
+			// s.Alpha = bestScore
+		}
+	}
+
+	return bestScore, debugNode, errors
 }
 
 func (s *searcher) Search() (Optional[Move], []error) {
