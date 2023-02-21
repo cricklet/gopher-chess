@@ -40,8 +40,11 @@ func TestOpening(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Empty(t, errs)
 
-	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true}
+	err = os.WriteFile(RootDir()+"/data/debug-search-openings.tree", []byte(searcher.DebugTree.Sprint(4)), 0600)
+	assert.Nil(t, err)
+	fmt.Println(searcher.DebugTree.Sprint(1))
 
+	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true}
 	assert.True(t, expectedOpenings[result.Value().String()])
 }
 
@@ -80,5 +83,5 @@ func TestPointlessSacrifice(t *testing.T) {
 
 	err = os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.tree", []byte(searcher.DebugTree.Sprint(4)), 0600)
 	assert.Nil(t, err)
-	fmt.Println(searcher.DebugTree.Sprint(2))
+	fmt.Println(searcher.DebugTree.Sprint(1))
 }
