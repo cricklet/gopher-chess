@@ -8,7 +8,7 @@ import (
 
 type Success bool
 
-func Ignore(t any) {
+func Ignore(t ...any) {
 }
 
 func MapSlice[T, U any](ts []T, f func(T) U) []U {

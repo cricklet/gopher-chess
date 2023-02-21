@@ -326,6 +326,28 @@ const (
 	EnPassantMove
 )
 
+func (t MoveType) String() string {
+	switch t {
+	case QuietMove:
+		{
+			return "QuietMove"
+		}
+	case CaptureMove:
+		{
+			return "CaptureMove"
+		}
+	case CastlingMove:
+		{
+			return "CastlingMove"
+		}
+	case EnPassantMove:
+		{
+			return "EnPassantMove"
+		}
+	}
+	return "Invalid"
+}
+
 type Move struct {
 	MoveType   MoveType
 	StartIndex int
@@ -348,7 +370,7 @@ func (m Move) String() string {
 }
 
 func (m Move) DebugString() string {
-	return fmt.Sprintf("%v%v, %v", StringFromBoardIndex(m.StartIndex), StringFromBoardIndex(m.EndIndex), m.MoveType)
+	return fmt.Sprintf("%v%v, %v", StringFromBoardIndex(m.StartIndex), StringFromBoardIndex(m.EndIndex), m.MoveType.String())
 }
 
 type BoardUpdate struct {

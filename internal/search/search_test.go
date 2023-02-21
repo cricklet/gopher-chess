@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/cricklet/chessgo/internal/fen"
+	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/stretchr/testify/assert"
 )
@@ -83,7 +83,7 @@ func TestNoLegalMoves(t *testing.T) {
 	var errs []error
 
 	go func() {
-		time.Sleep(time.Millisecond * 2000)
+		time.Sleep(time.Millisecond * 10000)
 		searcher.OutOfTime = true
 	}()
 

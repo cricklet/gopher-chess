@@ -1,26 +1,20 @@
-package chess
+package game
 
 import (
 	"fmt"
-	"strings"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type GameState struct {
-	Board                        BoardArray
-	Player                       Player
-	PlayerAndCastlingSideAllowed [2][2]bool
-	EnPassantTarget              Optional[FileRank]
-	HalfMoveClock                int
-	FullMoveClock                int
-	MoveHistoryForDebugging      []Move
-}
-
-func (g *GameState) HistoryString() string {
-	return strings.TrimSpace(strings.Join(
-		MapSlice(g.MoveHistoryForDebugging, func(m Move) string { return m.String() }), " "))
+	Board                         BoardArray
+	Player                        Player
+	PlayerAndCastlingSideAllowed  [2][2]bool
+	EnPassantTarget               Optional[FileRank]
+	HalfMoveClock                 int
+	FullMoveClock                 int
+	FenAndMoveHistoryForDebugging [][2]string
 }
 
 func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
@@ -137,6 +131,8 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) error {
 	setupBoardUpdate(g, move, update)
 
+	g.FenAndMoveHistoryForDebugging = append(g.FenAndMoveHistoryForDebugging, [2]string{FenStringForGame(g), move.DebugString()})
+
 	err := g.applyMoveToBitboards(b, move)
 	if err != nil {
 		return err
@@ -158,7 +154,6 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) er
 		g.FullMoveClock++
 	}
 	g.Player = g.Player.Other()
-	g.MoveHistoryForDebugging = append(g.MoveHistoryForDebugging, move)
 
 	startBitboard := SingleBitboard(move.StartIndex)
 	endBitboard := SingleBitboard(move.EndIndex)
@@ -197,13 +192,13 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, move Move) error {
 			endPiece := g.Board[endIndex]
 			err := b.ClearSquare(endIndex, endPiece)
 			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(endIndex), endPiece, err)
+				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(endIndex), endPiece, err, FenStringForGame(g))
 			}
 
 			// Move the capturing piece
 			err = b.ClearSquare(startIndex, startPiece)
 			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
+				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err, FenStringForGame(g))
 			}
 			b.SetSquare(endIndex, startPiece)
 		}
@@ -220,11 +215,11 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, move Move) error {
 
 			err := b.ClearSquare(captureIndex, capturePiece)
 			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(captureIndex), capturePiece, err)
+				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(captureIndex), capturePiece, err, FenStringForGame(g))
 			}
 			err = b.ClearSquare(startIndex, startPiece)
 			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
+				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err, FenStringForGame(g))
 			}
 			b.SetSquare(endIndex, startPiece)
 		}
@@ -238,18 +233,15 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, move Move) error {
 
 			err = b.ClearSquare(startIndex, startPiece)
 			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err)
+				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err, FenStringForGame(g))
 			}
 			b.SetSquare(endIndex, startPiece)
 
 			err = b.ClearSquare(rookStartIndex, rookPiece)
 			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(rookStartIndex), rookPiece, err)
+				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(rookStartIndex), rookPiece, err, FenStringForGame(g))
 			}
-			err = b.ClearSquare(rookEndIndex, rookPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w", move.DebugString(), StringFromBoardIndex(rookEndIndex), rookPiece, err)
-			}
+			b.SetSquare(rookEndIndex, rookPiece)
 		}
 	}
 
@@ -275,7 +267,7 @@ func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) error {
 		g.Board[index] = piece
 	}
 
-	g.MoveHistoryForDebugging = g.MoveHistoryForDebugging[:len(g.MoveHistoryForDebugging)-1]
+	g.FenAndMoveHistoryForDebugging = g.FenAndMoveHistoryForDebugging[:len(g.FenAndMoveHistoryForDebugging)-1]
 	return nil
 }
 

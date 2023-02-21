@@ -7,7 +7,6 @@ import (
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/evaluation"
-	. "github.com/cricklet/chessgo/internal/fen"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/pkg/profile"

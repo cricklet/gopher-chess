@@ -1,10 +1,10 @@
-package search
+package evaluation
 
 import (
 	"strings"
 	"testing"
 
-	. "github.com/cricklet/chessgo/internal/fen"
+	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/stretchr/testify/assert"
 )

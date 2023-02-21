@@ -1,11 +1,10 @@
-package fen
+package game
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
 
-	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 

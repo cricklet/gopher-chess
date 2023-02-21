@@ -1,4 +1,4 @@
-package search
+package evaluation
 
 import (
 	. "github.com/cricklet/chessgo/internal/bitboards"

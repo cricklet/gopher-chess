@@ -55,3 +55,31 @@ func TestIndexBug3(t *testing.T) {
 	_, err = r.HandleInput("go")
 	assert.Nil(t, err)
 }
+
+func TestCastlingBug1(t *testing.T) {
+	fen := "rn1qk2r/ppp3pp/3b1n2/3ppb2/8/2NPBNP1/PPP2PBP/R2QK2R b KQkq - 15 8"
+	moves := []string{
+		"e8g8",
+		"d3d4",
+	}
+	r := Runner{}
+	for _, line := range []string{
+		"isready",
+		"uci",
+		"position fen " + fen,
+	} {
+		_, err := r.HandleInput(line)
+		assert.Nil(t, err)
+	}
+
+	for _, m := range moves {
+		r.PerformMoveFromString(m)
+	}
+
+	kingMoves, err := r.MovesForSelection("g8")
+	assert.Nil(t, err)
+
+	for _, m := range kingMoves {
+		assert.NotEqual(t, "f8", m.String())
+	}
+}
