@@ -102,7 +102,7 @@ func GenerateSortedPseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
 		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], g))
 	}
 
-	sort.SliceStable(*moves, func(i, j int) bool {
+	sort.Slice(*moves, func(i, j int) bool {
 		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
 	})
 }
@@ -113,7 +113,7 @@ func GenerateSortedPseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
 		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], g))
 	}
 
-	sort.SliceStable(*moves, func(i, j int) bool {
+	sort.Slice(*moves, func(i, j int) bool {
 		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
 	})
 }

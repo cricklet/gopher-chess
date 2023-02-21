@@ -450,6 +450,8 @@ func (s *searcher) Search() (Optional[Move], []error) {
 		return Empty[Move](), nil
 	}
 
+	// fmt.Println(s.DebugTree.Sprint(2))
+
 	return Some((*moves)[0]), nil
 }
 

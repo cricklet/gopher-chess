@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
@@ -184,22 +183,22 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		// move, err := Search(r.g, r.b, 3, r.Logger)
-		// if err != nil {
-		// 	return result, err
-		// }
-
-		searcher := NewSearcher(r.Logger, r.g, r.b)
-
-		go func() {
-			time.Sleep(2 * time.Second)
-			searcher.OutOfTime = true
-		}()
-
-		move, errs := searcher.Search()
-		if len(errs) != 0 {
-			return result, errors.Join(errs...)
+		move, err := Search(r.g, r.b, 3, r.Logger)
+		if err != nil {
+			return result, err
 		}
+
+		// searcher := NewSearcher(r.Logger, r.g, r.b)
+
+		// go func() {
+		// 	time.Sleep(2 * time.Second)
+		// 	searcher.OutOfTime = true
+		// }()
+
+		// move, errs := searcher.Search()
+		// if len(errs) != 0 {
+		// 	return result, errors.Join(errs...)
+		// }
 
 		if move.IsEmpty() {
 			return result, errors.New("no legal moves")
