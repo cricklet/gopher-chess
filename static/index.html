@@ -28,6 +28,7 @@
         .file-rank.selectable span {
             background-color: #222b;
         }
+
         .file-rank.selected span {
             background-color: #2ccb;
         }
@@ -66,6 +67,7 @@
         .file-rank.selectable span {
             background-color: #222b;
         }
+
         .file-rank.selected span {
             background-color: #2ccb;
         }
@@ -157,7 +159,7 @@
     .file-rank.ready,
     .last-move {
         font-size: calc(100% - 70%);
-        opacity:100%
+        opacity: 100%
     }
 
     .square {
@@ -354,8 +356,10 @@
 
     async function update() {
         function click(file, rank) {
+            const inputEl = document.getElementById('input')
             const c = board[file][rank]
             if (availableMoves && availableMoves[file] && availableMoves[file][rank]) {
+                inputEl.value = ""
                 send({
                     Move: fileRankToString(...selectedFileRank) + fileRankToString(file, rank)
                 })
@@ -364,6 +368,7 @@
 
             if (c != " " && PLAYER_PIECE_MAP[currentPlayerToMove].has(c)) {
                 if (!fileRankMatches(file, rank, selectedFileRank)) {
+                    inputEl.value = fileRankToString(file, rank)
                     send({
                         Selection: fileRankToString(file, rank)
                     })
@@ -547,7 +552,7 @@
         function handleNewUrl() {
             let fen, lastMove
             [whitePlayer, blackPlayer, fen, lastMove] = settingsFromUrl(urlPath());
-            
+
             [lastMoveStart, lastMoveEnd] = lastMove ?
                 [fileRankFromString(lastMove.substring(0, 2)), fileRankFromString(lastMove.substring(2, 4))]
                 : [undefined, undefined];
@@ -588,6 +593,8 @@
 
                 updateUrlForFen(data.fenString)
                 update()
+
+                send({Ready: true})
             }
         }
 

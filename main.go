@@ -203,8 +203,6 @@ func serve() {
 			}
 			runner.Logger.Println("received", message)
 
-			var update UpdateToWeb
-
 			if message.NewFen != nil {
 				for _, command := range []string{
 					"isready",
@@ -224,6 +222,8 @@ func serve() {
 				blackPlayer = PlayerTypeFromString(*message.BlackPlayer)
 			} else if message.Selection != nil {
 				if *message.Selection != "" {
+					var update UpdateToWeb
+
 					update.Selection = *message.Selection
 					result, err := runner.MovesForSelection(*message.Selection)
 					if err != nil {
@@ -234,25 +234,25 @@ func serve() {
 						func(v FileRank) string {
 							return v.String()
 						})
+					finalizeUpdate(update)
 				}
 			} else if message.Move != nil {
 				err := runner.PerformMoveFromString(*message.Move)
 				if err != nil {
 					runner.Logger.Println("perform %v: ", message.Move, err) // TODO reset
 				}
-			} else if message.Ready != nil {
-				ready = *message.Ready
 			} else if message.Rewind != nil {
 				err := runner.Rewind(*message.Rewind)
 				if err != nil {
 					runner.Logger.Println("rewind %v: ", message.Rewind, err) // TODO reset
 				}
-			}
+			} else if message.Ready != nil {
+				ready = *message.Ready
 
-			finalizeUpdate(update)
-
-			for performMove() {
-				finalizeUpdate(update)
+				if performMove() {
+					var update UpdateToWeb
+					finalizeUpdate(update)
+				}
 			}
 		}
 
