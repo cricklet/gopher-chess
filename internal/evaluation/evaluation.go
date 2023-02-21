@@ -33,7 +33,7 @@ var PawnDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{0, 0, 0, 2, 2, 0, 0, 0},
 	{0, 0, 0, 0, 0, 0, 0, 0},
 	{0, 0, 0, 0, 0, 0, 0, 0},
-}, _developmentScale)
+}, _developmentScale*2)
 
 var BishopDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{-1, -1, -1, -1, -1, -1, -1, -1},
@@ -64,7 +64,7 @@ var QueenDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{-2, 0, 1, 1, 1, 1, 0, -2},
 	{-2, 0, 1, 0, 0, 1, 0, -2},
 	{-2, -2, -2, -1, -1, -2, -2, -20},
-}, _developmentScale)
+}, _developmentScale/2)
 
 var NullDevelopmentBitboards = [2][]EvaluationBitboard{
 	{},

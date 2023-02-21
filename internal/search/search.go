@@ -26,6 +26,7 @@ var Inf int = 999999
 
 type SearchDebugTree struct {
 	FenString        string
+	Player           Player
 	SearchIterations []SearchIteration
 }
 type SearchIteration struct {
@@ -34,6 +35,7 @@ type SearchIteration struct {
 }
 type SearchDebugNode struct {
 	Move          string
+	PlayerHint    string
 	StartingAlpha int
 	StartingBeta  int
 	EndingAlpha   int
@@ -51,9 +53,10 @@ func (it *SearchIteration) addRoot(node *SearchDebugNode) {
 	it.SearchRoots = append(it.SearchRoots, *node)
 }
 
-func createNode(move Move, alpha int, beta int) *SearchDebugNode {
+func createNode(move Move, playerHint string, alpha int, beta int) *SearchDebugNode {
 	return &SearchDebugNode{
 		Move:          move.String(),
+		PlayerHint:    playerHint,
 		StartingAlpha: alpha,
 		StartingBeta:  beta,
 		Children:      []SearchDebugNode{},
@@ -74,7 +77,7 @@ func (node *SearchDebugNode) Sprint(indent int, prefix string, depth int) string
 	for i := 0; i < indent; i++ {
 		result += " "
 	}
-	result += fmt.Sprintf("%v %v [%v %v] => [%v %v] %v", prefix, node.Move, node.StartingAlpha, node.StartingBeta, node.EndingAlpha, node.EndingBeta, node.ReturnedScore)
+	result += fmt.Sprintf("%v %v %v [%v %v] => [%v %v] %v", prefix, node.Move, node.PlayerHint, node.StartingAlpha, node.StartingBeta, node.EndingAlpha, node.EndingBeta, node.ReturnedScore)
 	result += "\n"
 
 	numChildren := len(node.Children)
@@ -82,13 +85,18 @@ func (node *SearchDebugNode) Sprint(indent int, prefix string, depth int) string
 	for i, child := range node.Children {
 		childPrefix := fmt.Sprintf("(%v/%v)", i+1, numChildren)
 		result += child.Sprint(indent+2, childPrefix, depth-1)
+		break
 	}
 	return result
 }
 
 func (node *SearchDebugTree) Sprint(depth int) string {
 	result := node.FenString + "\n"
-	urlString := "http://0.0.0.0:8002/white/fen/" + node.FenString
+	playerStr := "white"
+	if node.Player == Black {
+		playerStr = "black"
+	}
+	urlString := "http://0.0.0.0:8002/" + playerStr + "/fen/" + node.FenString
 	result += strings.ReplaceAll(urlString, " ", "%20") + "\n"
 
 	numIterations := len(node.SearchIterations)
@@ -103,6 +111,7 @@ func (node *SearchDebugTree) Sprint(depth int) string {
 		}
 	}
 
+	f(len(node.SearchIterations) - 2)
 	f(len(node.SearchIterations) - 1)
 
 	return result
@@ -130,6 +139,7 @@ func NewSearcher(logger Logger, game *GameState, bitboards *Bitboards) searcher 
 		Bitboards:        bitboards,
 		MaximizingPlayer: game.Player,
 		DebugTree: SearchDebugTree{
+			Player:    game.Player,
 			FenString: FenStringForGame(game),
 		},
 	}
@@ -143,9 +153,13 @@ func (s *searcher) scoreDirectionForPlayer(player Player) int {
 	}
 }
 
-func (s *searcher) EvaluateMoves(alpha int, beta int, depth int) (int, []SearchDebugNode, []error) {
-	var returnDebug []SearchDebugNode
+func (s *searcher) EvaluatePosition() int {
+	return Evaluate(s.Bitboards, s.MaximizingPlayer)
+}
+
+func (s *searcher) evaluateCapturesInner(alpha int, beta int) (int, []SearchDebugNode, []error) {
 	var returnScore int
+	var returnDebug []SearchDebugNode
 	var returnErrors []error
 
 	player := s.Game.Player
@@ -159,10 +173,15 @@ func (s *searcher) EvaluateMoves(alpha int, beta int, depth int) (int, []SearchD
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
+	GenerateSortedPseudoCaptures(s.Bitboards, s.Game, moves)
+	if len(*moves) == 0 {
+		returnScore = s.EvaluatePosition()
+		s.DebugTotalEvaluations++
+		return returnScore, returnDebug, returnErrors
+	}
 
 	for i := range *moves {
-		score, debugChild, childErrors := s.EvaluateMove((*moves)[i], alpha, beta, depth)
+		score, debugChild, childErrors := s.evaluateCapture((*moves)[i], alpha, beta)
 		returnDebug = append(returnDebug, *debugChild)
 
 		if len(childErrors) > 0 {
@@ -204,11 +223,19 @@ func (s *searcher) EvaluateMoves(alpha int, beta int, depth int) (int, []SearchD
 	return returnScore, returnDebug, returnErrors
 }
 
-func (s *searcher) EvaluateMove(move Move, alpha int, beta int, depth int) (int, *SearchDebugNode, []error) {
+func (s *searcher) evaluateCapture(move Move, alpha int, beta int) (int, *SearchDebugNode, []error) {
 	var returnScore int
 	var returnErrors []error
 
-	returnNode := createNode(move, alpha, beta)
+	player := s.Game.Player
+	playerHint := FenStringForPlayer(player)
+	if player == s.MaximizingPlayer {
+		playerHint += "-max"
+	} else {
+		playerHint += "-min"
+	}
+
+	returnNode := createNode(move, playerHint, alpha, beta)
 	defer func() { returnNode.finalize(alpha, beta, returnScore) }()
 
 	var update BoardUpdate
@@ -223,14 +250,132 @@ func (s *searcher) EvaluateMove(move Move, alpha int, beta int, depth int) (int,
 		returnErrors = append(returnErrors, err)
 	}()
 
-	if depth == 1 {
-		s.DebugTotalEvaluations++
-		returnScore = Evaluate(s.Bitboards, s.MaximizingPlayer)
-	} else {
-		returnScore, returnNode.Children, returnErrors = s.EvaluateMoves(alpha, beta, depth-1)
-		if returnErrors != nil {
-			return returnScore, returnNode, returnErrors
+	returnScore, returnNode.Children, returnErrors = s.evaluateCaptures(alpha, beta)
+
+	return returnScore, returnNode, returnErrors
+}
+func (s *searcher) evaluateCaptures(alpha int, beta int) (int, []SearchDebugNode, []error) {
+	standPat := s.EvaluatePosition()
+	player := s.Game.Player
+
+	if player == s.MaximizingPlayer {
+		if standPat > beta {
+			return standPat, nil, nil
+		} else if standPat > alpha {
+			alpha = standPat
 		}
+	} else {
+		if standPat < alpha {
+			return standPat, nil, nil
+		} else if standPat < beta {
+			beta = standPat
+		}
+	}
+
+	return s.evaluateCapturesInner(alpha, beta)
+}
+
+func (s *searcher) evaluateSubtree(alpha int, beta int, depth int) (int, []SearchDebugNode, []error) {
+	var returnDebug []SearchDebugNode
+	var returnScore int
+	var returnErrors []error
+
+	player := s.Game.Player
+
+	if s.MaximizingPlayer == player {
+		returnScore = alpha
+	} else {
+		returnScore = beta
+	}
+
+	moves := GetMovesBuffer()
+	defer ReleaseMovesBuffer(moves)
+
+	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
+
+	for i := range *moves {
+		score, debugChild, childErrors := s.evaluateMove((*moves)[i], alpha, beta, depth)
+		returnDebug = append(returnDebug, *debugChild)
+
+		if len(childErrors) > 0 {
+			returnErrors = append(returnErrors, childErrors...)
+			return returnScore, returnDebug, returnErrors
+		}
+
+		if s.MaximizingPlayer == player {
+			if score >= beta {
+				// The enemy will avoid this line
+				returnScore = beta
+				break
+			} else if score > alpha {
+				// This is our best choice of move
+				alpha = score
+				returnScore = score
+			}
+		} else {
+			if score <= alpha {
+				returnScore = alpha
+				break
+			} else if score < beta {
+				beta = score
+				returnScore = score
+			}
+		}
+
+		if s.OutOfTime {
+			break
+		}
+	}
+
+	if s.MaximizingPlayer == player {
+		SortMaxFirst(&returnDebug, func(n SearchDebugNode) int {
+			return n.ReturnedScore
+		})
+	} else {
+		SortMinFirst(&returnDebug, func(n SearchDebugNode) int {
+			return n.ReturnedScore
+		})
+	}
+
+	return returnScore, returnDebug, returnErrors
+}
+
+func (s *searcher) evaluateMove(move Move, alpha int, beta int, depth int) (int, *SearchDebugNode, []error) {
+	var returnScore int
+	var returnErrors []error
+
+	player := s.Game.Player
+	playerHint := FenStringForPlayer(player)
+	if player == s.MaximizingPlayer {
+		playerHint += "-max"
+	} else {
+		playerHint += "-min"
+	}
+
+	returnNode := createNode(move, playerHint, alpha, beta)
+	defer func() { returnNode.finalize(alpha, beta, returnScore) }()
+
+	var update BoardUpdate
+	err := s.Game.PerformMove(move, &update, s.Bitboards)
+	if err != nil {
+		returnErrors = append(returnErrors, err)
+		return returnScore, returnNode, returnErrors
+	}
+
+	defer func() {
+		err = s.Game.UndoUpdate(&update, s.Bitboards)
+		returnErrors = append(returnErrors, err)
+	}()
+
+	if depth == 0 {
+		if move.MoveType == CaptureMove || move.MoveType == EnPassantMove {
+			returnScore, returnNode.Children, returnErrors = s.evaluateCaptures(alpha, beta)
+		} else {
+			s.DebugTotalEvaluations++
+			returnScore = s.EvaluatePosition()
+		}
+	} else {
+		returnScore, returnNode.Children, returnErrors = s.evaluateSubtree(alpha, beta, depth-1)
 	}
 
 	return returnScore, returnNode, returnErrors
@@ -242,15 +387,24 @@ func (s *searcher) Search() (Optional[Move], []error) {
 
 	GenerateSortedPseudoMoves(s.Bitboards, s.Game, moves)
 
-	for depth := 2; ; depth++ {
+	for depth := 2; ; depth += 2 {
 		debugSearches := s.DebugTree.addIteration(depth)
 
+		alpha := -Inf
 		for i := range *moves {
-			score, debugNode, errs := s.EvaluateMove((*moves)[i], -Inf, Inf, depth)
+			score, debugNode, errs := s.evaluateMove((*moves)[i], alpha, Inf, depth)
+			if len(errs) > 0 {
+				return Empty[Move](), errs
+			}
+
+			if s.OutOfTime {
+				break
+			}
+
 			debugSearches.addRoot(debugNode)
 
-			if len(errs) > 0 {
-				return Empty[Move](), nil
+			if score > alpha {
+				alpha = score
 			}
 
 			(*moves)[i].Evaluation = Some(score)
@@ -264,6 +418,7 @@ func (s *searcher) Search() (Optional[Move], []error) {
 		})
 
 		s.Logger.Println("evaluated ",
+			"to depth", depth,
 			"- total evals", s.DebugTotalEvaluations,
 			"- best move", (*moves)[0].String(),
 			"- score", (*moves)[0].Evaluation.Value())
@@ -345,15 +500,6 @@ func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemy
 
 	return evaluateCapturesInner(g, b, playerCanForceScore, enemyCanForceScore)
 }
-
-// func evaluateCaptures2(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (int, error) {
-// 	result, err := evaluateCaptures(g, b, playerCanForceScore, enemyCanForceScore)
-// 	if err != nil {
-// 		return 0, err
-// 	}
-
-// 	return result.Score, nil
-// }
 
 type SearchResult struct {
 	Score              int
