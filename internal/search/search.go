@@ -9,7 +9,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/evaluation"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/pkg/profile"
 )
 
 var Inf int = 999999
@@ -144,6 +143,19 @@ func NewSearcher(logger Logger, game *GameState, bitboards *Bitboards) searcher 
 	}
 }
 
+func (s *searcher) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, error) {
+	err := s.Game.PerformMove(move, update, s.Bitboards)
+	if err != nil {
+		return false, err
+	}
+
+	if KingIsInCheck(s.Bitboards, s.Game.Enemy(), s.Game.Player) {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func (s *searcher) scoreDirectionForPlayer(player Player) int {
 	if player == s.MaximizingPlayer {
 		return 1
@@ -238,16 +250,19 @@ func (s *searcher) evaluateCapture(move Move, alpha int, beta int) (int, *Search
 	defer func() { returnNode.finalize(alpha, beta, returnScore) }()
 
 	var update BoardUpdate
-	err := s.Game.PerformMove(move, &update, s.Bitboards)
-	if err != nil {
-		returnErrors = append(returnErrors, err)
-		return returnScore, returnNode, returnErrors
-	}
-
+	legal, err := s.PerformMoveAndReturnLegality(move, &update)
 	defer func() {
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
 		returnErrors = append(returnErrors, err)
 	}()
+	if err != nil {
+		returnErrors = append(returnErrors, err)
+		return returnScore, returnNode, returnErrors
+	}
+	if !legal {
+		returnScore = -Inf * s.scoreDirectionForPlayer(player)
+		return returnScore, returnNode, returnErrors
+	}
 
 	returnScore, returnNode.Children, returnErrors = s.evaluateCaptures(alpha, beta)
 
@@ -355,16 +370,20 @@ func (s *searcher) evaluateMove(move Move, alpha int, beta int, depth int) (int,
 	defer func() { returnNode.finalize(alpha, beta, returnScore) }()
 
 	var update BoardUpdate
-	err := s.Game.PerformMove(move, &update, s.Bitboards)
-	if err != nil {
-		returnErrors = append(returnErrors, err)
-		return returnScore, returnNode, returnErrors
-	}
-
+	legal, err := s.PerformMoveAndReturnLegality(move, &update)
 	defer func() {
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
 		returnErrors = append(returnErrors, err)
 	}()
+
+	if err != nil {
+		returnErrors = append(returnErrors, err)
+		return returnScore, returnNode, returnErrors
+	}
+	if !legal {
+		returnScore = -Inf * s.scoreDirectionForPlayer(player)
+		return returnScore, returnNode, returnErrors
+	}
 
 	if depth == 0 {
 		if move.MoveType == CaptureMove || move.MoveType == EnPassantMove {
@@ -402,9 +421,9 @@ func (s *searcher) Search() (Optional[Move], []error) {
 
 			debugSearches.addRoot(debugNode)
 
-			if score > alpha {
-				alpha = score
-			}
+			// if score > alpha {
+			// 	alpha = score
+			// }
 
 			(*moves)[i].Evaluation = Some(score)
 		}
@@ -569,7 +588,7 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 }
 
 func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move], error) {
-	defer profile.Start(profile.ProfilePath("../data/Search")).Stop()
+	// defer profile.Start(profile.ProfilePath("../data/Search")).Stop()
 
 	moves := GetMovesBuffer()
 	GenerateSortedPseudoMoves(b, g, moves)

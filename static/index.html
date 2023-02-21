@@ -254,9 +254,14 @@
     }
 </style>
 <script>
-    let userControlsPlayer
+    let whitePlayer, blackPlayer // 'user' | 'chessgo'
     let board, selectedFileRank, currentPlayerToMove, availableMoves, lastMoveStart, lastMoveEnd
     let validMoveSubstr = ""
+
+    function userControls(player) {
+        if (player === 'white') return whitePlayer === 'user'
+        return blackPlayer === 'user'
+    }
 
     PIECE_CLASS_MAP = {
         'r': ['black', 'rook'],
@@ -398,7 +403,7 @@
 
                 const pieceClasses = PIECE_CLASS_MAP[c]
                 if (pieceClasses) {
-                    if (currentPlayerToMove === userControlsPlayer && PLAYER_PIECE_MAP[currentPlayerToMove].has(c) && selectedFileRank == null) {
+                    if (userControls(currentPlayerToMove) && PLAYER_PIECE_MAP[currentPlayerToMove].has(c) && selectedFileRank == null) {
                         const backdropEl = document.createElement('span')
                         backdropEl.classList.add('selectable')
                         backdropEl.classList.add('backdrop')
@@ -412,7 +417,7 @@
                     pieceEl.classList.add('piece')
                     spanEl.appendChild(pieceEl)
                 }
-                if (currentPlayerToMove === userControlsPlayer && availableMoves && availableMoves[file] && availableMoves[file][rank]) {
+                if (userControls(currentPlayerToMove) && availableMoves && availableMoves[file] && availableMoves[file][rank]) {
                     const backdropEl = document.createElement('span')
                     backdropEl.classList.add('potential')
                     backdropEl.classList.add('backdrop')
@@ -428,7 +433,7 @@
                 {
                     const fileRankEl = document.createElement('span')
                     fileRankEl.classList.add('file-rank')
-                    if (currentPlayerToMove === userControlsPlayer && PLAYER_PIECE_MAP[currentPlayerToMove].has(c) && selectedFileRank == null) {
+                    if (userControls(currentPlayerToMove) && PLAYER_PIECE_MAP[currentPlayerToMove].has(c) && selectedFileRank == null) {
                         fileRankEl.classList.add('selectable')
                         fileRankEl.classList.add(currentPlayerToMove)
                     }
@@ -483,7 +488,7 @@
     }
 
     function urlFromFen(fen) {
-        let result = "/" + userControlsPlayer + "/fen/" + fen
+        let result = "/" + whitePlayer + "/" + blackPlayer + "/fen/" + fen
         if (lastMoveStart && lastMoveEnd) {
             result += "/lastmove/" + fileRankToString(...lastMoveStart) + fileRankToString(...lastMoveEnd)
         }
@@ -506,8 +511,9 @@
         return
     }
 
-    function playerFenLastFromUrl(path) {
-        let player = "white"
+    function settingsFromUrl(path) {
+        let whitePlayer = "user"
+        let blackPlayer = "chessgo"
         let fen = START_POS_FEN
         let lastMove = undefined
 
@@ -515,7 +521,7 @@
             // Remove the initial "/"
             .slice(1)
         if (trimmed === "") {
-            return [player, fen]
+            return [whitePlayer, blackPlayer, fen, undefined]
         }
 
         const parts = trimmed
@@ -523,7 +529,7 @@
             .split(/\/fen\/|\/lastmove\//)
 
         if (parts.length > 0) {
-            player = parts[0]
+            [whitePlayer, blackPlayer] = parts[0].split('/')
         }
 
         if (parts.length > 1) {
@@ -534,20 +540,22 @@
             lastMove = parts[2]
         }
 
-        return [player, fen, lastMove]
+        return [whitePlayer, blackPlayer, fen, lastMove]
     }
 
     document.addEventListener("DOMContentLoaded", () => {
         function handleNewUrl() {
-            const [player, fen, lastMove] = playerFenLastFromUrl(urlPath());
-            userControlsPlayer = player;
-
+            let fen, lastMove
+            [whitePlayer, blackPlayer, fen, lastMove] = settingsFromUrl(urlPath());
+            
             [lastMoveStart, lastMoveEnd] = lastMove ?
                 [fileRankFromString(lastMove.substring(0, 2)), fileRankFromString(lastMove.substring(2, 4))]
                 : [undefined, undefined];
 
             send({ NewFen: fen })
-            send({ UserPlayer: userControlsPlayer })
+            send({ WhitePlayer: whitePlayer })
+            send({ BlackPlayer: blackPlayer })
+            send({ Ready: true })
         }
         socket.onopen = handleNewUrl
         window.addEventListener('popstate', handleNewUrl);
@@ -595,7 +603,7 @@
         function validateInputMoveSubstr() {
             const input = inputEl.value
 
-            if (currentPlayerToMove !== userControlsPlayer) {
+            if (!userControls(currentPlayerToMove)) {
                 return ""
             }
 

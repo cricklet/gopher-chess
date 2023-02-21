@@ -30,25 +30,33 @@ func (u UpdateToWeb) String() string {
 }
 
 type MessageFromWeb struct {
-	NewFen     *string `json:"newFen"`
-	UserPlayer *string `json:"userPlayer"`
-	Selection  *string `json:"selection"`
-	Move       *string `json:"move"`
-	Rewind     *int    `json:"rewind"`
+	NewFen      *string `json:"newFen"`
+	WhitePlayer *string `json:"whitePlayer"`
+	BlackPlayer *string `json:"blackPlayer"`
+	Selection   *string `json:"selection"`
+	Move        *string `json:"move"`
+	Ready       *bool
+	Rewind      *int `json:"rewind"`
 }
 
 func (u MessageFromWeb) String() string {
 	if u.NewFen != nil {
 		return fmt.Sprint("MessageFromWeb NewFen: ", *u.NewFen)
 	}
-	if u.UserPlayer != nil {
-		return fmt.Sprint("MessageFromWeb UserPlayer: ", *u.UserPlayer)
+	if u.WhitePlayer != nil {
+		return fmt.Sprint("MessageFromWeb WhitePlayer: ", *u.WhitePlayer)
+	}
+	if u.BlackPlayer != nil {
+		return fmt.Sprint("MessageFromWeb BlackPlayer: ", *u.BlackPlayer)
 	}
 	if u.Selection != nil {
 		return fmt.Sprint("MessageFromWeb Selection: ", *u.Selection)
 	}
 	if u.Move != nil {
 		return fmt.Sprint("MessageFromWeb Move: ", *u.Move)
+	}
+	if u.Ready != nil {
+		return fmt.Sprint("MessageFromWeb Ready: ", *u.Ready)
 	}
 	if u.Rewind != nil {
 		return fmt.Sprint("MessageFromWeb Rewind: ", *u.Rewind)
@@ -69,13 +77,49 @@ func (l *LogForwarding) Printf(format string, v ...any) {
 func (l *LogForwarding) Print(v ...any) {
 	l.writeCallback(fmt.Sprint(v...))
 }
+
+type PlayerType int
+
+const (
+	User PlayerType = iota
+	ChessGo
+	Stockfish
+	Unknown
+)
+
+func (t PlayerType) String() string {
+	switch t {
+	case User:
+		return "user"
+	case ChessGo:
+		return "chessgo"
+	case Stockfish:
+		return "stockfish"
+	}
+	return "unkown"
+}
+
+func PlayerTypeFromString(s string) PlayerType {
+	switch s {
+	case "user":
+		return User
+	case "chessgo":
+		return ChessGo
+	case "stockfish":
+		return Stockfish
+	}
+	return Unknown
+}
+
 func serve() {
 	var upgrader = websocket.Upgrader{}
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		runner := Runner{}
-		userPlayer := White
-		computerPlayer := Black
+
+		whitePlayer := User
+		blackPlayer := User
+		ready := false
 
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -118,11 +162,19 @@ func serve() {
 			}
 		}
 
-		var performMove = func() {
+		var performMove = func() bool {
+			if !ready {
+				return false
+			}
+			if (runner.Player() == White && whitePlayer != ChessGo) ||
+				(runner.Player() == Black && blackPlayer != ChessGo) {
+				return false
+			}
+
 			result, err := runner.HandleInput("go")
 			if err != nil {
 				runner.Logger.Println("search: ", err)
-				return
+				return false
 			}
 
 			bestMoveString := FindInSlice(result, func(v string) bool {
@@ -136,9 +188,11 @@ func serve() {
 					strings.TrimPrefix(bestMoveString.Value(), "bestmove "))
 				if err != nil {
 					runner.Logger.Println("perform %v: ", bestMoveString.Value(), err)
-					return
+					return false
 				}
 			}
+
+			return true
 		}
 
 		var handleMessageFromWeb = func(bytes []byte) {
@@ -164,17 +218,10 @@ func serve() {
 						runner.Logger.Println("setup %v: ", command, err) // TODO reset
 					}
 				}
-			} else if message.UserPlayer != nil {
-				if *message.UserPlayer == "white" {
-					userPlayer = White
-				} else {
-					userPlayer = Black
-				}
-				computerPlayer = userPlayer.Other()
-
-				if runner.Player() == computerPlayer {
-					performMove()
-				}
+			} else if message.WhitePlayer != nil {
+				whitePlayer = PlayerTypeFromString(*message.WhitePlayer)
+			} else if message.BlackPlayer != nil {
+				blackPlayer = PlayerTypeFromString(*message.BlackPlayer)
 			} else if message.Selection != nil {
 				if *message.Selection != "" {
 					update.Selection = *message.Selection
@@ -193,9 +240,8 @@ func serve() {
 				if err != nil {
 					runner.Logger.Println("perform %v: ", message.Move, err) // TODO reset
 				}
-				finalizeUpdate(update)
-
-				performMove()
+			} else if message.Ready != nil {
+				ready = *message.Ready
 			} else if message.Rewind != nil {
 				err := runner.Rewind(*message.Rewind)
 				if err != nil {
@@ -204,6 +250,10 @@ func serve() {
 			}
 
 			finalizeUpdate(update)
+
+			for performMove() {
+				finalizeUpdate(update)
+			}
 		}
 
 		defer c.Close()
@@ -228,8 +278,8 @@ func serve() {
 	router.HandleFunc("/ws", ws)
 	router.PathPrefix("/static").Handler(
 		http.StripPrefix("/static", http.FileServer(http.Dir("./static"))))
-	router.PathPrefix("/white/fen").HandlerFunc(index)
-	router.PathPrefix("/black/fen").HandlerFunc(index)
+	router.PathPrefix("/{white}/{black}").HandlerFunc(index)
+	router.PathPrefix("/{white}/{black}/fen").HandlerFunc(index)
 	router.HandleFunc("/", index)
 	http.Handle("/", router)
 	err := http.ListenAndServe(":8002", router)
