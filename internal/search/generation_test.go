@@ -210,9 +210,16 @@ func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth 
 }
 
 type InitialState struct {
-	fen         string
-	moves       []Move
-	expectedFen string
+	startingFen                 string
+	moves                       []Move
+	exectedFenAfterMovesApplied string
+}
+
+func (i InitialState) String() string {
+	if len(i.moves) == 0 {
+		return i.startingFen
+	}
+	return fmt.Sprint(i.startingFen, "+", i.moves, "=>", i.exectedFenAfterMovesApplied)
 }
 
 type InvalidMovesToSearch struct {
@@ -251,7 +258,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 	result := []string{}
 	invalidMovesToSearch := []InvalidMovesToSearch{}
 
-	g, err := GamestateFromFenString(initialState.fen)
+	g, err := GamestateFromFenString(initialState.startingFen)
 	assert.Nil(t, err)
 	b := g.CreateBitboards()
 
@@ -263,7 +270,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 		}
 	}
 
-	assert.Equal(t, FenStringForGame(&g), initialState.expectedFen)
+	assert.True(t, strings.HasPrefix(FenStringForGame(&g), initialState.exectedFenAfterMovesApplied))
 
 	for i := 1; i <= maxDepth; i++ {
 		incorrectMoves := computeIncorrectPerftMoves(t, &g, &b, i)
@@ -294,7 +301,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 
 			result = append(result, findInvalidMoves(t,
 				InitialState{
-					initialState.fen,
+					initialState.startingFen,
 					append(initialState.moves, move),
 					FenStringForGame(&g),
 				}, maxDepth-1)...)
@@ -307,7 +314,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 	}
 
 	if len(result) == 0 && len(invalidMovesToSearch) > 0 && totalInvalidMoves < MAX_TOTAL_INVALID_MOVES {
-		panic("we weren't able to find the invalid move")
+		t.Error(fmt.Errorf("we weren't able to find the invalid move %v => %v", FenStringForGame(&g), invalidMovesToSearch))
 	}
 	return result
 }
@@ -381,7 +388,33 @@ func TestMovesAtDepth(t *testing.T) {
 
 		assert.Equal(t, expectedCount, actualCount.leaves)
 	}
+}
 
-	log.Println("indices pool ", StatsIndicesBuffer().String())
-	log.Println("move pool ", StatsMoveBuffer().String())
+func TestPosition2(t *testing.T) {
+	s := "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -"
+
+	EXPECTED_COUNT := []int{
+		1,
+		48,
+		2039,
+		97862,
+		// 4085603,
+	}
+
+	for depth, expectedCount := range EXPECTED_COUNT {
+		g, err := GamestateFromFenString(s)
+		assert.Nil(t, err)
+		b := g.CreateBitboards()
+		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
+
+		assert.Equal(t, expectedCount, actualCount.leaves)
+	}
+
+	if t.Failed() {
+		invalidMoves := findInvalidMoves(t, InitialState{s, []Move{}, s}, 3)
+
+		for _, move := range invalidMoves {
+			assert.Equal(t, nil, move)
+		}
+	}
 }
