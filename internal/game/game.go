@@ -81,8 +81,9 @@ func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 	startPlayer := startPiece.Player()
 
 	if startPiece.PieceType() == Pawn && move.PromotionPiece.HasValue() {
+		endPiece := PieceForPlayer[startPlayer][move.PromotionPiece.Value()]
 		output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
-		output.Add(g.Board[move.EndIndex], move.EndIndex, PieceForPlayer[g.Player][move.PromotionPiece.Value()])
+		output.Add(g.Board[move.EndIndex], move.EndIndex, endPiece)
 	} else {
 		output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
 		output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
@@ -137,7 +138,7 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) er
 
 	g.FenAndMoveHistoryForDebugging = append(g.FenAndMoveHistoryForDebugging, [2]string{FenStringForGame(g), move.DebugString()})
 
-	err = g.applyMoveToBitboards(b, move)
+	err = g.applyMoveToBitboards(b, update)
 	if err != nil {
 		return err
 	}
@@ -181,77 +182,29 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) er
 	return nil
 }
 
-func (g *GameState) applyMoveToBitboards(b *Bitboards, move Move) error {
-	startIndex := move.StartIndex
-	endIndex := move.EndIndex
-
-	startPiece := g.Board[startIndex]
-
-	switch move.MoveType {
-	case QuietMove:
-		{
-			err := b.ClearSquare(startIndex, startPiece)
-			if err != nil {
-				return fmt.Errorf("%v: %w", move.DebugString(), err)
+func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) error {
+	for i := 0; i < update.Num; i++ {
+		index := update.Indices[i]
+		prevPiece := update.PrevPieces[i]
+		nextPiece := update.Pieces[i]
+		if nextPiece == XX {
+			if prevPiece == XX {
+			} else {
+				err := b.ClearSquare(index, prevPiece)
+				if err != nil {
+					return err
+				}
 			}
-			b.SetSquare(endIndex, startPiece)
-		}
-	case CaptureMove:
-		{
-			// Remove captured piece
-			endPiece := g.Board[endIndex]
-			err := b.ClearSquare(endIndex, endPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(endIndex), endPiece, err, FenStringForGame(g))
+		} else {
+			if prevPiece == XX {
+				b.SetSquare(index, nextPiece)
+			} else {
+				err := b.ClearSquare(index, prevPiece)
+				if err != nil {
+					return err
+				}
+				b.SetSquare(index, nextPiece)
 			}
-
-			// Move the capturing piece
-			err = b.ClearSquare(startIndex, startPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err, FenStringForGame(g))
-			}
-			b.SetSquare(endIndex, startPiece)
-		}
-	case EnPassantMove:
-		{
-			capturedPlayer := startPiece.Player().Other()
-			capturedBackwards := N
-			if capturedPlayer == Black {
-				capturedBackwards = S
-			}
-
-			captureIndex := endIndex + Offsets[capturedBackwards]
-			capturePiece := g.Board[captureIndex]
-
-			err := b.ClearSquare(captureIndex, capturePiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(captureIndex), capturePiece, err, FenStringForGame(g))
-			}
-			err = b.ClearSquare(startIndex, startPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err, FenStringForGame(g))
-			}
-			b.SetSquare(endIndex, startPiece)
-		}
-	case CastlingMove:
-		{
-			rookStartIndex, rookEndIndex, err := RookMoveForCastle(startIndex, endIndex)
-			if err != nil {
-				return err
-			}
-			rookPiece := g.Board[rookStartIndex]
-
-			err = b.ClearSquare(startIndex, startPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(startIndex), startPiece, err, FenStringForGame(g))
-			}
-			b.SetSquare(endIndex, startPiece)
-
-			err = b.ClearSquare(rookStartIndex, rookPiece)
-			if err != nil {
-				return fmt.Errorf("%v clearing %v %v: %w (%v)", move.DebugString(), StringFromBoardIndex(rookStartIndex), rookPiece, err, FenStringForGame(g))
-			}
-			b.SetSquare(rookEndIndex, rookPiece)
 		}
 	}
 

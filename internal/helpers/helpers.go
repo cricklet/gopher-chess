@@ -11,6 +11,10 @@ type Success bool
 func Ignore(t ...any) {
 }
 
+func Last[T any](ts []T) T {
+	return ts[len(ts)-1]
+}
+
 func MapSlice[T, U any](ts []T, f func(T) U) []U {
 	us := make([]U, len(ts))
 	for i := range ts {
