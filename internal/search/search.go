@@ -149,7 +149,7 @@ func (s *searcher) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) 
 		return false, err
 	}
 
-	if KingIsInCheck(s.Bitboards, s.Game.Enemy(), s.Game.Player) {
+	if KingIsInCheck(s.Bitboards, s.Game.Enemy()) {
 		return false, nil
 	}
 
@@ -456,7 +456,7 @@ func (s *searcher) Search() (Optional[Move], []error) {
 }
 
 func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
-	if KingIsInCheck(b, g.Enemy(), g.Player) {
+	if KingIsInCheck(b, g.Enemy()) {
 		return SearchResult{Inf, 1, 1}, nil
 	}
 
@@ -528,7 +528,7 @@ type SearchResult struct {
 }
 
 func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int, depth int) (SearchResult, error) {
-	if KingIsInCheck(b, g.Enemy(), g.Player) {
+	if KingIsInCheck(b, g.Enemy()) {
 		return SearchResult{Inf, 1, 0}, nil
 	}
 

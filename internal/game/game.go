@@ -32,6 +32,11 @@ func (g *GameState) MoveFromString(s string) Move {
 	start := BoardIndexFromString(s[0:2])
 	end := BoardIndexFromString(s[2:4])
 
+	promotion := Empty[PieceType]()
+	if len(s) == 5 {
+		promotion = Some(PieceTypeFromString(s[4:5]))
+	}
+
 	var moveType MoveType
 	if g.Board[end] == XX {
 		startPieceType := g.Board[start].PieceType()
@@ -47,7 +52,12 @@ func (g *GameState) MoveFromString(s string) Move {
 		moveType = CaptureMove
 	}
 	return Move{
-		MoveType: moveType, StartIndex: start, EndIndex: end, Evaluation: Empty[int]()}
+		MoveType:       moveType,
+		StartIndex:     start,
+		EndIndex:       end,
+		PromotionPiece: promotion,
+		Evaluation:     Empty[int](),
+	}
 }
 
 func isPawnSkip(startPiece Piece, move Move) bool {
@@ -68,26 +78,21 @@ func EnPassantTarget(move Move) int {
 
 func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 	startPiece := g.Board[move.StartIndex]
+	startPlayer := startPiece.Player()
+
+	if startPiece.PieceType() == Pawn && move.PromotionPiece.HasValue() {
+		output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
+		output.Add(g.Board[move.EndIndex], move.EndIndex, PieceForPlayer[g.Player][move.PromotionPiece.Value()])
+	} else {
+		output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
+		output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
+	}
 
 	switch move.MoveType {
 	case QuietMove:
-		{
-			if startPiece.PieceType() == Pawn && SingleBitboard(move.EndIndex)&PawnPromotionBitboard != 0 {
-				output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
-				output.Add(g.Board[move.EndIndex], move.EndIndex, PieceForPlayer[g.Player][Queen])
-			} else {
-				output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
-				output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
-			}
-		}
 	case CaptureMove:
-		{
-			output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
-			output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
-		}
 	case EnPassantMove:
 		{
-			startPlayer := startPiece.Player()
 			backwardsDir := S
 			if startPlayer == Black {
 				backwardsDir = N
@@ -95,8 +100,6 @@ func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 
 			captureIndex := move.EndIndex + Offsets[backwardsDir]
 			output.Add(g.Board[captureIndex], captureIndex, XX)
-			output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
-			output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
 		}
 	case CastlingMove:
 		{
@@ -106,9 +109,7 @@ func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 			}
 			rookPiece := g.Board[rookStartIndex]
 
-			output.Add(g.Board[move.StartIndex], move.StartIndex, XX)
 			output.Add(g.Board[rookStartIndex], rookStartIndex, XX)
-			output.Add(g.Board[move.EndIndex], move.EndIndex, startPiece)
 			output.Add(g.Board[rookEndIndex], rookEndIndex, rookPiece)
 		}
 	}
@@ -129,11 +130,14 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 }
 
 func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) error {
-	setupBoardUpdate(g, move, update)
+	err := setupBoardUpdate(g, move, update)
+	if err != nil {
+		return err
+	}
 
 	g.FenAndMoveHistoryForDebugging = append(g.FenAndMoveHistoryForDebugging, [2]string{FenStringForGame(g), move.DebugString()})
 
-	err := g.applyMoveToBitboards(b, move)
+	err = g.applyMoveToBitboards(b, move)
 	if err != nil {
 		return err
 	}
@@ -149,11 +153,15 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) er
 		g.Board[update.Indices[i]] = update.Pieces[i]
 	}
 
-	g.HalfMoveClock++
+	if move.MoveType == CaptureMove || startPiece.PieceType() == Pawn {
+		g.HalfMoveClock = 0
+	} else {
+		g.HalfMoveClock++
+	}
+
 	if g.Player == Black {
 		g.FullMoveClock++
 	}
-	g.Player = g.Player.Other()
 
 	startBitboard := SingleBitboard(move.StartIndex)
 	endBitboard := SingleBitboard(move.EndIndex)
@@ -167,6 +175,8 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) er
 		g.PlayerAndCastlingSideAllowed[g.Player][Kingside] = false
 		g.PlayerAndCastlingSideAllowed[g.Player][Queenside] = false
 	}
+
+	g.Player = g.Player.Other()
 
 	return nil
 }
@@ -306,10 +316,10 @@ func (g *GameState) WhiteCanCastleKingside() bool {
 	return g.PlayerAndCastlingSideAllowed[White][Kingside]
 }
 func (g *GameState) WhiteCanCastleQueenside() bool {
-	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
+	return g.PlayerAndCastlingSideAllowed[White][Queenside]
 }
 func (g *GameState) BlackCanCastleKingside() bool {
-	return g.PlayerAndCastlingSideAllowed[White][Kingside]
+	return g.PlayerAndCastlingSideAllowed[Black][Kingside]
 }
 func (g *GameState) BlackCanCastleQueenside() bool {
 	return g.PlayerAndCastlingSideAllowed[Black][Queenside]

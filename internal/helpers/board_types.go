@@ -47,6 +47,31 @@ const (
 	InvalidPiece
 )
 
+func (p PieceType) String() string {
+	return [8]string{
+		"r", "n", "b", "k", "q", "p", "?",
+	}[p]
+}
+
+func PieceTypeFromString(s string) PieceType {
+	switch s {
+	case "r":
+		return Rook
+	case "n":
+		return Knight
+	case "b":
+		return Bishop
+	case "k":
+		return King
+	case "q":
+		return Queen
+	case "p":
+		return Pawn
+	default:
+		return InvalidPiece
+	}
+}
+
 func (f File) String() string {
 	return [8]string{
 		"a", "b", "c", "d", "e", "f", "g", "h",
@@ -345,32 +370,33 @@ func (t MoveType) String() string {
 			return "EnPassantMove"
 		}
 	}
+
 	return "Invalid"
 }
 
 type Move struct {
-	MoveType   MoveType
-	StartIndex int
-	EndIndex   int
-	Evaluation Optional[int]
-}
-
-func SameMove(m1 Move, m2 Move) bool {
-	return m1.StartIndex == m2.StartIndex && m1.EndIndex == m2.EndIndex
+	MoveType       MoveType
+	StartIndex     int
+	EndIndex       int
+	PromotionPiece Optional[PieceType]
+	Evaluation     Optional[int]
 }
 
 func MoveFromString(s string, m MoveType) Move {
 	first := s[0:2]
 	second := s[2:4]
-	return Move{m, BoardIndexFromString(first), BoardIndexFromString(second), Empty[int]()}
+	return Move{m, BoardIndexFromString(first), BoardIndexFromString(second), Empty[PieceType](), Empty[int]()}
 }
 
 func (m Move) String() string {
+	if m.PromotionPiece.HasValue() {
+		return StringFromBoardIndex(m.StartIndex) + StringFromBoardIndex(m.EndIndex) + m.PromotionPiece.Value().String()
+	}
 	return StringFromBoardIndex(m.StartIndex) + StringFromBoardIndex(m.EndIndex)
 }
 
 func (m Move) DebugString() string {
-	return fmt.Sprintf("%v%v, %v", StringFromBoardIndex(m.StartIndex), StringFromBoardIndex(m.EndIndex), m.MoveType.String())
+	return fmt.Sprintf("%v:%v", m.String(), m.MoveType.String())
 }
 
 type BoardUpdate struct {

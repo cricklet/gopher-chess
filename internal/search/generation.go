@@ -93,7 +93,10 @@ func generateJumpMovesByLookup(
 var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = CreatePool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
 func GeneratePseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */)
+	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, false /* allPossiblePromotions */)
+}
+func GeneratePseudoMovesWithAllPromotions(b *Bitboards, g *GameState, moves *[]Move) {
+	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, true /* allPossiblePromotions */)
 }
 func GenerateSortedPseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
 	GeneratePseudoMoves(b, g, moves)
@@ -118,10 +121,44 @@ func GenerateSortedPseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
 	})
 }
 func GeneratePseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, true /* onlyCaptures */)
+	GeneratePseudoMovesInternal(b, g, moves, true /* onlyCaptures */, false /* allPossiblePromotions */)
 }
 
-func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, onlyCaptures bool) {
+var possiblePromotions = []PieceType{Queen, Rook, Bishop, Knight}
+
+func appendPawnMovesAndPossiblePromotions(moves []Move, moveType MoveType, player Player, startIndex int, endIndex int, allPossiblePromotions bool) []Move {
+	if IsPromotionIndex(endIndex, player) {
+		if allPossiblePromotions {
+			for _, piece := range possiblePromotions {
+				moves = append(moves, Move{
+					MoveType:       moveType,
+					StartIndex:     startIndex,
+					EndIndex:       endIndex,
+					PromotionPiece: Some(piece),
+					Evaluation:     Empty[int](),
+				})
+			}
+		} else {
+			moves = append(moves, Move{
+				MoveType:       moveType,
+				StartIndex:     startIndex,
+				EndIndex:       endIndex,
+				PromotionPiece: Some(Queen),
+				Evaluation:     Empty[int](),
+			})
+		}
+	} else {
+		moves = append(moves, Move{
+			MoveType:   moveType,
+			StartIndex: startIndex,
+			EndIndex:   endIndex,
+			Evaluation: Empty[int](),
+		})
+	}
+	return moves
+}
+
+func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, onlyCaptures bool, allPossiblePromotions bool) {
 	player := g.Player
 	playerBoards := b.Players[player]
 	enemyBoards := &b.Players[player.Other()]
@@ -137,8 +174,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 			index, tempPotential := 0, Bitboard(potential)
 			for tempPotential != 0 {
 				index, tempPotential = tempPotential.NextIndexOfOne()
-
-				*moves = append(*moves, Move{MoveType: QuietMove, StartIndex: index - pushOffset, EndIndex: index, Evaluation: Empty[int]()})
+				*moves = appendPawnMovesAndPossiblePromotions(*moves, QuietMove, player, index-pushOffset, index, allPossiblePromotions)
 			}
 		}
 
@@ -170,7 +206,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 				for tempPotential != 0 {
 					index, tempPotential = tempPotential.NextIndexOfOne()
 
-					*moves = append(*moves, Move{MoveType: CaptureMove, StartIndex: index - captureOffset, EndIndex: index, Evaluation: Empty[int]()})
+					*moves = appendPawnMovesAndPossiblePromotions(*moves, CaptureMove, player, index-captureOffset, index, allPossiblePromotions)
 				}
 			}
 		}
@@ -317,10 +353,10 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	return attackers != 0
 }
 
-func KingIsInCheck(b *Bitboards, player Player, enemy Player) bool {
+func KingIsInCheck(b *Bitboards, player Player) bool {
 	kingBoard := b.Players[player].Pieces[King]
 	kingIndex := kingBoard.FirstIndexOfOne()
-	return playerIndexIsAttacked(player, kingIndex, b.Occupied, &b.Players[enemy])
+	return playerIndexIsAttacked(player, kingIndex, b.Occupied, &b.Players[player.Other()])
 }
 
 func DangerBoard(b *Bitboards, player Player) Bitboard {
@@ -345,7 +381,6 @@ func (e *BoardCorrupted) Error() string {
 
 func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) error {
 	player := g.Player
-	enemy := g.Enemy()
 	potentialMoves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(potentialMoves)
 	GeneratePseudoMoves(b, g, potentialMoves)
@@ -356,7 +391,7 @@ func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) er
 		if err != nil {
 			return &BoardCorrupted{err}
 		}
-		if !KingIsInCheck(b, player, enemy) {
+		if !KingIsInCheck(b, player) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 

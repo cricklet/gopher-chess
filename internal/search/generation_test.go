@@ -12,10 +12,15 @@ import (
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/davecgh/go-spew/spew"
 
 	"github.com/schollz/progressbar/v3"
 	"github.com/stretchr/testify/assert"
 )
+
+func pp(t any) string {
+	return spew.Sdump(t)
+}
 
 type PerftResult struct {
 	leaves     int
@@ -31,7 +36,18 @@ func (p *PerftResult) add(o PerftResult) {
 	p.castles += o.castles
 }
 
-type PerftMap map[string]PerftResult
+func (p *PerftResult) empty() bool {
+	return p.leaves == 0 && p.captures == 0 && p.enPassants == 0 && p.castles == 0
+}
+
+type PerftResultWithFen struct {
+	result      PerftResult
+	startingFen string
+	move        string
+	endingFen   string
+}
+
+type PerftMap map[string]PerftResultWithFen
 
 func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, progress *chan int, perftPerMove *PerftMap) PerftResult {
 	if n == 0 {
@@ -39,8 +55,15 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 	}
 	result := PerftResult{}
 
+	movingPlayer := g.Player
+
 	moves := GetMovesBuffer()
-	GeneratePseudoMoves(b, g, moves)
+	GeneratePseudoMovesWithAllPromotions(b, g, moves)
+
+	startingFen := ""
+	if perftPerMove != nil {
+		startingFen = FenStringForGame(g)
+	}
 
 	for _, move := range *moves {
 		func() {
@@ -59,7 +82,7 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 
 			resultsForMove := PerftResult{}
 
-			if KingIsInCheck(b, g.Enemy(), g.Player) {
+			if KingIsInCheck(b, movingPlayer) {
 			} else if n <= 1 {
 				resultsForMove.leaves++
 				if move.MoveType == CaptureMove {
@@ -73,9 +96,16 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 				resultsForMove = countAndPerftForDepth(t, g, b, n-1, nil, nil)
 			}
 
-			result.add(resultsForMove)
-			if perftPerMove != nil {
-				(*perftPerMove)[move.String()] = resultsForMove
+			if !resultsForMove.empty() {
+				result.add(resultsForMove)
+				if perftPerMove != nil {
+					(*perftPerMove)[move.String()] = PerftResultWithFen{
+						result:      resultsForMove,
+						startingFen: startingFen,
+						move:        move.String(),
+						endingFen:   FenStringForGame(g),
+					}
+				}
 			}
 		}()
 
@@ -131,6 +161,38 @@ const (
 	COUNT_TOO_LOW
 )
 
+func (p PerftComparison) String() string {
+	switch p {
+	case MOVE_IS_INVALID:
+		return "move-is-illegal"
+	case MOVE_IS_MISSING:
+		return "missing-specific-move"
+	case COUNT_TOO_HIGH:
+		return "stockfish-found-fewer"
+	case COUNT_TOO_LOW:
+		return "stockfish-found-more"
+	}
+	panic("unknown issue")
+}
+
+type PerftIssue struct {
+	comparison  PerftComparison
+	startingFen string
+	move        string
+	endingFen   string
+}
+
+type PerftIssueMap map[string]PerftIssue
+
+func createPerfIssue(result PerftResultWithFen, comparison PerftComparison) PerftIssue {
+	return PerftIssue{
+		startingFen: result.startingFen,
+		endingFen:   result.endingFen,
+		move:        result.move,
+		comparison:  comparison,
+	}
+}
+
 func parsePerft(s string) (map[string]int, int, error) {
 	expectedPerft := make(map[string]int)
 
@@ -167,42 +229,47 @@ func parsePerft(s string) (map[string]int, int, error) {
 	return expectedPerft, 0, fmt.Errorf("could not parse: %v", s)
 }
 
-func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth int) map[string]PerftComparison {
+func computeIncorrectPerftMoves(t *testing.T, g *GameState, b *Bitboards, depth int) PerftIssueMap {
 	if depth == 0 {
 		t.Error("0 depth not valid for stockfish")
 	}
-	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", FenStringForGame(g), depth)
+	initialFen := FenStringForGame(g)
+	input := fmt.Sprintf("echo \"isready\nuci\nposition fen %v\ngo perft %v\" | stockfish", initialFen, depth)
 	cmd := exec.Command("bash", "-c", input)
 	output, _ := cmd.CombinedOutput()
 
-	expectedPerft, expectedTotal, err := parsePerft(string(output))
+	expectedPerftMap, expectedPerftTotal, err := parsePerft(string(output))
 	if err != nil {
 		t.Error(err)
 	}
 
-	overallPerft, perftPerMove := CountAndPerftForDepthWithProgress(t, g, b, depth, expectedTotal)
+	actualPerftTotal, actualPerftMap := CountAndPerftForDepthWithProgress(t, g, b, depth, expectedPerftTotal)
 
-	result := make(map[string]PerftComparison)
+	result := make(PerftIssueMap)
 
-	for move, perftForMove := range perftPerMove {
-		expectedCount, ok := expectedPerft[move]
+	for move, actualCountForMove := range actualPerftMap {
+		expectedCount, ok := expectedPerftMap[move]
 		if ok == false {
-			result[move] = MOVE_IS_INVALID
-		} else if perftForMove.leaves > expectedCount {
-			fmt.Println(perftForMove.leaves, expectedCount)
-			result[move] = COUNT_TOO_HIGH
-		} else if perftForMove.leaves < expectedCount {
-			result[move] = COUNT_TOO_LOW
+			result[move] = createPerfIssue(actualCountForMove, MOVE_IS_INVALID)
+		} else if actualCountForMove.result.leaves > expectedCount {
+			result[move] = createPerfIssue(actualCountForMove, COUNT_TOO_HIGH)
+		} else if actualCountForMove.result.leaves < expectedCount {
+			result[move] = createPerfIssue(actualCountForMove, COUNT_TOO_LOW)
 		}
 	}
-	for expectedMove := range expectedPerft {
-		_, ok := perftPerMove[expectedMove]
+	for expectedMove := range expectedPerftMap {
+		_, ok := actualPerftMap[expectedMove]
 		if ok == false {
-			result[expectedMove] = MOVE_IS_MISSING
+			result[expectedMove] = PerftIssue{
+				startingFen: initialFen,
+				endingFen:   "",
+				move:        expectedMove,
+				comparison:  MOVE_IS_MISSING,
+			}
 		}
 	}
 
-	if overallPerft.leaves != expectedTotal && len(result) == 0 {
+	if actualPerftTotal.leaves != expectedPerftTotal && len(result) == 0 {
 		panic("should have found a discrepancy between perft")
 	}
 
@@ -215,39 +282,10 @@ type InitialState struct {
 	exectedFenAfterMovesApplied string
 }
 
-func (i InitialState) String() string {
-	if len(i.moves) == 0 {
-		return i.startingFen
-	}
-	return fmt.Sprint(i.startingFen, "+", i.moves, "=>", i.exectedFenAfterMovesApplied)
-}
-
 type InvalidMovesToSearch struct {
 	move    string
 	issue   PerftComparison
 	initial InitialState
-}
-
-func (p PerftComparison) String() string {
-	switch p {
-	case MOVE_IS_INVALID:
-		return "invalid"
-	case MOVE_IS_MISSING:
-		return "missing"
-	case COUNT_TOO_HIGH:
-		return "high"
-	case COUNT_TOO_LOW:
-		return "low"
-	}
-	panic("unknown issue")
-}
-
-func (m InvalidMovesToSearch) String() string {
-	return fmt.Sprintf("%v %v at \"%v\"",
-		m.issue.String(),
-		m.move,
-		m.initial,
-	)
 }
 
 var totalInvalidMoves int = 0
@@ -275,9 +313,9 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 	for i := 1; i <= maxDepth; i++ {
 		incorrectMoves := computeIncorrectPerftMoves(t, &g, &b, i)
 		if len(incorrectMoves) > 0 {
-			fmt.Println("found invalid moves", incorrectMoves)
+			t.Error(fmt.Errorf("found invalid moves %v", pp(incorrectMoves)))
 			for move, issue := range incorrectMoves {
-				invalidMovesToSearch = append(invalidMovesToSearch, InvalidMovesToSearch{move, issue, initialState})
+				invalidMovesToSearch = append(invalidMovesToSearch, InvalidMovesToSearch{move, issue.comparison, initialState})
 			}
 			break
 		}
@@ -288,7 +326,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 			break
 		}
 		if search.issue == MOVE_IS_INVALID || search.issue == MOVE_IS_MISSING {
-			result = append(result, search.String())
+			result = append(result, pp(search))
 			totalInvalidMoves++
 		} else {
 			move := g.MoveFromString(search.move)
@@ -314,7 +352,7 @@ func findInvalidMoves(t *testing.T, initialState InitialState, maxDepth int) []s
 	}
 
 	if len(result) == 0 && len(invalidMovesToSearch) > 0 && totalInvalidMoves < MAX_TOTAL_INVALID_MOVES {
-		t.Error(fmt.Errorf("we weren't able to find the invalid move %v => %v", FenStringForGame(&g), invalidMovesToSearch))
+		t.Error(fmt.Errorf("couldn't find '%v' => %v", FenStringForGame(&g), pp(invalidMovesToSearch)))
 	}
 	return result
 }
@@ -398,7 +436,6 @@ func TestPosition2(t *testing.T) {
 		48,
 		2039,
 		97862,
-		// 4085603,
 	}
 
 	for depth, expectedCount := range EXPECTED_COUNT {
@@ -417,4 +454,108 @@ func TestPosition2(t *testing.T) {
 			assert.Equal(t, nil, move)
 		}
 	}
+}
+
+func TestKingCheck(t *testing.T) {
+	s := "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
+
+	g, err := GamestateFromFenString(s)
+	assert.Nil(t, err)
+
+	b := g.CreateBitboards()
+	update := BoardUpdate{}
+	err = g.PerformMove(g.MoveFromString("a1b1"), &update, &b)
+	assert.Nil(t, err)
+
+	assert.True(t, KingIsInCheck(&b, g.Enemy()))
+}
+
+func TestPosition3(t *testing.T) {
+	s := "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
+
+	EXPECTED_COUNT := []int{
+		1,
+		6,
+		264,
+		9467,
+	}
+
+	for depth, expectedCount := range EXPECTED_COUNT {
+		g, err := GamestateFromFenString(s)
+		assert.Nil(t, err)
+		b := g.CreateBitboards()
+		actualCount, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
+
+		assert.Equal(t, expectedCount, actualCount.leaves)
+	}
+
+	if t.Failed() {
+		invalidMoves := findInvalidMoves(t, InitialState{s, []Move{}, s}, 3)
+
+		for _, move := range invalidMoves {
+			assert.Equal(t, nil, move)
+		}
+	}
+}
+
+func TestPositionPromotion(t *testing.T) {
+	s := "k7/8/8/8/8/8/7p/K7 b - - 0 1"
+	g, err := GamestateFromFenString(s)
+	assert.Nil(t, err)
+
+	b := g.CreateBitboards()
+
+	{
+		moves := []Move{}
+		GeneratePseudoMovesWithAllPromotions(&b, &g, &moves)
+
+		expectedMoves := []string{
+			"h2h1q",
+			"h2h1r",
+			"h2h1b",
+			"h2h1n",
+			"a8a7",
+			"a8b8",
+			"a8b7",
+		}
+
+		assert.Equal(t, len(expectedMoves), len(moves))
+		for _, m := range moves {
+			assert.Contains(t, expectedMoves, m.String())
+		}
+	}
+
+	{
+		moves := []Move{}
+		GeneratePseudoMoves(&b, &g, &moves)
+
+		expectedMoves := []string{
+			"h2h1q",
+			"a8a7",
+			"a8b8",
+			"a8b7",
+		}
+
+		assert.Equal(t, len(expectedMoves), len(moves))
+		for _, m := range moves {
+			assert.Contains(t, expectedMoves, m.String())
+		}
+	}
+}
+func TestPosition3F1F2(t *testing.T) {
+	s := "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
+	g, err := GamestateFromFenString(s)
+	assert.Nil(t, err)
+
+	b := g.CreateBitboards()
+
+	err = g.PerformMove(g.MoveFromString("f1f2"), &BoardUpdate{}, &b)
+	assert.Nil(t, err)
+	err = g.PerformMove(g.MoveFromString("b2a1r"), &BoardUpdate{}, &b)
+	assert.Nil(t, err)
+
+	expectedFen := "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/P2P1RPP/r2Q2K1 w kq - 0 2"
+
+	assert.Equal(t, expectedFen, FenStringForGame(&g))
+
 }

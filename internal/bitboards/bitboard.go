@@ -205,6 +205,14 @@ var (
 	MaskBlackStartingPawns = ^ZerosForRange(ZeroToSeven, Sixes)
 )
 
+func IsPromotionIndex(index int, player Player) bool {
+	if player == White {
+		return index >= 56
+	} else {
+		return index < 8
+	}
+}
+
 var StartingPawnsForPlayer = [2]Bitboard{
 	MaskWhiteStartingPawns,
 	MaskBlackStartingPawns,
