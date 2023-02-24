@@ -14,7 +14,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/search"
 
 	"github.com/pkg/profile"
-	"github.com/schollz/progressbar/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1187,7 +1186,7 @@ func TestSliceVsArray(t *testing.T) {
 
 	competingThreads := 25
 	allocationsPerThread := 99999
-	sliceProgress := progressbar.Default(int64(competingThreads*allocationsPerThread), "slice")
+	sliceProgress := CreateProgressBar(competingThreads*allocationsPerThread, "slice")
 	for t := 0; t < competingThreads; t++ {
 		wg.Add(1)
 		go func() {
@@ -1200,7 +1199,7 @@ func TestSliceVsArray(t *testing.T) {
 				}
 				ReleaseTestSlice(slice)
 				if i%100 == 0 {
-					_ = sliceProgress.Add(100)
+					sliceProgress.Add(100)
 				}
 			}
 		}()
@@ -1208,7 +1207,7 @@ func TestSliceVsArray(t *testing.T) {
 	wg.Wait()
 	sliceProgress.Close()
 
-	arrayProgress := progressbar.Default(int64(competingThreads*allocationsPerThread), "array")
+	arrayProgress := CreateProgressBar(competingThreads*allocationsPerThread, "array")
 	for t := 0; t < competingThreads; t++ {
 		wg.Add(1)
 		go func() {
@@ -1221,7 +1220,7 @@ func TestSliceVsArray(t *testing.T) {
 				}
 				ReleaseTestArray(array)
 				if i%100 == 0 {
-					_ = arrayProgress.Add(100)
+					arrayProgress.Add(100)
 				}
 			}
 		}()
@@ -1237,39 +1236,39 @@ func TestSliceVsArray(t *testing.T) {
 func TestEachIndexOfOneCallbackVsRange(t *testing.T) {
 	defer profile.Start(profile.ProfilePath("../data/TestEachIndexOfOneCallbackVsRange")).Stop()
 
-	testNum := uint64(9999999)
+	testNum := 9999999
 
 	buffer := GetIndicesBuffer()
 
-	bufferProgress := progressbar.Default(int64(testNum), "array")
-	for i := uint64(0); i < testNum; i++ {
+	bufferProgress := CreateProgressBar(testNum, "array")
+	for i := 0; i < testNum; i++ {
 		for range *Bitboard(i).EachIndexOfOne(buffer) {
 		}
 		if i%1000 == 0 {
-			_ = bufferProgress.Add(1000)
+			bufferProgress.Add(1000)
 		}
 	}
 	bufferProgress.Close()
 
 	var f = func(index int) {
 	}
-	callbackProgress := progressbar.Default(int64(testNum), "callback")
-	for i := uint64(0); i < testNum; i++ {
+	callbackProgress := CreateProgressBar(testNum, "callback")
+	for i := 0; i < testNum; i++ {
 		Bitboard(i).EachIndexOfOneCallback(f)
 		if i%1000 == 0 {
-			_ = callbackProgress.Add(1000)
+			callbackProgress.Add(1000)
 		}
 	}
 	callbackProgress.Close()
 
-	manualProgress := progressbar.Default(int64(testNum), "manual")
-	for i := uint64(0); i < testNum; i++ {
+	manualProgress := CreateProgressBar(testNum, "manual")
+	for i := 0; i < testNum; i++ {
 		temp := Bitboard(i)
 		for temp != 0 {
 			_, temp = temp.NextIndexOfOne()
 		}
 		if i%1000 == 0 {
-			_ = manualProgress.Add(1000)
+			manualProgress.Add(1000)
 		}
 	}
 	manualProgress.Close()
@@ -1282,18 +1281,18 @@ func TestIndexSingeVsDoubleArray(t *testing.T) {
 	single := [64 * 64]int{}
 	testNum := 100000
 
-	singleProgress := progressbar.Default(int64(testNum), "single")
+	singleProgress := CreateProgressBar(testNum, "single")
 	for i := 0; i < testNum; i++ {
 		for j := range single {
 			_ = single[j]
 		}
 		if i%1000 == 0 {
-			_ = singleProgress.Add(1000)
+			singleProgress.Add(1000)
 		}
 	}
 	singleProgress.Close()
 
-	doubleProgress := progressbar.Default(int64(testNum), "double")
+	doubleProgress := CreateProgressBar(testNum, "double")
 	for i := 0; i < testNum; i++ {
 		for j := range double {
 			interior := &double[j]
@@ -1302,7 +1301,7 @@ func TestIndexSingeVsDoubleArray(t *testing.T) {
 			}
 		}
 		if i%1000 == 0 {
-			_ = doubleProgress.Add(1000)
+			doubleProgress.Add(1000)
 		}
 	}
 	doubleProgress.Close()
@@ -1314,26 +1313,26 @@ func TestPlayerFromPiece(t *testing.T) {
 
 	testNum := 100000000
 
-	ifProgress := progressbar.Default(int64(testNum), "if")
+	ifProgress := CreateProgressBar(testNum, "if")
 	for i := 0; i < testNum; i++ {
 		for j := 0; j <= int(BP); j++ {
 			piece := Piece(j)
 			_ = piece.Player()
 		}
 		if i%1000 == 0 {
-			_ = ifProgress.Add(1000)
+			ifProgress.Add(1000)
 		}
 	}
 	ifProgress.Close()
 
-	lookupProgress := progressbar.Default(int64(testNum), "lookup")
+	lookupProgress := CreateProgressBar(testNum, "lookup")
 	for i := 0; i < testNum; i++ {
 		for j := 0; j <= int(BP); j++ {
 			piece := Piece(j)
 			_ = piece.PlayerLookup()
 		}
 		if i%1000 == 0 {
-			_ = lookupProgress.Add(1000)
+			lookupProgress.Add(1000)
 		}
 	}
 	lookupProgress.Close()

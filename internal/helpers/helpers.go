@@ -148,6 +148,13 @@ func MinInt(x int, y int) int {
 	return y
 }
 
+func MaxInt(x int, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
+
 func FlipArray(array [8][8]int) [8][8]int {
 	result := [8][8]int{}
 	for i := 0; i < 8; i++ {

@@ -2,19 +2,16 @@ package search
 
 import (
 	"fmt"
-	"log"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/schollz/progressbar/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -122,11 +119,10 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 func CountAndPerftForDepthWithProgress(t *testing.T, g *GameState, b *Bitboards, n int, expectedCount int) (PerftResult, PerftMap) {
 	perft := make(PerftMap)
 
-	var progressBar *progressbar.ProgressBar
-	var startTime time.Time
+	var progressBar *ProgressBar
 	if expectedCount > 0 {
-		progressBar = progressbar.Default(int64(expectedCount), fmt.Sprint("depth ", n))
-		startTime = time.Now()
+		p := CreateProgressBar(expectedCount, fmt.Sprint("depth ", n))
+		progressBar = &p
 	}
 
 	progressChan := make(chan int)
@@ -139,14 +135,12 @@ func CountAndPerftForDepthWithProgress(t *testing.T, g *GameState, b *Bitboards,
 
 	for p := range progressChan {
 		if progressBar != nil {
-			_ = progressBar.Set(p)
+			progressBar.Set(p)
 		}
 	}
 
 	if progressBar != nil {
 		progressBar.Close()
-		log.Println("             |", time.Since(startTime))
-		log.Println()
 	}
 
 	return result, perft
@@ -411,7 +405,7 @@ func TestMovesAtDepth(t *testing.T) {
 		20,
 		400,
 		8902,
-		// 197281,
+		197281,
 		// 4865609,
 		// 119060324,
 		// 3195901860,

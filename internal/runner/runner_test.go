@@ -73,7 +73,8 @@ func TestCastlingBug1(t *testing.T) {
 	}
 
 	for _, m := range moves {
-		r.PerformMoveFromString(m)
+		err := r.PerformMoveFromString(m)
+		assert.Nil(t, err)
 	}
 
 	kingMoves, err := r.MovesForSelection("g8")
