@@ -35,8 +35,8 @@ type MessageFromWeb struct {
 	BlackPlayer *string `json:"blackPlayer"`
 	Selection   *string `json:"selection"`
 	Move        *string `json:"move"`
-	Ready       *bool
-	Rewind      *int `json:"rewind"`
+	Ready       *bool   `json:"ready"`
+	Rewind      *int    `json:"rewind"`
 }
 
 func (u MessageFromWeb) String() string {
@@ -95,8 +95,9 @@ func (t PlayerType) String() string {
 		return "chessgo"
 	case Stockfish:
 		return "stockfish"
+	default:
+		return "unkown"
 	}
-	return "unkown"
 }
 
 func PlayerTypeFromString(s string) PlayerType {
@@ -203,6 +204,9 @@ func serve() {
 			}
 			runner.Logger.Println("received", message)
 
+			var update UpdateToWeb
+			shouldUpdate := false
+
 			if message.NewFen != nil {
 				for _, command := range []string{
 					"isready",
@@ -222,37 +226,35 @@ func serve() {
 				blackPlayer = PlayerTypeFromString(*message.BlackPlayer)
 			} else if message.Selection != nil {
 				if *message.Selection != "" {
-					var update UpdateToWeb
-
 					update.Selection = *message.Selection
 					result, err := runner.MovesForSelection(*message.Selection)
 					if err != nil {
 						runner.Logger.Println("moves for %v: ", message.Selection, err)
 					}
-					update.PossibleMoves = MapSlice(
-						result,
-						func(v FileRank) string {
-							return v.String()
-						})
-					finalizeUpdate(update)
+					update.PossibleMoves = result
 				}
+				shouldUpdate = true
 			} else if message.Move != nil {
 				err := runner.PerformMoveFromString(*message.Move)
 				if err != nil {
 					runner.Logger.Println("perform %v: ", message.Move, err) // TODO reset
 				}
+				shouldUpdate = true
 			} else if message.Rewind != nil {
 				err := runner.Rewind(*message.Rewind)
 				if err != nil {
 					runner.Logger.Println("rewind %v: ", message.Rewind, err) // TODO reset
 				}
+				shouldUpdate = true
 			} else if message.Ready != nil {
-				ready = *message.Ready
-
-				if performMove() {
-					var update UpdateToWeb
-					finalizeUpdate(update)
+				if !ready {
+					ready = *message.Ready
+					shouldUpdate = true
 				}
+			}
+
+			if shouldUpdate || (ready && performMove()) {
+				finalizeUpdate(update)
 			}
 		}
 

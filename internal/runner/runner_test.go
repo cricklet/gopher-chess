@@ -81,6 +81,6 @@ func TestCastlingBug1(t *testing.T) {
 	assert.Nil(t, err)
 
 	for _, m := range kingMoves {
-		assert.NotEqual(t, "f8", m.String())
+		assert.NotEqual(t, "g8f8", m)
 	}
 }

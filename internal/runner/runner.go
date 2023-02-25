@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
@@ -67,7 +68,8 @@ func (r *Runner) PerformMove(move Move) error {
 }
 
 func (r *Runner) PerformMoveFromString(s string) error {
-	return r.PerformMove(r.g.MoveFromString(s))
+	m := r.g.MoveFromString(s)
+	return r.PerformMove(m)
 }
 
 func (r *Runner) PerformMoves(startPos string, moves []string) error {
@@ -183,32 +185,32 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move, err := Search(r.g, r.b, 3, r.Logger)
-		if err != nil {
-			return result, err
-		}
-
-		// searcher := NewSearcher(r.Logger, r.g, r.b)
-
-		// go func() {
-		// 	time.Sleep(2 * time.Second)
-		// 	searcher.OutOfTime = true
-		// }()
-
-		// move, errs := searcher.Search()
-		// if len(errs) != 0 {
-		// 	return result, errors.Join(errs...)
+		// move, err := Search(r.g, r.b, 3, r.Logger)
+		// if err != nil {
+		// 	return result, err
 		// }
+
+		searcher := NewSearcher(r.Logger, r.g, r.b)
+
+		go func() {
+			time.Sleep(2 * time.Second)
+			searcher.OutOfTime = true
+		}()
+
+		move, errs := searcher.Search()
+		if len(errs) != 0 {
+			return result, errors.Join(errs...)
+		}
 
 		if move.IsEmpty() {
 			return result, errors.New("no legal moves")
 		}
-		result = append(result, fmt.Sprintf("bestmove %v %v", move.Value().String(), move.Value().Evaluation.Value()))
+		result = append(result, fmt.Sprintf("bestmove %v", move.Value().String()))
 	}
 	return result, nil
 }
 
-func (r *Runner) MovesForSelection(selection string) ([]FileRank, error) {
+func (r *Runner) MovesForSelection(selection string) ([]string, error) {
 	selectionFileRank, err := FileRankFromString(selection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse selection %w", err)
@@ -224,8 +226,8 @@ func (r *Runner) MovesForSelection(selection string) ([]FileRank, error) {
 	moves := FilterSlice(legalMoves, func(m Move) bool {
 		return m.StartIndex == selectionIndex
 	})
-	return MapSlice(moves, func(m Move) FileRank {
-		return FileRankFromIndex(m.EndIndex)
+	return MapSlice(moves, func(m Move) string {
+		return m.String()
 	}), nil
 }
 

@@ -626,7 +626,7 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		}
 
 		currentScore := -enemyScore
-		logger.Println(i, "/", len(*moves), "searched", result.TotalSearched, "with initial search", result.TotalSearched-result.QuiescenceSearched, "and ending captures", result.QuiescenceSearched, "under", move.String(), "and found score", currentScore)
+		logger.Println(i, "/", len(*moves), move, "searched", result.TotalSearched, "with initial search", result.TotalSearched-result.QuiescenceSearched, "and ending captures", result.QuiescenceSearched, "under", move.String(), "and found score", currentScore)
 
 		if currentScore > bestScoreSoFar {
 			bestScoreSoFar = currentScore

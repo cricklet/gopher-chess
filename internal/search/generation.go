@@ -355,6 +355,9 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 
 func KingIsInCheck(b *Bitboards, player Player) bool {
 	kingBoard := b.Players[player].Pieces[King]
+	if kingBoard == 0 {
+		return false // TODO wat
+	}
 	kingIndex := kingBoard.FirstIndexOfOne()
 	return playerIndexIsAttacked(player, kingIndex, b.Occupied, &b.Players[player.Other()])
 }

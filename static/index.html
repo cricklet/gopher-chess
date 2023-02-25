@@ -285,6 +285,8 @@
         'black': new Set(['r', 'n', 'b', 'q', 'k', 'p'])
     }
 
+    PROMOTIONS = new Set(['q', 'r', 'b', 'n'])
+
     START_POS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
     function rankFromChar(c) {
@@ -305,6 +307,20 @@
 
     function fileRankFromString(location) {
         return [fileFromChar(location[0]), rankFromChar(location[1])]
+    }
+
+    function promotionFromChar(c) {
+        return PROMOTIONS.has(c) ? c : undefined
+    }
+
+    function moveFromString(str) {
+        const [startFile, startRank] = fileRankFromString(str.slice(0, 2))
+        const [endFile, endRank] = fileRankFromString(str.slice(2, 4))
+        let promotion = undefined
+        if (str.length === 5) {
+            promotion = promotionFromChar(str[4])
+        }
+        return [startFile, startRank, endFile, endRank, promotion]
     }
 
     function fileRankToString(file, rank) {
@@ -361,7 +377,7 @@
             if (availableMoves && availableMoves[file] && availableMoves[file][rank]) {
                 inputEl.value = ""
                 send({
-                    Move: fileRankToString(...selectedFileRank) + fileRankToString(file, rank)
+                    Move: availableMoves[file][rank]
                 })
                 return
             }
@@ -443,7 +459,7 @@
                         fileRankEl.classList.add(currentPlayerToMove)
                     }
                     if (selectedFileRank != null) {
-                        if (validMoveSubstr.length === 4) {
+                        if (validMoveSubstr.length >= 4) {
                             if (fileRankToString(file, rank) == validMoveSubstr.substring(2, 4)) {
                                 fileRankEl.classList.add('ready')
                             }
@@ -576,13 +592,16 @@
 
                 selectedFileRank = data.selection ? fileRankFromString(data.selection) : null
 
-                let availableMovesArray = data.possibleMoves ? data.possibleMoves.map(v => fileRankFromString(v)) : null
                 availableMoves = {}
-                for (const [file, rank] of availableMovesArray || []) {
-                    if (!availableMoves[file]) {
-                        availableMoves[file] = {}
+                for (const moveStr of data.possibleMoves || []) {
+                    const [startFile, startRank, endFile, endRank, promotion] = moveFromString(moveStr)
+                    if (startFile != selectedFileRank[0] || startRank != selectedFileRank[1]) {
+                        throw Error('available moves for wrong selection', selectedFileRank, availableMovesArray)
                     }
-                    availableMoves[file][rank] = true
+                    if (!availableMoves[endFile]) {
+                        availableMoves[endFile] = {}
+                    }
+                    availableMoves[endFile][endRank] = moveStr
                 }
 
                 currentPlayerToMove = data.player;
@@ -594,7 +613,7 @@
                 updateUrlForFen(data.fenString)
                 update()
 
-                send({Ready: true})
+                send({ Ready: true })
             }
         }
 
@@ -652,7 +671,9 @@
                 const targetRankChar = input[3]
                 const targetRank = rankFromChar(targetRankChar)
                 if (availableMoves[targetFile] && targetRank in availableMoves[targetFile]) {
-                    result += targetRankChar
+                    // we have a full move! grab the move the server sent us because this will include
+                    // the default promotion (queen) if available
+                    result = availableMoves[targetFile][targetRank]
                 }
             }
 
@@ -688,7 +709,7 @@
         document.getElementById("input-form").addEventListener('submit', function (event) {
             event.preventDefault()
 
-            if (validMoveSubstr.length == 4) {
+            if (validMoveSubstr.length >= 4) {
                 send({
                     Move: validMoveSubstr
                 })

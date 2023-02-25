@@ -2,6 +2,8 @@ package game
 
 import (
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -29,11 +31,12 @@ func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool 
 }
 
 func (g *GameState) MoveFromString(s string) Move {
+	s = strings.TrimSpace(s)
 	start := BoardIndexFromString(s[0:2])
 	end := BoardIndexFromString(s[2:4])
 
 	promotion := Empty[PieceType]()
-	if len(s) == 5 {
+	if utf8.RuneCountInString(s) >= 5 {
 		promotion = Some(PieceTypeFromString(s[4:5]))
 	}
 
