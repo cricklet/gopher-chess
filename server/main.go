@@ -12,7 +12,6 @@ import (
 
 	. "github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/runner"
-
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
@@ -114,7 +113,15 @@ func PlayerTypeFromString(s string) PlayerType {
 	return Unknown
 }
 
-func serve() {
+func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintln(os.Stderr, fmt.Sprint(r))
+			fmt.Fprintln(os.Stderr, string(debug.Stack()))
+		}
+	}()
+
+	log.Println("starting webserver")
 	var upgrader = websocket.Upgrader{}
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
@@ -337,17 +344,4 @@ func serve() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-
-}
-
-func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Fprintln(os.Stderr, fmt.Sprint(r))
-			fmt.Fprintln(os.Stderr, string(debug.Stack()))
-		}
-	}()
-
-	log.Println("starting webserver")
-	serve()
 }
