@@ -6,8 +6,8 @@ import (
 	"os"
 	"runtime/debug"
 
+	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/cricklet/chessgo/internal/runner"
-	. "github.com/cricklet/chessgo/internal/uci"
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 		}
 	}()
 
-	r := UciRunner{
+	r := runner.UciRunner{
 		Runner: &runner.ChessGoRunner{},
 	}
 
@@ -31,7 +31,7 @@ func main() {
 			break
 		}
 		result, err := r.HandleInput(input)
-		if err != nil {
+		if !IsNil(err) {
 			fmt.Fprintln(os.Stderr, err)
 			break
 		}

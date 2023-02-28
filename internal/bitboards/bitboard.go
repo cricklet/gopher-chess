@@ -362,24 +362,24 @@ var F8 int = BoardIndexFromString("f8")
 var G8 int = BoardIndexFromString("g8")
 var H8 int = BoardIndexFromString("h8")
 
-func RookMoveForCastle(startIndex int, endIndex int) (int, int, error) {
+func RookMoveForCastle(startIndex int, endIndex int) (int, int, Error) {
 	switch startIndex {
 	case E1:
 		switch endIndex {
 		case C1:
-			return A1, D1, nil
+			return A1, D1, NilError
 		case G1:
-			return H1, F1, nil
+			return H1, F1, NilError
 		}
 	case E8:
 		switch endIndex {
 		case C8:
-			return A8, D8, nil
+			return A8, D8, NilError
 		case G8:
-			return H8, F8, nil
+			return H8, F8, NilError
 		}
 	}
-	return 0, 0, fmt.Errorf("unknown castling move %v %v", StringFromBoardIndex(startIndex), StringFromBoardIndex(endIndex))
+	return 0, 0, Errorf("unknown castling move %v %v", StringFromBoardIndex(startIndex), StringFromBoardIndex(endIndex))
 }
 
 var SingleBitboards [64]Bitboard = func() [64]Bitboard {
@@ -494,11 +494,11 @@ func (b Bitboard) FirstIndexOfOne() int {
 	return bits.OnesCount64(uint64(ls1 - 1))
 }
 
-func (b *Bitboards) ClearSquare(index int, piece Piece) error {
+func (b *Bitboards) ClearSquare(index int, piece Piece) Error {
 	player := piece.Player()
 	pieceType := piece.PieceType()
 	if !pieceType.IsValid() {
-		return fmt.Errorf("pieceType %v is not valid", piece.String())
+		return Errorf("pieceType %v is not valid", piece.String())
 	}
 	oneBitboard := SingleBitboard(index)
 	zeroBitboard := ^oneBitboard
@@ -507,7 +507,7 @@ func (b *Bitboards) ClearSquare(index int, piece Piece) error {
 	b.Players[player].Occupied &= zeroBitboard
 	b.Players[player].Pieces[pieceType] &= zeroBitboard
 
-	return nil
+	return NilError
 }
 
 func (b *Bitboards) SetSquare(index int, piece Piece) {

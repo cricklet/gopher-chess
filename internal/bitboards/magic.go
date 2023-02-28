@@ -46,37 +46,37 @@ var BishopBestMagics = [64]MagicValue{
 var RookMagicTable MagicMoveTable
 var BishopMagicTable MagicMoveTable
 
-func unmarshalMagics(path string, magics *[64]MagicValue) error {
+func unmarshalMagics(path string, magics *[64]MagicValue) Error {
 	input, err := os.ReadFile(RootDir() + "/data/magics-for-rook.json")
-	if err != nil {
+	if !IsNil(err) {
 		//lint:ignore nilerr reason it's fine if we haven't cached better magics. We'll compute new ones now.
-		return nil
+		return NilError
 	}
 	err = json.Unmarshal(input, &RookBestMagics)
-	if err != nil {
-		return err
+	if !IsNil(err) {
+		return Wrap(err)
 	}
 
-	return nil
+	return NilError
 }
 
-func marshalMagics(path string, magics *[64]MagicValue) error {
+func marshalMagics(path string, magics *[64]MagicValue) Error {
 	output, err := json.Marshal(RookBestMagics)
-	if err != nil {
-		return err
+	if !IsNil(err) {
+		return Wrap(err)
 	}
 	err = os.WriteFile(path, output, 0600)
-	return err
+	return Wrap(err)
 }
 
-func initMagicTables() error {
+func initMagicTables() Error {
 	err := unmarshalMagics(RootDir()+"/data/magics-for-rook.json", &RookBestMagics)
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 
 	err = unmarshalMagics(RootDir()+"/data/magics-for-bishop.json", &BishopBestMagics)
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 
@@ -105,16 +105,16 @@ func initMagicTables() error {
 	// log.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
 
 	err = marshalMagics(RootDir()+"/data/magics-for-rook.json", &RookBestMagics)
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 
 	err = marshalMagics(RootDir()+"/data/magics-for-bishop.json", &BishopBestMagics)
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 
-	return nil
+	return NilError
 }
 
 func rand64() uint64 {
@@ -327,7 +327,7 @@ func init() {
 	// defer profile.Start(profile.ProfilePath(RootDir() + "/data")).Stop()
 	// defer profile.Start(profile.MemProfile, profile.ProfilePath(RootDir() + "/data")).Stop()
 	err := initMagicTables()
-	if err != nil {
+	if !IsNil(err) {
 		fmt.Println("Error initializing magic tables: ", err)
 	}
 }

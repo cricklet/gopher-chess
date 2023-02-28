@@ -1,8 +1,7 @@
-package runner
+package binary_runner
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os/exec"
 	"strings"
@@ -11,7 +10,7 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
-type uciBinary struct {
+type UciBinary struct {
 	cmdPath string
 	cmd     *exec.Cmd
 	stdin   io.Writer
@@ -23,14 +22,14 @@ type uciBinary struct {
 	logger  Logger
 }
 
-func SetupWithDefaultLogger(cmdPath string, timeout time.Duration) (*uciBinary, error) {
-	return Setup(cmdPath, timeout, &DefaultLogger)
+func SetupUciBinaryWithDefaultLogger(cmdPath string, timeout time.Duration) (*UciBinary, Error) {
+	return SetupUciBinary(cmdPath, timeout, &DefaultLogger)
 }
 
-func Setup(cmdPath string, delay time.Duration, logger Logger) (*uciBinary, error) {
-	var err error
+func SetupUciBinary(cmdPath string, delay time.Duration, logger Logger) (*UciBinary, Error) {
+	var err Error
 
-	u := &uciBinary{
+	u := &UciBinary{
 		cmdPath: cmdPath,
 		timeout: delay,
 		logger:  logger,
@@ -38,18 +37,18 @@ func Setup(cmdPath string, delay time.Duration, logger Logger) (*uciBinary, erro
 
 	if u.cmd == nil {
 		u.cmd = exec.Command(cmdPath)
-		u.stdin, err = u.cmd.StdinPipe()
-		if err != nil {
+		u.stdin, err = WrapReturn(u.cmd.StdinPipe())
+		if !IsNil(err) {
 			return u, err
 		}
 		var stdout io.Reader
 		var stderr io.Reader
-		stdout, err = u.cmd.StdoutPipe()
-		if err != nil {
+		stdout, err = WrapReturn(u.cmd.StdoutPipe())
+		if !IsNil(err) {
 			return u, err
 		}
-		stderr, err = u.cmd.StderrPipe()
-		if err != nil {
+		stderr, err = WrapReturn(u.cmd.StderrPipe())
+		if !IsNil(err) {
 			return u, err
 		}
 
@@ -71,37 +70,37 @@ func Setup(cmdPath string, delay time.Duration, logger Logger) (*uciBinary, erro
 			}
 		}()
 
-		err = u.cmd.Start()
-		if err != nil {
+		err = Wrap(u.cmd.Start())
+		if !IsNil(err) {
 			return u, err
 		}
 	}
 
-	return u, nil
+	return u, NilError
 }
 
-func (u *uciBinary) RunAsync(input string) error {
+func (u *UciBinary) RunAsync(input string) Error {
 	if u.cmd == nil || u.stdin == nil {
-		return fmt.Errorf("cmd not setup: %v", u.cmdPath)
+		return Errorf("cmd not setup: %v", u.cmdPath)
 	}
 
 	if u.cmd.ProcessState != nil && u.cmd.ProcessState.Exited() {
-		return fmt.Errorf("cmd exited: %v", u.cmdPath)
+		return Errorf("cmd exited: %v", u.cmdPath)
 	}
 
 	_, err := u.stdin.Write([]byte(input + "\n"))
-	if err != nil {
-		return err
+	if !IsNil(err) {
+		return Wrap(err)
 	}
 
-	return nil
+	return NilError
 }
 
-func (u *uciBinary) Run(input string, waitFor Optional[string]) ([]string, error) {
+func (u *UciBinary) Run(input string, waitFor Optional[string]) ([]string, Error) {
 	result := []string{}
 
 	err := u.RunAsync(input)
-	if err != nil {
+	if !IsNil(err) {
 		return result, err
 	}
 
@@ -125,10 +124,10 @@ func (u *uciBinary) Run(input string, waitFor Optional[string]) ([]string, error
 		}
 	}
 
-	return result, nil
+	return result, NilError
 }
 
-func (u *uciBinary) Close() {
+func (u *UciBinary) Close() {
 	if u.cmd != nil {
 		_ = u.cmd.Process.Kill()
 		u.cmd = nil

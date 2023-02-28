@@ -83,20 +83,20 @@ func (r Rank) String() string {
 	}[r]
 }
 
-func RankFromChar(c byte) (Rank, error) {
+func RankFromChar(c byte) (Rank, Error) {
 	rank := int(c - '1')
 	if rank < 0 || rank >= 8 {
-		return 0, fmt.Errorf("rank invalid %v", c)
+		return 0, Errorf("rank invalid %v", c)
 	}
-	return Rank(rank), nil
+	return Rank(rank), NilError
 }
 
-func FileFromChar(c byte) (File, error) {
+func FileFromChar(c byte) (File, Error) {
 	file := int(c - 'a')
 	if file < 0 || file >= 8 {
-		return 0, fmt.Errorf("file invalid %v", c)
+		return 0, Errorf("file invalid %v", c)
 	}
-	return File(file), nil
+	return File(file), NilError
 }
 
 func StringFromBoardIndex(index int) string {
@@ -107,29 +107,29 @@ func (v FileRank) String() string {
 	return v.File.String() + v.Rank.String()
 }
 
-func FileRankFromString(s string) (FileRank, error) {
+func FileRankFromString(s string) (FileRank, Error) {
 	if len(s) != 2 {
-		return FileRank{}, fmt.Errorf("invalid location %v", s)
+		return FileRank{}, Errorf("invalid location %v", s)
 	}
 
 	file, fileErr := FileFromChar(s[0])
 	rank, rankErr := RankFromChar(s[1])
 
-	if fileErr != nil || rankErr != nil {
-		return FileRank{}, fmt.Errorf("invalid location %v with errors %w, %w", s, fileErr, rankErr)
+	if !IsNil(fileErr) || !IsNil(rankErr) {
+		return FileRank{}, Errorf("invalid location %v with errors %w, %w", s, fileErr, rankErr)
 	}
 
-	return FileRank{file, rank}, nil
+	return FileRank{file, rank}, NilError
 }
 
-func PlayerFromString(c string) (Player, error) {
+func PlayerFromString(c string) (Player, Error) {
 	switch c {
 	case "b":
-		return Black, nil
+		return Black, NilError
 	case "w":
-		return White, nil
+		return White, NilError
 	default:
-		return White, fmt.Errorf("invalid player char %v", c)
+		return White, Errorf("invalid player char %v", c)
 	}
 }
 
@@ -220,34 +220,34 @@ var PieceForPlayer [2][8]Piece = func() [2][8]Piece {
 // 	return PIECE_FOR_PLAYER[player][p]
 // }
 
-func PieceFromString(c rune) (Piece, error) {
+func PieceFromString(c rune) (Piece, Error) {
 	switch c {
 	case 'R':
-		return WR, nil
+		return WR, NilError
 	case 'N':
-		return WN, nil
+		return WN, NilError
 	case 'B':
-		return WB, nil
+		return WB, NilError
 	case 'K':
-		return WK, nil
+		return WK, NilError
 	case 'Q':
-		return WQ, nil
+		return WQ, NilError
 	case 'P':
-		return WP, nil
+		return WP, NilError
 	case 'r':
-		return BR, nil
+		return BR, NilError
 	case 'n':
-		return BN, nil
+		return BN, NilError
 	case 'b':
-		return BB, nil
+		return BB, NilError
 	case 'k':
-		return BK, nil
+		return BK, NilError
 	case 'q':
-		return BQ, nil
+		return BQ, NilError
 	case 'p':
-		return BP, nil
+		return BP, NilError
 	default:
-		return XX, fmt.Errorf("invalid piece %v", c)
+		return XX, Errorf("invalid piece %v", c)
 	}
 }
 
@@ -327,7 +327,7 @@ func FileRankFromIndex(index int) FileRank {
 
 func BoardIndexFromString(s string) int {
 	location, err := FileRankFromString(s)
-	if err != nil {
+	if !IsNil(err) {
 		panic(err)
 	}
 	return IndexFromFileRank(location)

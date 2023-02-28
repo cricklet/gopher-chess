@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -82,7 +81,7 @@ func EnPassantTarget(move Move) int {
 	}
 }
 
-func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
+func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) Error {
 	startPiece := g.Board[move.StartIndex]
 	startPlayer := startPiece.Player()
 
@@ -111,7 +110,7 @@ func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 	case CastlingMove:
 		{
 			rookStartIndex, rookEndIndex, err := RookMoveForCastle(move.StartIndex, move.EndIndex)
-			if err != nil {
+			if !IsNil(err) {
 				return err
 			}
 			rookPiece := g.Board[rookStartIndex]
@@ -127,7 +126,7 @@ func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) error {
 	output.PrevFullMoveClock = g.FullMoveClock
 	output.PrevHalfMoveClock = g.HalfMoveClock
 
-	return nil
+	return NilError
 }
 
 func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player Player, side CastlingSide) {
@@ -136,16 +135,16 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 	}
 }
 
-func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) error {
+func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) Error {
 	err := setupBoardUpdate(g, move, update)
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 
 	g.FenAndMoveHistoryForDebugging = append(g.FenAndMoveHistoryForDebugging, [2]string{FenStringForGame(g), move.DebugString()})
 
 	err = g.applyMoveToBitboards(b, update)
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 
@@ -185,10 +184,10 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) er
 
 	g.Player = g.Player.Other()
 
-	return nil
+	return NilError
 }
 
-func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) error {
+func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) Error {
 	for i := 0; i < update.Num; i++ {
 		index := update.Indices[i]
 		prevPiece := update.PrevPieces[i]
@@ -197,7 +196,7 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) erro
 			if prevPiece == XX {
 			} else {
 				err := b.ClearSquare(index, prevPiece)
-				if err != nil {
+				if !IsNil(err) {
 					return err
 				}
 			}
@@ -206,7 +205,7 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) erro
 				b.SetSquare(index, nextPiece)
 			} else {
 				err := b.ClearSquare(index, prevPiece)
-				if err != nil {
+				if !IsNil(err) {
 					return err
 				}
 				b.SetSquare(index, nextPiece)
@@ -214,12 +213,12 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) erro
 		}
 	}
 
-	return nil
+	return NilError
 }
 
-func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) error {
+func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) Error {
 	err := g.applyUndoToBitboards(update, b)
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 
@@ -237,10 +236,10 @@ func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) error {
 	}
 
 	g.FenAndMoveHistoryForDebugging = g.FenAndMoveHistoryForDebugging[:len(g.FenAndMoveHistoryForDebugging)-1]
-	return nil
+	return NilError
 }
 
-func (g *GameState) applyUndoToBitboards(update *BoardUpdate, b *Bitboards) error {
+func (g *GameState) applyUndoToBitboards(update *BoardUpdate, b *Bitboards) Error {
 	for i := update.Num - 1; i >= 0; i-- {
 		index := update.Indices[i]
 		current := update.Pieces[i]
@@ -252,19 +251,19 @@ func (g *GameState) applyUndoToBitboards(update *BoardUpdate, b *Bitboards) erro
 				b.SetSquare(index, previous)
 			}
 		} else {
-			var err error
+			var err Error
 			if previous == XX {
 				err = b.ClearSquare(index, current)
 			} else {
 				err = b.ClearSquare(index, current)
 				b.SetSquare(index, previous)
 			}
-			if err != nil {
-				return fmt.Errorf("undo %v %v %v: %w", StringFromBoardIndex(index), current, previous, err)
+			if !IsNil(err) {
+				return Errorf("undo %v %v %v: %w", StringFromBoardIndex(index), current, previous, err)
 			}
 		}
 	}
-	return nil
+	return NilError
 }
 
 func (g *GameState) Enemy() Player {

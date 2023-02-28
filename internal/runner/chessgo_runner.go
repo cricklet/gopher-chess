@@ -1,8 +1,6 @@
 package runner
 
 import (
-	"errors"
-	"fmt"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -12,13 +10,13 @@ import (
 )
 
 type Runner interface {
-	PerformMoveFromString(s string) error
-	SetupPosition(position Position) error
-	PerformMoves(startPos string, moves []string) error
-	MovesForSelection(s string) ([]string, error)
-	Rewind(num int) error
+	PerformMoveFromString(s string) Error
+	SetupPosition(position Position) Error
+	PerformMoves(startPos string, moves []string) Error
+	MovesForSelection(s string) ([]string, Error)
+	Rewind(num int) Error
 	Reset()
-	Search() (Optional[string], error)
+	Search() (Optional[string], Error)
 	IsNew() bool
 }
 
@@ -60,33 +58,33 @@ func (r *ChessGoRunner) LastMove() Optional[Move] {
 func (r *ChessGoRunner) LastHistory() *HistoryValue {
 	return &r.history[len(r.history)-1]
 }
-func (r *ChessGoRunner) Rewind(num int) error {
+func (r *ChessGoRunner) Rewind(num int) Error {
 	for i := 0; i < MinInt(num, len(r.history)); i++ {
 		h := r.history[len(r.history)-1]
 		err := r.g.UndoUpdate(&h.update, r.b)
-		if err != nil {
-			return fmt.Errorf("Rewind: %w", err)
+		if !IsNil(err) {
+			return Errorf("Rewind: %w", err)
 		}
 		r.history = r.history[:len(r.history)-1]
 	}
-	return nil
+	return NilError
 }
 
-func (r *ChessGoRunner) PerformMove(move Move) error {
+func (r *ChessGoRunner) PerformMove(move Move) Error {
 	r.history = append(r.history, HistoryValue{})
 
 	h := r.LastHistory()
 	h.move = move
 
 	err := r.g.PerformMove(move, &h.update, r.b)
-	if err != nil {
-		return fmt.Errorf("PerformMove: %w", err)
+	if !IsNil(err) {
+		return Errorf("PerformMove: %w", err)
 	}
 
-	return nil
+	return NilError
 }
 
-func (r *ChessGoRunner) PerformMoveFromString(s string) error {
+func (r *ChessGoRunner) PerformMoveFromString(s string) Error {
 	m := r.g.MoveFromString(s)
 	err := r.PerformMove(m)
 	return err
@@ -101,9 +99,9 @@ func firstIndexMotMatching[A any, B any](a []A, b []B, matches func(A, B) bool) 
 	return MinInt(len(a), len(b))
 }
 
-func (r *ChessGoRunner) PerformMoves(startPos string, moves []string) error {
+func (r *ChessGoRunner) PerformMoves(startPos string, moves []string) Error {
 	if r.StartFen != startPos {
-		return fmt.Errorf("positions don't match: %v != %v", r.StartFen, startPos)
+		return Errorf("positions don't match: %v != %v", r.StartFen, startPos)
 	}
 
 	startIndex := firstIndexMotMatching(r.history, moves, func(a HistoryValue, b string) bool {
@@ -112,25 +110,25 @@ func (r *ChessGoRunner) PerformMoves(startPos string, moves []string) error {
 
 	for i := startIndex; i < len(moves); i++ {
 		err := r.PerformMove(r.g.MoveFromString(moves[i]))
-		if err != nil {
+		if !IsNil(err) {
 			return err
 		}
 	}
 
-	return nil
+	return NilError
 }
 
-func (r *ChessGoRunner) SetupPosition(position Position) error {
+func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	if r.Logger == nil {
 		r.Logger = &DefaultLogger
 	}
 	if !r.IsNew() {
-		return errors.New("please use ucinewgame")
+		return Errorf("please use ucinewgame")
 	}
 
 	game, err := GamestateFromFenString(position.Fen)
-	if err != nil {
-		return fmt.Errorf("couldn't create game from %v, %w", position, err)
+	if !IsNil(err) {
+		return Errorf("couldn't create game from %v, %w", position, err)
 	}
 	r.g = &game
 
@@ -141,12 +139,12 @@ func (r *ChessGoRunner) SetupPosition(position Position) error {
 
 	for _, m := range position.Moves {
 		err := r.PerformMove(r.g.MoveFromString(m))
-		if err != nil {
+		if !IsNil(err) {
 			return err
 		}
 	}
 
-	return nil
+	return NilError
 }
 
 type Position struct {
@@ -154,16 +152,16 @@ type Position struct {
 	Moves []string
 }
 
-func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, error) {
+func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, Error) {
 	selectionFileRank, err := FileRankFromString(selection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse selection %w", err)
+	if !IsNil(err) {
+		return nil, Errorf("failed to parse selection %w", err)
 	}
 	selectionIndex := IndexFromFileRank(selectionFileRank)
 
 	legalMoves := []Move{}
 	err = GenerateLegalMoves(r.b, r.g, &legalMoves)
-	if err != nil {
+	if !IsNil(err) {
 		return nil, err
 	}
 
@@ -172,7 +170,7 @@ func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, error) {
 	})
 	return MapSlice(moves, func(m Move) string {
 		return m.String()
-	}), nil
+	}), NilError
 }
 
 func (r *ChessGoRunner) FenString() string {
@@ -189,7 +187,7 @@ func (r *ChessGoRunner) Player() Player {
 	return r.g.Player
 }
 
-func (r *ChessGoRunner) Search() (Optional[string], error) {
+func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	searcher := NewSearcher(r.Logger, r.g, r.b)
 
 	go func() {
@@ -199,12 +197,12 @@ func (r *ChessGoRunner) Search() (Optional[string], error) {
 
 	move, errs := searcher.Search()
 	if len(errs) != 0 {
-		return Empty[string](), errors.Join(errs...)
+		return Empty[string](), Join(errs...)
 	}
 
 	if move.HasValue() {
-		return Some(move.Value().String()), nil
+		return Some(move.Value().String()), NilError
 	}
 
-	return Empty[string](), nil
+	return Empty[string](), NilError
 }

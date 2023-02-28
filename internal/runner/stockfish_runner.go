@@ -1,17 +1,16 @@
 package runner
 
 import (
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
+	. "github.com/cricklet/chessgo/internal/binary_runner"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type StockfishRunner struct {
 	Logger Logger
-	binary *uciBinary
+	binary *BinaryRunner
 
 	startFen string
 	moves    []string
@@ -19,12 +18,12 @@ type StockfishRunner struct {
 
 var _ Runner = (*StockfishRunner)(nil)
 
-func (r *StockfishRunner) SetupPosition(position Position) error {
-	var err error
+func (r *StockfishRunner) SetupPosition(position Position) Error {
+	var err Error
 
 	if r.binary == nil {
-		r.binary, err = SetupWithDefaultLogger("stockfish", time.Millisecond*500)
-		if err != nil {
+		r.binary, err = SetupBinaryRunner("stockfish", time.Millisecond*500)
+		if !IsNil(err) {
 			return err
 		}
 	}
@@ -32,29 +31,29 @@ func (r *StockfishRunner) SetupPosition(position Position) error {
 	var output []string
 
 	output, err = r.binary.Run("isready", Some("readyok"))
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 	if !Contains(output, "readyok") {
-		return errors.New("needs readyok")
+		return Errorf("needs readyok")
 	}
 
 	output, err = r.binary.Run("uci", Some("uciok"))
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 	if !Contains(output, "uciok") {
-		return errors.New("needs uciok")
+		return Errorf("needs uciok")
 	}
 
 	r.startFen = position.Fen
 	r.moves = position.Moves
 	err = r.binary.RunAsync("position fen " + position.Fen + " moves " + strings.Join(position.Moves, " "))
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
 
-	return nil
+	return NilError
 }
 
 func (r *StockfishRunner) Reset() {
@@ -71,48 +70,48 @@ func (r *StockfishRunner) IsNew() bool {
 	return r.binary == nil
 }
 
-func (r *StockfishRunner) PerformMoves(fen string, moves []string) error {
+func (r *StockfishRunner) PerformMoves(fen string, moves []string) Error {
 	if fen != r.startFen {
-		return fmt.Errorf("fen %s does not match start fen %s", fen, r.startFen)
+		return Errorf("fen %s does not match start fen %s", fen, r.startFen)
 	}
 
 	err := r.binary.RunAsync("position fen " + fen + " moves " + strings.Join(moves, " "))
 	r.moves = moves
 
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
-	return nil
+	return NilError
 }
 
-func (r *StockfishRunner) PerformMoveFromString(s string) error {
+func (r *StockfishRunner) PerformMoveFromString(s string) Error {
 	r.moves = append(r.moves, s)
 	err := r.binary.RunAsync("position " + r.startFen + " moves " + strings.Join(r.moves, " ") + " " + s)
 
-	if err != nil {
+	if !IsNil(err) {
 		return err
 	}
-	return nil
+	return NilError
 }
 
-func (r *StockfishRunner) MovesForSelection(selection string) ([]string, error) {
-	return []string{}, errors.New("not implemented")
+func (r *StockfishRunner) MovesForSelection(selection string) ([]string, Error) {
+	return []string{}, Errorf("not implemented")
 }
 
-func (r *StockfishRunner) Rewind(num int) error {
-	return errors.New("not implemented")
+func (r *StockfishRunner) Rewind(num int) Error {
+	return Errorf("not implemented")
 }
 
-func (r *StockfishRunner) Search() (Optional[string], error) {
-	var err error
+func (r *StockfishRunner) Search() (Optional[string], Error) {
+	var err Error
 	var result []string
 	err = r.binary.RunAsync("go")
-	if err != nil {
+	if !IsNil(err) {
 		return Empty[string](), err
 	}
 	time.Sleep(100 * time.Millisecond)
 	result, err = r.binary.Run("stop", Some("bestmove"))
-	if err != nil {
+	if !IsNil(err) {
 		return Empty[string](), err
 	}
 
@@ -121,8 +120,8 @@ func (r *StockfishRunner) Search() (Optional[string], error) {
 	})
 
 	if bestMoveString.HasValue() {
-		return Some(strings.Split(bestMoveString.Value(), " ")[1]), nil
+		return Some(strings.Split(bestMoveString.Value(), " ")[1]), NilError
 	}
 
-	return Empty[string](), nil
+	return Empty[string](), NilError
 }

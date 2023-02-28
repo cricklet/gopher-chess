@@ -1,7 +1,6 @@
 package search
 
 import (
-	"fmt"
 	"sort"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -374,15 +373,7 @@ func DangerBoard(b *Bitboards, player Player) Bitboard {
 	return result
 }
 
-type BoardCorrupted struct {
-	Message error
-}
-
-func (e *BoardCorrupted) Error() string {
-	return fmt.Sprintf("corruption during update: %q", e.Message)
-}
-
-func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) error {
+func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) Error {
 	player := g.Player
 	potentialMoves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(potentialMoves)
@@ -391,18 +382,18 @@ func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) er
 	for _, move := range *potentialMoves {
 		update := BoardUpdate{}
 		err := g.PerformMove(move, &update, b)
-		if err != nil {
-			return &BoardCorrupted{err}
+		if !IsNil(err) {
+			return err
 		}
 		if !KingIsInCheck(b, player) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 
 		err = g.UndoUpdate(&update, b)
-		if err != nil {
-			return fmt.Errorf("GenerateLegalMoves: %w", err)
+		if !IsNil(err) {
+			return Errorf("GenerateLegalMoves: %w", err)
 		}
 	}
 
-	return nil
+	return NilError
 }

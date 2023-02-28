@@ -45,11 +45,11 @@ func TestUciIndexBug2(t *testing.T) {
 			"position fen 2kr3r/p1p2ppp/2n1b3/2bqp3/Pp1p4/1P1P1N1P/2PBBPP1/R2Q1RK1 w - - 24 13 moves g2g4",
 		} {
 			_, err := r.HandleInput(line)
-			assert.Nil(t, err)
+			assert.True(t, IsNil(err))
 		}
 
 		_, err := r.HandleInput("go")
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 	}
 }
 
@@ -63,11 +63,11 @@ func TestUciIndexBug3(t *testing.T) {
 			"position fen 2k1r3/8/2np2p1/p1bq4/Pp2P1P1/1P1p4/2PBQ3/R4RK1 w - - 48 25 moves d2e3",
 		} {
 			_, err := r.HandleInput(line)
-			assert.Nil(t, err)
+			assert.True(t, IsNil(err))
 		}
 
 		_, err := r.HandleInput("go")
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 	}
 }
 
@@ -87,7 +87,7 @@ func TestUciCastlingBug1(t *testing.T) {
 			"position fen " + fen + " moves " + moves[0] + " " + moves[1],
 		} {
 			_, err := r.HandleInput(line)
-			assert.Nil(t, err)
+			assert.True(t, IsNil(err))
 		}
 	}
 }
@@ -95,11 +95,11 @@ func TestUciCastlingBug1(t *testing.T) {
 func TestUciStockfishManually(t *testing.T) {
 	cmd := exec.Command("stockfish")
 	stdin, err := cmd.StdinPipe()
-	if err != nil {
+	if !IsNil(err) {
 		t.Fatal(err)
 	}
 	stdOut, err := cmd.StdoutPipe()
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	stdOutScanner := bufio.NewScanner(bufio.NewReader(stdOut))
 
@@ -108,7 +108,7 @@ func TestUciStockfishManually(t *testing.T) {
 	}()
 
 	err = cmd.Start()
-	if err != nil {
+	if !IsNil(err) {
 		t.Fatal(err)
 	}
 
@@ -133,7 +133,7 @@ func TestUciStockfishManually(t *testing.T) {
 		}()
 
 		_, err := stdin.Write([]byte(it.Input))
-		if err != nil {
+		if !IsNil(err) {
 			t.Fatal(err)
 		}
 
@@ -144,7 +144,7 @@ func TestUciStockfishManually(t *testing.T) {
 			select {
 			case <-timeoutChan:
 				if expectsOutput {
-					t.Fatal(fmt.Errorf("timeout for %v without correct output", it))
+					t.Fatal(Errorf("timeout for %v without correct output", it))
 				}
 				done = true
 			case line := <-stdOutChan:

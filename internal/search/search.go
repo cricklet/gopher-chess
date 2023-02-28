@@ -143,17 +143,17 @@ func NewSearcher(logger Logger, game *GameState, bitboards *Bitboards) searcher 
 	}
 }
 
-func (s *searcher) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, error) {
+func (s *searcher) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, Error) {
 	err := s.Game.PerformMove(move, update, s.Bitboards)
-	if err != nil {
+	if !IsNil(err) {
 		return false, err
 	}
 
 	if KingIsInCheck(s.Bitboards, s.Game.Enemy()) {
-		return false, nil
+		return false, NilError
 	}
 
-	return true, nil
+	return true, NilError
 }
 
 func (s *searcher) scoreDirectionForPlayer(player Player) int {
@@ -168,10 +168,10 @@ func (s *searcher) EvaluatePosition() int {
 	return Evaluate(s.Bitboards, s.MaximizingPlayer)
 }
 
-func (s *searcher) evaluateCapturesInner(alpha int, beta int) (int, []SearchDebugNode, []error) {
+func (s *searcher) evaluateCapturesInner(alpha int, beta int) (int, []SearchDebugNode, []Error) {
 	var returnScore int
 	var returnDebug []SearchDebugNode
-	var returnErrors []error
+	var returnErrors []Error
 
 	player := s.Game.Player
 
@@ -234,9 +234,9 @@ func (s *searcher) evaluateCapturesInner(alpha int, beta int) (int, []SearchDebu
 	return returnScore, returnDebug, returnErrors
 }
 
-func (s *searcher) evaluateCapture(move Move, alpha int, beta int) (int, *SearchDebugNode, []error) {
+func (s *searcher) evaluateCapture(move Move, alpha int, beta int) (int, *SearchDebugNode, []Error) {
 	var returnScore int
-	var returnErrors []error
+	var returnErrors []Error
 
 	player := s.Game.Player
 	playerHint := FenStringForPlayer(player)
@@ -255,7 +255,7 @@ func (s *searcher) evaluateCapture(move Move, alpha int, beta int) (int, *Search
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
 		returnErrors = append(returnErrors, err)
 	}()
-	if err != nil {
+	if !IsNil(err) {
 		returnErrors = append(returnErrors, err)
 		return returnScore, returnNode, returnErrors
 	}
@@ -268,7 +268,7 @@ func (s *searcher) evaluateCapture(move Move, alpha int, beta int) (int, *Search
 
 	return returnScore, returnNode, returnErrors
 }
-func (s *searcher) evaluateCaptures(alpha int, beta int) (int, []SearchDebugNode, []error) {
+func (s *searcher) evaluateCaptures(alpha int, beta int) (int, []SearchDebugNode, []Error) {
 	standPat := s.EvaluatePosition()
 	player := s.Game.Player
 
@@ -289,10 +289,10 @@ func (s *searcher) evaluateCaptures(alpha int, beta int) (int, []SearchDebugNode
 	return s.evaluateCapturesInner(alpha, beta)
 }
 
-func (s *searcher) evaluateSubtree(alpha int, beta int, depth int) (int, []SearchDebugNode, []error) {
+func (s *searcher) evaluateSubtree(alpha int, beta int, depth int) (int, []SearchDebugNode, []Error) {
 	var returnDebug []SearchDebugNode
 	var returnScore int
-	var returnErrors []error
+	var returnErrors []Error
 
 	player := s.Game.Player
 
@@ -354,9 +354,9 @@ func (s *searcher) evaluateSubtree(alpha int, beta int, depth int) (int, []Searc
 	return returnScore, returnDebug, returnErrors
 }
 
-func (s *searcher) evaluateMove(move Move, alpha int, beta int, depth int) (int, *SearchDebugNode, []error) {
+func (s *searcher) evaluateMove(move Move, alpha int, beta int, depth int) (int, *SearchDebugNode, []Error) {
 	var returnScore int
-	var returnErrors []error
+	var returnErrors []Error
 
 	player := s.Game.Player
 	playerHint := FenStringForPlayer(player)
@@ -376,7 +376,7 @@ func (s *searcher) evaluateMove(move Move, alpha int, beta int, depth int) (int,
 		returnErrors = append(returnErrors, err)
 	}()
 
-	if err != nil {
+	if !IsNil(err) {
 		returnErrors = append(returnErrors, err)
 		return returnScore, returnNode, returnErrors
 	}
@@ -399,7 +399,7 @@ func (s *searcher) evaluateMove(move Move, alpha int, beta int, depth int) (int,
 	return returnScore, returnNode, returnErrors
 }
 
-func (s *searcher) Search() (Optional[Move], []error) {
+func (s *searcher) Search() (Optional[Move], []Error) {
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
@@ -455,9 +455,9 @@ func (s *searcher) Search() (Optional[Move], []error) {
 	return Some((*moves)[0]), nil
 }
 
-func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
+func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, Error) {
 	if KingIsInCheck(b, g.Enemy()) {
-		return SearchResult{Inf, 1, 1}, nil
+		return SearchResult{Inf, 1, 1}, NilError
 	}
 
 	moves := GetMovesBuffer()
@@ -467,7 +467,7 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 
 	if len(*moves) == 0 {
 		score := Evaluate(b, g.Player)
-		return SearchResult{score, 1, 1}, nil
+		return SearchResult{score, 1, 1}, NilError
 	}
 
 	totalSearched := 0
@@ -479,27 +479,27 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 
 		update := BoardUpdate{}
 		err := g.PerformMove(move, &update, b)
-		if err != nil {
-			return SearchResult{}, fmt.Errorf("perform evaluateCapturesInner %v: %w", move.String(), err)
+		if !IsNil(err) {
+			return SearchResult{}, Errorf("perform evaluateCapturesInner %v: %w", move.String(), err)
 		}
 
 		result, err := evaluateCapturesInner(g, b,
 			-enemyCanForceScore,
 			-playerCanForceScore)
-		if err != nil {
-			return SearchResult{}, fmt.Errorf("recurse evaluateCapturesInner %v: %w", move.String(), err)
+		if !IsNil(err) {
+			return SearchResult{}, Errorf("recurse evaluateCapturesInner %v: %w", move.String(), err)
 		}
 		enemyScore := result.Score
 		totalSearched += result.QuiescenceSearched
 
 		err = g.UndoUpdate(&update, b)
-		if err != nil {
-			return SearchResult{}, fmt.Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
+		if !IsNil(err) {
+			return SearchResult{}, Errorf("undo evaluateCapturesInner %v: %w", move.String(), err)
 		}
 
 		currentScore := -enemyScore
 		if currentScore >= enemyCanForceScore {
-			return SearchResult{enemyCanForceScore, totalSearched, totalSearched}, nil
+			return SearchResult{enemyCanForceScore, totalSearched, totalSearched}, NilError
 		}
 
 		if currentScore > playerCanForceScore {
@@ -507,13 +507,13 @@ func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, 
 		}
 	}
 
-	return SearchResult{playerCanForceScore, totalSearched, totalSearched}, nil
+	return SearchResult{playerCanForceScore, totalSearched, totalSearched}, NilError
 }
 
-func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, error) {
+func evaluateCaptures(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, Error) {
 	standPat := Evaluate(b, g.Player)
 	if standPat > enemyCanForceScore {
-		return SearchResult{enemyCanForceScore, 1, 1}, nil
+		return SearchResult{enemyCanForceScore, 1, 1}, NilError
 	} else if standPat > playerCanForceScore {
 		playerCanForceScore = standPat
 	}
@@ -527,14 +527,14 @@ type SearchResult struct {
 	QuiescenceSearched int
 }
 
-func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int, depth int) (SearchResult, error) {
+func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int, depth int) (SearchResult, Error) {
 	if KingIsInCheck(b, g.Enemy()) {
-		return SearchResult{Inf, 1, 0}, nil
+		return SearchResult{Inf, 1, 0}, NilError
 	}
 
 	if depth == 0 {
 		score := Evaluate(b, g.Player)
-		return SearchResult{score, 1, 0}, nil
+		return SearchResult{score, 1, 0}, NilError
 	}
 
 	moves := GetMovesBuffer()
@@ -548,8 +548,8 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 	for _, move := range *moves {
 		update := BoardUpdate{}
 		err := g.PerformMove(move, &update, b)
-		if err != nil {
-			return SearchResult{}, fmt.Errorf("perform evaluateSearch %v: %w", move.String(), err)
+		if !IsNil(err) {
+			return SearchResult{}, Errorf("perform evaluateSearch %v: %w", move.String(), err)
 		}
 
 		var result SearchResult
@@ -563,8 +563,8 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 				-playerCanForceScore,
 				depth-1)
 		}
-		if err != nil {
-			return SearchResult{}, fmt.Errorf("%v %v: %w", move.String(), depth, err)
+		if !IsNil(err) {
+			return SearchResult{}, Errorf("%v %v: %w", move.String(), depth, err)
 		}
 
 		enemyScore := result.Score
@@ -572,13 +572,13 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		quiescenceSearched += result.QuiescenceSearched
 
 		err = g.UndoUpdate(&update, b)
-		if err != nil {
-			return SearchResult{}, fmt.Errorf("undo evaluateSearch %v: %w", move.String(), err)
+		if !IsNil(err) {
+			return SearchResult{}, Errorf("undo evaluateSearch %v: %w", move.String(), err)
 		}
 
 		currentScore := -enemyScore
 		if currentScore >= enemyCanForceScore {
-			return SearchResult{enemyCanForceScore, totalSearched, quiescenceSearched}, nil
+			return SearchResult{enemyCanForceScore, totalSearched, quiescenceSearched}, NilError
 		}
 
 		if currentScore > playerCanForceScore {
@@ -586,10 +586,10 @@ func evaluateSearch(g *GameState, b *Bitboards, playerCanForceScore int, enemyCa
 		}
 	}
 
-	return SearchResult{playerCanForceScore, totalSearched, quiescenceSearched}, nil
+	return SearchResult{playerCanForceScore, totalSearched, quiescenceSearched}, NilError
 }
 
-func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move], error) {
+func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move], Error) {
 	// defer profile.Start(profile.ProfilePath("../data/Search")).Stop()
 
 	moves := GetMovesBuffer()
@@ -606,14 +606,14 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 	for i, move := range *moves {
 		update := BoardUpdate{}
 		err := g.PerformMove(move, &update, b)
-		if err != nil {
-			return Empty[Move](), fmt.Errorf("perform Search %v => %v: %w", FenStringForGame(g), move.String(), err)
+		if !IsNil(err) {
+			return Empty[Move](), Errorf("perform Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
 		result, err := evaluateSearch(g, b,
 			-Inf, Inf, depth)
-		if err != nil {
-			return Empty[Move](), fmt.Errorf("evaluate Search %v => %v: %w", FenStringForGame(g), move.String(), err)
+		if !IsNil(err) {
+			return Empty[Move](), Errorf("evaluate Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
 		enemyScore := result.Score
@@ -621,8 +621,8 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		quiescenceSearched += result.QuiescenceSearched
 
 		err = g.UndoUpdate(&update, b)
-		if err != nil {
-			return Empty[Move](), fmt.Errorf("undo Search %v => %v: %w", FenStringForGame(g), move.String(), err)
+		if !IsNil(err) {
+			return Empty[Move](), Errorf("undo Search %v => %v: %w", FenStringForGame(g), move.String(), err)
 		}
 
 		currentScore := -enemyScore
@@ -656,5 +656,5 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 
 	logger.Println(bestMoveSoFar, bestScoreSoFar)
 
-	return bestMoveSoFar, nil
+	return bestMoveSoFar, NilError
 }

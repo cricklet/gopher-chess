@@ -43,47 +43,47 @@ func TestBoardPrint(t *testing.T) {
 
 func TestLocationDecoding(t *testing.T) {
 	location, err := FileRankFromString("a1")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.Equal(t, location, FileRank{File: 0, Rank: 0})
 
 	game, err := GamestateFromFenString("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.Equal(t, PieceAtFileRank(game.Board, location).String(), WR.String())
 
 	location, err = FileRankFromString("e4")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.Equal(t, location, FileRank{File: 4, Rank: 3})
 
 	assert.Equal(t, PieceAtFileRank(game.Board, location).String(), WP.String())
 
 	location, err = FileRankFromString("d8")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.Equal(t, location, FileRank{File: 3, Rank: 7})
 
 	assert.Equal(t, PieceAtFileRank(game.Board, location).String(), BQ.String())
 
 	location, err = FileRankFromString("a1")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.Equal(t, IndexFromFileRank(location), 0)
 
 	location, err = FileRankFromString("h1")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.Equal(t, IndexFromFileRank(location), 7)
 
 	location, err = FileRankFromString("a8")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.Equal(t, IndexFromFileRank(location), 56)
 
 	location, err = FileRankFromString("h8")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.Equal(t, IndexFromFileRank(location), 63)
 }
 
 func TestNotationDecoding(t *testing.T) {
 	s := "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.Equal(t, g.Board.String(), NaturalBoardArray{
 		BR, BN, BB, BQ, BK, BB, BN, BR,
@@ -99,7 +99,7 @@ func TestNotationDecoding(t *testing.T) {
 	assert.Equal(t, g.Player, Black)
 
 	expectedLocation, err := FileRankFromString("e3")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.Equal(t, g.EnPassantTarget.Value(), expectedLocation)
 
 	assert.Equal(t, g.WhiteCanCastleKingside(), true)
@@ -114,7 +114,7 @@ func TestNotationDecoding(t *testing.T) {
 func TestNotationDecoding2(t *testing.T) {
 	s := "8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 w - - 99 50"
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.Equal(t, g.Board, NaturalBoardArray{
 		XX, XX, XX, XX, XX, XX, XX, XX,
@@ -221,7 +221,7 @@ func TestDirMasks(t *testing.T) {
 func TestBitboardSetup(t *testing.T) {
 	s := "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.Equal(t, g.Board.String(), NaturalBoardArray{
 		BR, BN, BB, BQ, BK, BB, BN, BR,
@@ -340,7 +340,7 @@ func TestBitRotation(t *testing.T) {
 func TestGeneratePseudoMovesEarly(t *testing.T) {
 	s := "rnbqkbnr/pppp11pp/8/4pp2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 1 2"
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.Equal(t, g.Board.String(), NaturalBoardArray{
 		BR, BN, BB, BQ, BK, BB, BN, BR,
@@ -420,7 +420,7 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 	s := "rnbqkbnr/pppp3p/8/4pPp1/8/5N2/PPPP1PPP/RNBQKB1R w KQkq g6 0 4"
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.Equal(t, NaturalBoardArray{
 		BR, BN, BB, BQ, BK, BB, BN, BR,
@@ -533,7 +533,7 @@ func TestEachIndexOfOne(t *testing.T) {
 func TestStringFromBoardIndex(t *testing.T) {
 	for _, str := range []string{"a4", "c2", "h7"} {
 		fileRank, err := FileRankFromString(str)
-		if err != nil {
+		if !IsNil(err) {
 			panic(err)
 		}
 
@@ -645,7 +645,7 @@ func TestWhiteCastling(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2N1BN2/PPP1QPPP/R3K2R w KQkq - 1 11"
 
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.Equal(t, true, g.EnPassantTarget.IsEmpty())
 	assert.Equal(t, White, g.Player)
@@ -741,7 +741,7 @@ func TestBlackCastling(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2NQBN2/PPP2PPP/R3K2R b KQkq - 2 11"
 
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.Equal(t, true, g.EnPassantTarget.IsEmpty())
 	assert.Equal(t, Black, g.Player)
@@ -834,7 +834,7 @@ func TestAttackMap(t *testing.T) {
 	s := "r3k2r/pp1bb2p/2npPn2/q1p2Pp1/2B5/2NQBN2/PPP2PPP/R3K2R b KQkq - 2 11"
 
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	bitboards := g.CreateBitboards()
 
@@ -933,7 +933,7 @@ func TestCheck(t *testing.T) {
 	s := "r3k2r/pp1bb3/3pPPQp/qBp1n1p1/6n1/2N1BN2/PPP2PPP/R3K2R b KQkq - 1 14"
 
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	bitboards := g.CreateBitboards()
 
@@ -951,7 +951,7 @@ func TestCheck(t *testing.T) {
 	result := []string{}
 	moves := make([]Move, 0)
 	err = GenerateLegalMoves(&bitboards, &g, &moves)
-	if err != nil {
+	if !IsNil(err) {
 		t.Error(err)
 	}
 	for _, move := range moves {
@@ -975,7 +975,7 @@ func TestPin(t *testing.T) {
 	s := "5k2/8/8/8/1q6/2N4p/2PK2pP/8 w - - 0 44"
 
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	bitboards := g.CreateBitboards()
 
@@ -993,7 +993,7 @@ func TestPin(t *testing.T) {
 	result := []string{}
 	moves := make([]Move, 0)
 	err = GenerateLegalMoves(&bitboards, &g, &moves)
-	if err != nil {
+	if !IsNil(err) {
 		t.Error(err)
 	}
 	for _, move := range moves {

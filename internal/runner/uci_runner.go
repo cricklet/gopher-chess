@@ -1,9 +1,10 @@
 package runner
 
 import (
-	"errors"
 	"fmt"
 	"strings"
+
+	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type UciRunner struct {
@@ -20,7 +21,7 @@ func parseFen(input string) string {
 		return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 	}
 
-	panic(fmt.Errorf("couldn't parse '%v'", s))
+	panic(Errorf("couldn't parse '%v'", s))
 }
 
 func parseMoves(input string) []string {
@@ -36,7 +37,7 @@ func parsePosition(input string) Position {
 	return Position{Fen: parseFen(input), Moves: parseMoves(input)}
 }
 
-func (u *UciRunner) HandleInput(input string) ([]string, error) {
+func (u *UciRunner) HandleInput(input string) ([]string, Error) {
 	result := []string{}
 	if input == "uci" {
 		result = append(result, "id name chessgo 1")
@@ -50,26 +51,26 @@ func (u *UciRunner) HandleInput(input string) ([]string, error) {
 		position := parsePosition(input)
 		if u.Runner.IsNew() {
 			err := u.Runner.SetupPosition(position)
-			if err != nil {
+			if !IsNil(err) {
 				return result, err
 			}
 		} else {
 			err := u.Runner.PerformMoves(position.Fen, position.Moves)
-			if err != nil {
+			if !IsNil(err) {
 				return result, err
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
 		move, err := u.Runner.Search()
-		if err != nil {
+		if !IsNil(err) {
 			return result, err
 		}
 
 		if move.IsEmpty() {
-			return result, errors.New("no legal moves")
+			return result, Errorf("no legal moves")
 		}
 
 		result = append(result, fmt.Sprintf("bestmove %v", move.Value()))
 	}
-	return result, nil
+	return result, NilError
 }

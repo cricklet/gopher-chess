@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
-	"time"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/runner"
@@ -125,7 +124,7 @@ func main() {
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		chessGoRunner := ChessGoRunner{}
-		stockfishRunner := StockfishRunner{Delay: time.Millisecond * 10}
+		stockfishRunner := StockfishRunner{}
 
 		playerTypes := [2]PlayerType{User, User}
 		ready := false
@@ -140,18 +139,18 @@ func main() {
 		}
 
 		c, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
+		if !IsNil(err) {
 			panic(err)
 		}
 
 		var log = func(message string) {
 			log.Print("logging: ", message)
 			bytes, err := json.Marshal([]string{message})
-			if err != nil {
+			if !IsNil(err) {
 				fmt.Fprintln(os.Stderr, fmt.Sprint("logging: json marshal: ", err))
 			}
 			err = c.WriteMessage(websocket.TextMessage, bytes)
-			if err != nil {
+			if !IsNil(err) {
 				fmt.Fprintln(os.Stderr, fmt.Sprint("logging: websocket: ", err))
 			}
 		}
@@ -185,11 +184,11 @@ func main() {
 
 			logger.Println("sending", update)
 			bytes, err := json.Marshal(update)
-			if err != nil {
+			if !IsNil(err) {
 				logger.Println("update: json marshal: ", err)
 			}
 			err = c.WriteMessage(websocket.TextMessage, bytes)
-			if err != nil {
+			if !IsNil(err) {
 				logger.Println("websocket: ", err)
 			}
 		}
@@ -205,13 +204,13 @@ func main() {
 			runner := runnerForPlayer(chessGoRunner.Player())
 
 			err := runner.PerformMoves(chessGoRunner.StartFen, chessGoRunner.MoveHistory())
-			if err != nil {
+			if !IsNil(err) {
 				logger.Println("setup: ", err)
 				return false
 			}
 
 			bestMove, err := runner.Search()
-			if err != nil {
+			if !IsNil(err) {
 				logger.Println("search: ", err)
 				return false
 			}
@@ -219,7 +218,7 @@ func main() {
 			if bestMove.HasValue() {
 				logger.Println("search: ", bestMove.Value())
 				err := chessGoRunner.PerformMoveFromString(bestMove.Value())
-				if err != nil {
+				if !IsNil(err) {
 					logger.Println("perform: ", bestMove.Value(), err)
 					return false
 				}
@@ -234,7 +233,7 @@ func main() {
 		var handleMessageFromWeb = func(bytes []byte) {
 			var message MessageFromWeb
 			err := json.Unmarshal(bytes, &message)
-			if err != nil {
+			if !IsNil(err) {
 				logger.Println("handleMessageFromWeb: json unmarshal: ", err)
 			}
 			logger.Println("received", message)
@@ -247,14 +246,14 @@ func main() {
 					Fen:   *message.NewFen,
 					Moves: []string{},
 				})
-				if err != nil {
+				if !IsNil(err) {
 					logger.Println("chessgo setup: ", err)
 				}
 				err = stockfishRunner.SetupPosition(Position{
 					Fen:   *message.NewFen,
 					Moves: []string{},
 				})
-				if err != nil {
+				if !IsNil(err) {
 					logger.Println("stockfish setup: ", err)
 				}
 			} else if message.WhitePlayer != nil {
@@ -265,7 +264,7 @@ func main() {
 				if *message.Selection != "" {
 					update.Selection = *message.Selection
 					result, err := chessGoRunner.MovesForSelection(*message.Selection)
-					if err != nil {
+					if !IsNil(err) {
 						logger.Println("moves for: ", message.Selection, err)
 					}
 					update.PossibleMoves = result
@@ -273,13 +272,13 @@ func main() {
 				shouldUpdate = true
 			} else if message.Move != nil {
 				err := chessGoRunner.PerformMoveFromString(*message.Move)
-				if err != nil {
+				if !IsNil(err) {
 					logger.Println("perform: ", message.Move, err) // TODO reset
 				}
 				shouldUpdate = true
 			} else if message.Rewind != nil {
 				err := chessGoRunner.Rewind(*message.Rewind)
-				if err != nil {
+				if !IsNil(err) {
 					logger.Println("rewind: ", message.Rewind, err) // TODO reset
 				}
 				shouldUpdate = true
@@ -298,7 +297,7 @@ func main() {
 		defer c.Close()
 		for {
 			_, message, err := c.ReadMessage()
-			if err != nil {
+			if !IsNil(err) {
 				logger.Printf("Error: %v", err)
 				break
 			} else {
@@ -322,7 +321,7 @@ func main() {
 	router.HandleFunc("/", index)
 	http.Handle("/", router)
 	err := http.ListenAndServe(":8002", router)
-	if err != nil {
+	if !IsNil(err) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

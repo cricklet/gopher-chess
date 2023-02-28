@@ -58,7 +58,7 @@ type ProgressBar struct {
 
 func termWidth() int {
 	width, _, err := term.GetSize(0)
-	if err != nil {
+	if !IsNil(err) {
 		return 80
 	}
 	return MaxInt(80, MinInt(120, width))

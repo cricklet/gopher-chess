@@ -84,14 +84,14 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 		func() {
 			update := BoardUpdate{}
 			err := g.PerformMove(move, &update, b)
-			if err != nil {
-				t.Error(fmt.Errorf("perform %v, %v: %w", FenStringForGame(g), move, err))
+			if !IsNil(err) {
+				t.Error(Errorf("perform %v, %v: %w", FenStringForGame(g), move, err))
 			}
 
 			defer func() {
 				err = g.UndoUpdate(&update, b)
-				if err != nil {
-					t.Error(fmt.Errorf("undo %v, %v: %w", FenStringForGame(g), move, err))
+				if !IsNil(err) {
+					t.Error(Errorf("undo %v, %v: %w", FenStringForGame(g), move, err))
 				}
 			}()
 
@@ -187,7 +187,7 @@ func (p PerftComparison) String() string {
 	panic("unknown issue")
 }
 
-func parsePerft(s string) (map[string]int, int, error) {
+func parsePerft(s string) (map[string]int, int, Error) {
 	expectedPerft := make(map[string]int)
 
 	ok := false
@@ -198,19 +198,19 @@ func parsePerft(s string) (map[string]int, int, error) {
 			} else if strings.HasPrefix(line, "Nodes searched: ") {
 				expectedCountStr := strings.TrimPrefix(line, "Nodes searched: ")
 				expectedCount, err := strconv.Atoi(expectedCountStr)
-				if err != nil {
+				if !IsNil(err) {
 					return expectedPerft, expectedCount,
-						fmt.Errorf("couldn't parse searched nodes: %v, %w", line, err)
+						Errorf("couldn't parse searched nodes: %v, %w", line, err)
 				}
 
-				return expectedPerft, expectedCount, nil
+				return expectedPerft, expectedCount, NilError
 			} else {
 				lineParts := strings.Split(line, ": ")
 				moveStr := lineParts[0]
 				moveCount, err := strconv.Atoi(lineParts[1])
-				if err != nil {
+				if !IsNil(err) {
 					return expectedPerft, 0,
-						fmt.Errorf("couldn't parse count from move: %v, %w", line, err)
+						Errorf("couldn't parse count from move: %v, %w", line, err)
 				}
 
 				expectedPerft[moveStr] = moveCount
@@ -220,7 +220,7 @@ func parsePerft(s string) (map[string]int, int, error) {
 		}
 	}
 
-	return expectedPerft, 0, fmt.Errorf("could not parse: %v", s)
+	return expectedPerft, 0, Errorf("could not parse: %v", s)
 }
 
 func findPerftDiscrepancies(t *testing.T, g *GameState, b *Bitboards, depth int) PerftDiscrepancies {
@@ -233,7 +233,7 @@ func findPerftDiscrepancies(t *testing.T, g *GameState, b *Bitboards, depth int)
 	output, _ := cmd.CombinedOutput()
 
 	expectedPerftMap, expectedPerftTotal, err := parsePerft(string(output))
-	if err != nil {
+	if !IsNil(err) {
 		t.Error(err)
 	}
 
@@ -291,14 +291,14 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 	invalidMovesToSearch := []InvalidMovesToSearch{}
 
 	g, err := GamestateFromFenString(initialState.startingFen)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	b := g.CreateBitboards()
 
 	for _, move := range initialState.moves {
 		update := BoardUpdate{}
 		err := g.PerformMove(g.MoveFromString(move), &update, &b)
-		if err != nil {
-			t.Error(fmt.Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
+		if !IsNil(err) {
+			t.Error(Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
 		}
 	}
 
@@ -320,7 +320,7 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 		}
 
 		if len(perftIssueMap) > 0 {
-			t.Error(fmt.Errorf("found invalid moves %v", pp(perftIssueMap)))
+			t.Error(Errorf("found invalid moves %v", pp(perftIssueMap)))
 			for move, issue := range perftIssueMap {
 				invalidMovesToSearch = append(invalidMovesToSearch, InvalidMovesToSearch{move, issue.comparison, initialState})
 			}
@@ -340,8 +340,8 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 
 			update := BoardUpdate{}
 			err := g.PerformMove(move, &update, &b)
-			if err != nil {
-				t.Error(fmt.Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
+			if !IsNil(err) {
+				t.Error(Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
 			}
 
 			findSpecificInvalidMoves(t,
@@ -352,14 +352,14 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 				}, maxDepth-1)
 
 			err = g.UndoUpdate(&update, &b)
-			if err != nil {
-				t.Error(fmt.Errorf("undo %v => %v: %w", FenStringForGame(&g), move, err))
+			if !IsNil(err) {
+				t.Error(Errorf("undo %v => %v: %w", FenStringForGame(&g), move, err))
 			}
 		}
 	}
 
 	if len(result) == 0 && len(invalidMovesToSearch) > 0 && totalInvalidMoves < MAX_TOTAL_INVALID_MOVES {
-		t.Error(fmt.Errorf("couldn't find '%v' => %v", FenStringForGame(&g), pp(invalidMovesToSearch)))
+		t.Error(Errorf("couldn't find '%v' => %v", FenStringForGame(&g), pp(invalidMovesToSearch)))
 	}
 }
 
@@ -381,7 +381,7 @@ func TestFindIncorrectMoves(t *testing.T) {
 func assertPerftCountsMatch(t *testing.T, s string, expectedCount []int) {
 	for depth, expectedCount := range expectedCount {
 		g, err := GamestateFromFenString(s)
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 		b := g.CreateBitboards()
 		actualPerft, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
 
@@ -436,12 +436,12 @@ func TestPosition2KingCheck(t *testing.T) {
 	s := "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
 
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	b := g.CreateBitboards()
 	update := BoardUpdate{}
 	err = g.PerformMove(g.MoveFromString("a1b1"), &update, &b)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.True(t, KingIsInCheck(&b, g.Enemy()))
 }
@@ -461,7 +461,7 @@ func TestPosition3(t *testing.T) {
 func TestPositionPromotion(t *testing.T) {
 	s := "k7/8/8/8/8/8/7p/K7 b - - 0 1"
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	b := g.CreateBitboards()
 
@@ -505,14 +505,14 @@ func TestPositionPromotion(t *testing.T) {
 func TestPosition4F1F2(t *testing.T) {
 	s := "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	b := g.CreateBitboards()
 
 	err = g.PerformMove(g.MoveFromString("f1f2"), &BoardUpdate{}, &b)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	err = g.PerformMove(g.MoveFromString("b2a1r"), &BoardUpdate{}, &b)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	expectedFen := "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/P2P1RPP/r2Q2K1 w kq - 0 2"
 
@@ -548,16 +548,16 @@ func TestPosition5QueenPin(t *testing.T) {
 	s := "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
 
 	g, err := GamestateFromFenString(s)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	b := g.CreateBitboards()
 	update := BoardUpdate{}
 
 	err = g.PerformMove(g.MoveFromString("d7c8q"), &update, &b)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	err = g.PerformMove(g.MoveFromString("d8d6"), &update, &b)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	assert.True(t, KingIsInCheck(&b, g.Enemy()))
 }

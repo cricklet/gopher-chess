@@ -83,10 +83,10 @@ func FenStringForGame(g *GameState) string {
 	return s
 }
 
-func GamestateFromFenString(s string) (GameState, error) {
+func GamestateFromFenString(s string) (GameState, Error) {
 	ss := strings.Fields(s)
 	if len(ss) != 6 && len(ss) != 4 {
-		return GameState{}, fmt.Errorf("wrong num %v of fields in str '%v'", len(ss), s)
+		return GameState{}, Errorf("wrong num %v of fields in str '%v'", len(ss), s)
 	}
 
 	game := GameState{}
@@ -103,25 +103,25 @@ func GamestateFromFenString(s string) (GameState, error) {
 	for _, c := range boardStr {
 		if c == '/' {
 			if fileIndex != 8 {
-				return GameState{}, fmt.Errorf("not enough squares in rank, '%v'", s)
+				return GameState{}, Errorf("not enough squares in rank, '%v'", s)
 			}
 			rankIndex--
 			fileIndex = 0
-		} else if indicesToSkip, err := strconv.ParseInt(string(c), 10, 0); err == nil {
+		} else if indicesToSkip, err := strconv.ParseInt(string(c), 10, 0); IsNil(err) {
 			fileIndex += File(indicesToSkip)
-		} else if p, err := PieceFromString(c); err == nil {
+		} else if p, err := PieceFromString(c); IsNil(err) {
 			// note, we insert pieces into the board in inverse order so the 0th index refers to a1
 			game.Board[IndexFromFileRank(FileRank{File: fileIndex, Rank: rankIndex})] = p
 			fileIndex++
 		} else {
-			return GameState{}, fmt.Errorf("unknown character '%v' in '%v'", c, s)
+			return GameState{}, Errorf("unknown character '%v' in '%v'", c, s)
 		}
 	}
 
-	if player, err := PlayerFromString(playerString); err == nil {
+	if player, err := PlayerFromString(playerString); IsNil(err) {
 		game.Player = player
 	} else {
-		return GameState{}, fmt.Errorf("invalid player '%v' in '%v'", playerString, s)
+		return GameState{}, Errorf("invalid player '%v' in '%v'", playerString, s)
 	}
 
 	for _, c := range castlingRightsString {
@@ -141,23 +141,23 @@ func GamestateFromFenString(s string) (GameState, error) {
 
 	if enPassantTargetString == "-" {
 		game.EnPassantTarget = Empty[FileRank]()
-	} else if enPassantTarget, err := FileRankFromString(enPassantTargetString); err == nil {
+	} else if enPassantTarget, err := FileRankFromString(enPassantTargetString); IsNil(err) {
 		game.EnPassantTarget = Some(enPassantTarget)
 	} else {
-		return GameState{}, fmt.Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)
+		return GameState{}, Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)
 	}
 
-	if halfMoveClock, err := strconv.ParseInt(string(halfMoveClockString), 10, 0); err == nil {
+	if halfMoveClock, err := strconv.ParseInt(string(halfMoveClockString), 10, 0); IsNil(err) {
 		game.HalfMoveClock = int(halfMoveClock)
 	} else {
-		return GameState{}, fmt.Errorf("invalid half move clock '%v' in '%v'", halfMoveClockString, s)
+		return GameState{}, Errorf("invalid half move clock '%v' in '%v'", halfMoveClockString, s)
 	}
 
-	if fullMoveClock, err := strconv.ParseInt(string(fullMoveClockString), 10, 0); err == nil {
+	if fullMoveClock, err := strconv.ParseInt(string(fullMoveClockString), 10, 0); IsNil(err) {
 		game.FullMoveClock = int(fullMoveClock)
 	} else {
-		return GameState{}, fmt.Errorf("invalid full move clock '%v' in '%v'", fullMoveClockString, s)
+		return GameState{}, Errorf("invalid full move clock '%v' in '%v'", fullMoveClockString, s)
 	}
 
-	return game, nil
+	return game, NilError
 }

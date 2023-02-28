@@ -15,12 +15,12 @@ func TestIndexBug2(t *testing.T) {
 		Fen:   "2kr3r/p1p2ppp/2n1b3/2bqp3/Pp1p4/1P1P1N1P/2PBBPP1/R2Q1RK1 w - - 24 13",
 		Moves: []string{},
 	})
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	err = r.PerformMoveFromString("g2g4")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	move, err := r.Search()
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.True(t, move.HasValue())
 }
 
@@ -30,12 +30,12 @@ func TestIndexBug3(t *testing.T) {
 		Fen:   "2k1r3/8/2np2p1/p1bq4/Pp2P1P1/1P1p4/2PBQ3/R4RK1 w - - 48 25",
 		Moves: []string{},
 	})
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	err = r.PerformMoveFromString("d2e3")
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	move, err := r.Search()
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	assert.True(t, move.HasValue())
 }
 
@@ -52,15 +52,15 @@ func TestCastlingBug1(t *testing.T) {
 			Fen:   fen,
 			Moves: []string{},
 		})
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 
 		for _, m := range moves {
 			err := r.PerformMoveFromString(m)
-			assert.Nil(t, err)
+			assert.True(t, IsNil(err))
 		}
 
 		kingMoves, err := r.MovesForSelection("g8")
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 
 		for _, m := range kingMoves {
 			assert.NotEqual(t, "g8f8", m)
@@ -72,10 +72,10 @@ func TestCastlingBug1(t *testing.T) {
 			Fen:   fen,
 			Moves: moves,
 		})
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 
 		kingMoves, err := r.MovesForSelection("g8")
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 
 		for _, m := range kingMoves {
 			assert.NotEqual(t, "g8f8", m)
@@ -104,15 +104,15 @@ func TestStockfish(t *testing.T) {
 			Fen:   fen,
 			Moves: []string{},
 		})
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 
 		for _, m := range moves {
 			err := r.PerformMoveFromString(m)
-			assert.Nil(t, err)
+			assert.True(t, IsNil(err))
 		}
 
 		move, err := r.Search()
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 	}
 }
@@ -129,35 +129,35 @@ func TestBattle(t *testing.T) {
 	}
 
 	err := chessgo.SetupPosition(startPosition)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 	err = stockfish.SetupPosition(startPosition)
-	assert.Nil(t, err)
+	assert.True(t, IsNil(err))
 
 	for i := 0; i < 2; i++ {
-		var err error
+		var err Error
 		var move Optional[string]
 
 		move, err = chessgo.Search()
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 
 		fmt.Println("> chessgo: ", move)
 
 		err = chessgo.PerformMoveFromString(move.Value())
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 		err = stockfish.PerformMoveFromString(move.Value())
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 
 		move, err = stockfish.Search()
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 
 		fmt.Println("> stockfish: ", move)
 
 		err = chessgo.PerformMoveFromString(move.Value())
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 		err = stockfish.PerformMoveFromString(move.Value())
-		assert.Nil(t, err)
+		assert.True(t, IsNil(err))
 	}
 
 	assert.Equal(t, 4, len(chessgo.history))
