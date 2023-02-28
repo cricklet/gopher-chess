@@ -95,8 +95,10 @@ func (t PlayerType) String() string {
 		return "chessgo"
 	case Stockfish:
 		return "stockfish"
+	case Unknown:
+		return "unknown"
 	default:
-		return "unkown"
+		return "unknown"
 	}
 }
 
@@ -116,7 +118,7 @@ func serve() {
 	var upgrader = websocket.Upgrader{}
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
-		runner := Runner{}
+		runner := ChessGoRunner{}
 
 		whitePlayer := User
 		blackPlayer := User
@@ -305,7 +307,7 @@ func main() {
 		log.Println("starting webserver")
 		serve()
 	} else {
-		r := Runner{}
+		r := ChessGoRunner{}
 
 		scanner := bufio.NewScanner(os.Stdin)
 

@@ -12,7 +12,11 @@ import (
 	. "github.com/cricklet/chessgo/internal/search"
 )
 
-type Runner struct {
+type Runner interface {
+	HandleInput(input string) ([]string, error)
+}
+
+type ChessGoRunner struct {
 	Logger Logger
 
 	g *GameState
@@ -27,21 +31,21 @@ type HistoryValue struct {
 	update BoardUpdate
 }
 
-func (r *Runner) IsNew() bool {
+func (r *ChessGoRunner) IsNew() bool {
 	return r.g == nil || r.b == nil || len(r.history) == 0
 }
 
-func (r *Runner) LastMove() Optional[Move] {
+func (r *ChessGoRunner) LastMove() Optional[Move] {
 	if len(r.history) > 0 {
 		return Some(r.LastHistory().move)
 	}
 	return Empty[Move]()
 }
 
-func (r *Runner) LastHistory() *HistoryValue {
+func (r *ChessGoRunner) LastHistory() *HistoryValue {
 	return &r.history[len(r.history)-1]
 }
-func (r *Runner) Rewind(num int) error {
+func (r *ChessGoRunner) Rewind(num int) error {
 	for i := 0; i < MinInt(num, len(r.history)); i++ {
 		h := r.history[len(r.history)-1]
 		err := r.g.UndoUpdate(&h.update, r.b)
@@ -53,7 +57,7 @@ func (r *Runner) Rewind(num int) error {
 	return nil
 }
 
-func (r *Runner) PerformMove(move Move) error {
+func (r *ChessGoRunner) PerformMove(move Move) error {
 	r.history = append(r.history, HistoryValue{})
 
 	h := r.LastHistory()
@@ -67,27 +71,28 @@ func (r *Runner) PerformMove(move Move) error {
 	return nil
 }
 
-func (r *Runner) PerformMoveFromString(s string) error {
+func (r *ChessGoRunner) PerformMoveFromString(s string) error {
 	m := r.g.MoveFromString(s)
 	return r.PerformMove(m)
 }
 
-func (r *Runner) PerformMoves(startPos string, moves []string) error {
+func firstIndexMotMatching[A any, B any](a []A, b []B, matches func(A, B) bool) int {
+	for i := 0; i < MinInt(len(a), len(b)); i++ {
+		if !matches(a[i], b[i]) {
+			return i
+		}
+	}
+	return MinInt(len(a), len(b))
+}
+
+func (r *ChessGoRunner) PerformMoves(startPos string, moves []string) error {
 	if r.startPos != startPos {
 		panic("please use ucinewgame")
 	}
 
-	startIndex := 0
-	for i := 0; i < len(moves); i++ {
-		if r.history[i].move.String() != moves[i] {
-			err := r.Rewind(len(moves) - i)
-			if err != nil {
-				return err
-			}
-			startIndex = 0
-			break
-		}
-	}
+	startIndex := firstIndexMotMatching(r.history, moves, func(a HistoryValue, b string) bool {
+		return a.move.String() == b
+	})
 
 	for i := startIndex; i < len(moves); i++ {
 		err := r.PerformMove(r.g.MoveFromString(moves[i]))
@@ -99,7 +104,7 @@ func (r *Runner) PerformMoves(startPos string, moves []string) error {
 	return nil
 }
 
-func (r *Runner) SetupPosition(position Position) error {
+func (r *ChessGoRunner) SetupPosition(position Position) error {
 	if r.Logger == nil {
 		r.Logger = &DefaultLogger
 	}
@@ -158,7 +163,7 @@ func parsePosition(input string) Position {
 	return Position{parseFen(input), parseMoves(input)}
 }
 
-func (r *Runner) HandleInput(input string) ([]string, error) {
+func (r *ChessGoRunner) HandleInput(input string) ([]string, error) {
 	result := []string{}
 	if input == "uci" {
 		result = append(result, "id name chessgo 1")
@@ -185,11 +190,6 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		// move, err := Search(r.g, r.b, 3, r.Logger)
-		// if err != nil {
-		// 	return result, err
-		// }
-
 		searcher := NewSearcher(r.Logger, r.g, r.b)
 
 		go func() {
@@ -210,7 +210,7 @@ func (r *Runner) HandleInput(input string) ([]string, error) {
 	return result, nil
 }
 
-func (r *Runner) MovesForSelection(selection string) ([]string, error) {
+func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, error) {
 	selectionFileRank, err := FileRankFromString(selection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse selection %w", err)
@@ -231,10 +231,10 @@ func (r *Runner) MovesForSelection(selection string) ([]string, error) {
 	}), nil
 }
 
-func (r *Runner) FenString() string {
+func (r *ChessGoRunner) FenString() string {
 	return FenStringForGame(r.g)
 }
 
-func (r *Runner) Player() Player {
+func (r *ChessGoRunner) Player() Player {
 	return r.g.Player
 }

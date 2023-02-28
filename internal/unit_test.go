@@ -146,7 +146,7 @@ func TestUCI(t *testing.T) {
 		"position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 		"go",
 	}
-	r := Runner{}
+	r := ChessGoRunner{}
 	for _, line := range inputs {
 		log.Println(r.HandleInput(line))
 	}

@@ -1,29 +1,20 @@
 package runner
 
 import (
+	"bufio"
+	"errors"
+	"fmt"
+	"os/exec"
+	"strings"
 	"testing"
+	"time"
 
+	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIndexBug1(t *testing.T) {
-	r := Runner{}
-	for _, line := range []string{
-		"isready",
-		"uci",
-		"position fen rnbqkb1r/ppp2ppp/5n2/3pp3/4P3/2NP1N2/PPP1BPPP/R1BQK2R w KQkq - 10 6",
-	} {
-		_, err := r.HandleInput(line)
-		assert.Nil(t, err)
-	}
-	err := r.PerformMoveFromString("e1g1")
-	assert.Nil(t, err)
-	_, err = r.HandleInput("go")
-	assert.Nil(t, err)
-}
-
 func TestIndexBug2(t *testing.T) {
-	r := Runner{}
+	r := ChessGoRunner{}
 	for _, line := range []string{
 		"isready",
 		"uci",
@@ -40,7 +31,7 @@ func TestIndexBug2(t *testing.T) {
 }
 
 func TestIndexBug3(t *testing.T) {
-	r := Runner{}
+	r := ChessGoRunner{}
 	for _, line := range []string{
 		"isready",
 		"uci",
@@ -62,7 +53,7 @@ func TestCastlingBug1(t *testing.T) {
 		"e8g8",
 		"d3d4",
 	}
-	r := Runner{}
+	r := ChessGoRunner{}
 	for _, line := range []string{
 		"isready",
 		"uci",
@@ -83,4 +74,182 @@ func TestCastlingBug1(t *testing.T) {
 	for _, m := range kingMoves {
 		assert.NotEqual(t, "g8f8", m)
 	}
+}
+
+type UciIteration struct {
+	Input string
+	Wait  time.Duration
+
+	ExpectedOutput       Optional[string]
+	ExpectedOutputPrefix Optional[string]
+}
+
+func TestStockfishManually(t *testing.T) {
+	cmd := exec.Command("stockfish")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdOut, err := cmd.StdoutPipe()
+	assert.Nil(t, err)
+
+	stdOutScanner := bufio.NewScanner(bufio.NewReader(stdOut))
+
+	defer func() {
+		_ = cmd.Process.Kill()
+	}()
+
+	err = cmd.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stdOutChan := make(chan string)
+	go func() {
+		for stdOutScanner.Scan() {
+			stdOutChan <- stdOutScanner.Text()
+		}
+	}()
+
+	for _, it := range []UciIteration{
+		{"isready\n", time.Millisecond * 100, Some("readyok"), Empty[string]()},
+		{"uci\n", time.Millisecond * 100, Some("uciok"), Empty[string]()},
+		{"position startpos\n", time.Millisecond * 100, Empty[string](), Empty[string]()},
+		{"go\n", time.Millisecond * 100, Empty[string](), Empty[string]()},
+		{"stop\n", time.Millisecond * 100, Empty[string](), Some("bestmove")},
+	} {
+		timeoutChan := make(chan bool)
+		go func() {
+			time.Sleep(it.Wait)
+			timeoutChan <- true
+		}()
+
+		_, err := stdin.Write([]byte(it.Input))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectsOutput := it.ExpectedOutput.HasValue() || it.ExpectedOutputPrefix.HasValue()
+
+		done := false
+		for !done {
+			select {
+			case <-timeoutChan:
+				if expectsOutput {
+					t.Fatal(fmt.Errorf("timeout for %v without correct output", it))
+				}
+				done = true
+			case line := <-stdOutChan:
+				fmt.Println("$", strings.TrimSpace(it.Input), ">", line)
+
+				if it.ExpectedOutput.HasValue() && line == it.ExpectedOutput.Value() {
+					done = true
+				} else if it.ExpectedOutputPrefix.HasValue() && strings.HasPrefix(line, it.ExpectedOutputPrefix.Value()) {
+					done = true
+				}
+			}
+		}
+	}
+
+}
+
+func TestStockfish(t *testing.T) {
+	r := StockfishRunner{delay: time.Millisecond * 100}
+
+	for _, it := range []UciIteration{
+		{"isready\n", time.Millisecond * 100, Some("readyok"), Empty[string]()},
+		{"uci\n", time.Millisecond * 100, Some("uciok"), Empty[string]()},
+		{"position startpos\n", time.Millisecond * 100, Empty[string](), Empty[string]()},
+		{"go\n", time.Millisecond * 100, Empty[string](), Empty[string]()},
+		{"stop\n", time.Millisecond * 100, Empty[string](), Some("bestmove")},
+	} {
+		result, err := r.HandleInput(it.Input)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectsOutput := it.ExpectedOutput.HasValue() || it.ExpectedOutputPrefix.HasValue()
+
+		foundExpectedOutput := false
+		for _, line := range result {
+			fmt.Println("$", strings.TrimSpace(it.Input), ">", line)
+
+			if it.ExpectedOutput.HasValue() && line == it.ExpectedOutput.Value() {
+				foundExpectedOutput = true
+			} else if it.ExpectedOutputPrefix.HasValue() && strings.HasPrefix(line, it.ExpectedOutputPrefix.Value()) {
+				foundExpectedOutput = true
+			}
+		}
+
+		if expectsOutput && !foundExpectedOutput {
+			t.Fatal(fmt.Errorf("expected output not found: %s", it.Input))
+		}
+	}
+
+}
+
+func TestBattle(t *testing.T) {
+	chessgo := ChessGoRunner{}
+	stockfish := StockfishRunner{delay: time.Millisecond * 100}
+
+	// Setup both runners
+	for _, line := range []string{
+		"isready",
+		"uci",
+		"position startpos",
+	} {
+		_, err := chessgo.HandleInput(line)
+		assert.Nil(t, err)
+		_, err = stockfish.HandleInput(line)
+		assert.Nil(t, err)
+	}
+
+	// Play a game
+	var getMoveFromRunner = func(r Runner) (string, error) {
+		var err error
+		var stopResult, goResult []string
+		goResult, err = r.HandleInput("go")
+		assert.Nil(t, err)
+		stopResult, err = r.HandleInput("stop")
+		assert.Nil(t, err)
+
+		for _, line := range append(goResult, stopResult...) {
+			if strings.HasPrefix(line, "bestmove") {
+				return strings.Split(line, " ")[1], nil
+			}
+		}
+		return "", errors.New("no bestmove found")
+	}
+
+	moveHistory := []string{}
+
+	for i := 0; i < 2; i++ {
+		var err error
+		var move string
+		move, err = getMoveFromRunner(&chessgo)
+		assert.Nil(t, err)
+		moveHistory = append(moveHistory, move)
+
+		fmt.Println("> chessgo: ", move)
+
+		_, err = chessgo.HandleInput("position startpos moves " + strings.Join(moveHistory, " "))
+		assert.Nil(t, err)
+
+		_, err = stockfish.HandleInput("position startpos moves " + strings.Join(moveHistory, " "))
+		assert.Nil(t, err)
+
+		move, err = getMoveFromRunner(&stockfish)
+		assert.Nil(t, err)
+		moveHistory = append(moveHistory, move)
+
+		_, err = chessgo.HandleInput("position startpos moves " + strings.Join(moveHistory, " "))
+		assert.Nil(t, err)
+
+		_, err = stockfish.HandleInput("position startpos moves " + strings.Join(moveHistory, " "))
+		assert.Nil(t, err)
+
+		fmt.Println("> stockfish: ", move)
+	}
+
+	assert.Equal(t, 4, len(chessgo.history))
 }
