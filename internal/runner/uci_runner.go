@@ -1,11 +1,9 @@
-package uci
+package runner
 
 import (
 	"errors"
 	"fmt"
 	"strings"
-
-	. "github.com/cricklet/chessgo/internal/runner"
 )
 
 type UciRunner struct {

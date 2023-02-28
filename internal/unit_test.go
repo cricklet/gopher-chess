@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
@@ -1323,4 +1324,35 @@ func TestPlayerFromPiece(t *testing.T) {
 	}
 	lookupProgress.Close()
 
+}
+
+func TestChannels(t *testing.T) {
+	doneChan := make(chan bool)
+
+	intChan := make(chan int)
+	go func() {
+		intChan <- 1
+		intChan <- 2
+		time.Sleep(100 * time.Millisecond)
+		intChan <- 3
+		intChan <- 4
+		time.Sleep(100 * time.Millisecond)
+		intChan <- 5
+		intChan <- 6
+		doneChan <- true
+	}()
+
+	done := false
+	seen := make(map[int]bool)
+
+	time.Sleep(100 * time.Millisecond)
+	for !done {
+		select {
+		case y := <-intChan:
+			seen[y] = true
+		case <-doneChan:
+			done = true
+		}
+	}
+	assert.Equal(t, 6, len(seen))
 }

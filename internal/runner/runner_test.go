@@ -119,7 +119,7 @@ func TestStockfish(t *testing.T) {
 
 func TestBattle(t *testing.T) {
 	chessgo := ChessGoRunner{}
-	stockfish := StockfishRunner{Delay: time.Millisecond * 100}
+	stockfish := StockfishRunner{}
 
 	// Setup both runners
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"

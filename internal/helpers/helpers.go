@@ -40,6 +40,11 @@ func FindInSlice[T any](ts []T, f func(T) bool) Optional[T] {
 	}
 	return Empty[T]()
 }
+func Contains[T comparable](ts []T, t T) bool {
+	return FindInSlice(ts, func(v T) bool {
+		return v == t
+	}).HasValue()
+}
 
 func ReduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
 	u := initial

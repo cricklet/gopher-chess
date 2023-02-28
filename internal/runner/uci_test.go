@@ -1,4 +1,4 @@
-package uci
+package runner
 
 import (
 	"bufio"
@@ -10,18 +10,17 @@ import (
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/runner"
 	"github.com/stretchr/testify/assert"
 )
 
-func allRunners() []runner.Runner {
-	return []runner.Runner{
-		&runner.StockfishRunner{},
-		&runner.ChessGoRunner{},
+func allRunners() []Runner {
+	return []Runner{
+		&StockfishRunner{},
+		&ChessGoRunner{},
 	}
 }
 
-func TestUCI(t *testing.T) {
+func TestUci(t *testing.T) {
 	for _, runner := range allRunners() {
 		inputs := []string{
 			"isready",
@@ -36,7 +35,7 @@ func TestUCI(t *testing.T) {
 	}
 }
 
-func TestIndexBug2(t *testing.T) {
+func TestUciIndexBug2(t *testing.T) {
 	for _, runner := range allRunners() {
 		r := UciRunner{runner}
 		for _, line := range []string{
@@ -54,7 +53,7 @@ func TestIndexBug2(t *testing.T) {
 	}
 }
 
-func TestIndexBug3(t *testing.T) {
+func TestUciIndexBug3(t *testing.T) {
 	for _, runner := range allRunners() {
 		r := UciRunner{runner}
 		for _, line := range []string{
@@ -72,7 +71,7 @@ func TestIndexBug3(t *testing.T) {
 	}
 }
 
-func TestCastlingBug1(t *testing.T) {
+func TestUciCastlingBug1(t *testing.T) {
 	for _, runner := range allRunners() {
 		r := UciRunner{runner}
 		fen := "rn1qk2r/ppp3pp/3b1n2/3ppb2/8/2NPBNP1/PPP2PBP/R2QK2R b KQkq - 15 8"
@@ -93,15 +92,7 @@ func TestCastlingBug1(t *testing.T) {
 	}
 }
 
-type UciIteration struct {
-	Input string
-	Wait  time.Duration
-
-	ExpectedOutput       Optional[string]
-	ExpectedOutputPrefix Optional[string]
-}
-
-func TestStockfishManually(t *testing.T) {
+func TestUciStockfishManually(t *testing.T) {
 	cmd := exec.Command("stockfish")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
