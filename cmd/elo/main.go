@@ -95,8 +95,8 @@ func main() {
 	defer opponent.Close()
 
 	var runAsyncCheckingErrors = func(binary *BinaryRunner, cmd string) {
-		if IsNil(err) {
-			return
+		if !IsNil(err) {
+			panic(err)
 		}
 		err = binary.RunAsync(cmd)
 	}

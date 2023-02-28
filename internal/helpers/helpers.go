@@ -4,11 +4,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 )
 
 type Success bool
 
 func Ignore(t ...any) {
+}
+
+func Indent(s string, x string) string {
+	return strings.ReplaceAll(s, "\n", "\n"+x)
 }
 
 func Last[T any](ts []T) T {

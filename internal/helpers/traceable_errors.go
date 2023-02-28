@@ -22,11 +22,11 @@ func IsNil(err error) bool {
 }
 
 func (e Error) Error() string {
-	return tracerr.SprintSourceColor(e.err, 1)
+	return Indent(tracerr.SprintSourceColor(e.err, 3), ". ")
 }
 
 func (e Error) String() string {
-	return tracerr.SprintSourceColor(e.err, 1)
+	return tracerr.SprintSourceColor(e.err, 3)
 }
 
 func (e Error) First() tracerr.Error {
