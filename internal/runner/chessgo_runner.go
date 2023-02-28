@@ -3,7 +3,6 @@ package runner
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -13,7 +12,14 @@ import (
 )
 
 type Runner interface {
-	HandleInput(input string) ([]string, error)
+	PerformMoveFromString(s string) error
+	SetupPosition(position Position) error
+	PerformMoves(startPos string, moves []string) error
+	MovesForSelection(s string) ([]string, error)
+	Rewind(num int) error
+	Reset()
+	Search() (Optional[string], error)
+	IsNew() bool
 }
 
 type ChessGoRunner struct {
@@ -26,13 +32,22 @@ type ChessGoRunner struct {
 	history  []HistoryValue
 }
 
+var _ Runner = (*ChessGoRunner)(nil)
+
 type HistoryValue struct {
 	move   Move
 	update BoardUpdate
 }
 
+func (r *ChessGoRunner) Reset() {
+	r.g = nil
+	r.b = nil
+	r.StartFen = ""
+	r.history = []HistoryValue{}
+}
+
 func (r *ChessGoRunner) IsNew() bool {
-	return r.g == nil || r.b == nil || len(r.history) == 0
+	return r.g == nil || r.b == nil
 }
 
 func (r *ChessGoRunner) LastMove() Optional[Move] {
@@ -73,9 +88,7 @@ func (r *ChessGoRunner) PerformMove(move Move) error {
 
 func (r *ChessGoRunner) PerformMoveFromString(s string) error {
 	m := r.g.MoveFromString(s)
-	r.Logger.Println(r.g.Board.String())
 	err := r.PerformMove(m)
-	r.Logger.Println(r.g.Board.String())
 	return err
 }
 
@@ -115,7 +128,7 @@ func (r *ChessGoRunner) SetupPosition(position Position) error {
 		return errors.New("please use ucinewgame")
 	}
 
-	game, err := GamestateFromFenString(position.fen)
+	game, err := GamestateFromFenString(position.Fen)
 	if err != nil {
 		return fmt.Errorf("couldn't create game from %v, %w", position, err)
 	}
@@ -124,9 +137,9 @@ func (r *ChessGoRunner) SetupPosition(position Position) error {
 	bitboards := r.g.CreateBitboards()
 	r.b = &bitboards
 
-	r.StartFen = position.fen
+	r.StartFen = position.Fen
 
-	for _, m := range position.moves {
+	for _, m := range position.Moves {
 		err := r.PerformMove(r.g.MoveFromString(m))
 		if err != nil {
 			return err
@@ -137,80 +150,8 @@ func (r *ChessGoRunner) SetupPosition(position Position) error {
 }
 
 type Position struct {
-	fen   string
-	moves []string
-}
-
-func parseFen(input string) string {
-	s := strings.TrimPrefix(input, "position ")
-
-	if strings.HasPrefix(s, "fen ") {
-		s = strings.TrimPrefix(s, "fen ")
-		return strings.Split(s, " moves ")[0]
-	} else if strings.HasPrefix(s, "startpos") {
-		return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-	}
-
-	panic(fmt.Errorf("couldn't parse '%v'", s))
-}
-func parseMoves(input string) []string {
-	result := []string{}
-	if strings.Contains(input, " moves ") {
-		fields := strings.Fields(strings.SplitN(input, " moves ", 2)[1])
-		result = append(result, fields...)
-	}
-	return result
-}
-
-func parsePosition(input string) Position {
-	return Position{parseFen(input), parseMoves(input)}
-}
-
-func (r *ChessGoRunner) HandleInput(input string) ([]string, error) {
-	result := []string{}
-	if input == "uci" {
-		result = append(result, "id name chessgo 1")
-		result = append(result, "id author Kenrick Rilee")
-		result = append(result, "uciok")
-	} else if input == "ucinewgame" {
-		r.g = nil
-		r.b = nil
-		r.StartFen = ""
-		r.history = []HistoryValue{}
-	} else if input == "isready" {
-		result = append(result, "readyok")
-	} else if strings.HasPrefix(input, "position ") {
-		position := parsePosition(input)
-		if r.IsNew() {
-			err := r.SetupPosition(position)
-			if err != nil {
-				return result, err
-			}
-		} else {
-			err := r.PerformMoves(position.fen, position.moves)
-			if err != nil {
-				return result, err
-			}
-		}
-	} else if strings.HasPrefix(input, "go") {
-		searcher := NewSearcher(r.Logger, r.g, r.b)
-
-		go func() {
-			time.Sleep(2 * time.Second)
-			searcher.OutOfTime = true
-		}()
-
-		move, errs := searcher.Search()
-		if len(errs) != 0 {
-			return result, errors.Join(errs...)
-		}
-
-		if move.IsEmpty() {
-			return result, errors.New("no legal moves")
-		}
-		result = append(result, fmt.Sprintf("bestmove %v", move.Value().String()))
-	}
-	return result, nil
+	Fen   string
+	Moves []string
 }
 
 func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, error) {
@@ -238,13 +179,32 @@ func (r *ChessGoRunner) FenString() string {
 	return FenStringForGame(r.g)
 }
 
-func (r *ChessGoRunner) FenStringWithMoves() string {
-	movesHistory := MapSlice(r.history, func(h HistoryValue) string {
+func (r *ChessGoRunner) MoveHistory() []string {
+	return MapSlice(r.history, func(h HistoryValue) string {
 		return h.move.String()
 	})
-	return r.StartFen + " moves " + strings.Join(movesHistory, " ")
 }
 
 func (r *ChessGoRunner) Player() Player {
 	return r.g.Player
+}
+
+func (r *ChessGoRunner) Search() (Optional[string], error) {
+	searcher := NewSearcher(r.Logger, r.g, r.b)
+
+	go func() {
+		time.Sleep(2 * time.Second)
+		searcher.OutOfTime = true
+	}()
+
+	move, errs := searcher.Search()
+	if len(errs) != 0 {
+		return Empty[string](), errors.Join(errs...)
+	}
+
+	if move.HasValue() {
+		return Some(move.Value().String()), nil
+	}
+
+	return Empty[string](), nil
 }

@@ -10,7 +10,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	. "github.com/cricklet/chessgo/internal/runner"
 	. "github.com/cricklet/chessgo/internal/search"
 
 	"github.com/pkg/profile"
@@ -137,19 +136,6 @@ func TestNotationDecoding2(t *testing.T) {
 
 	assert.Equal(t, g.HalfMoveClock, 99)
 	assert.Equal(t, g.FullMoveClock, 50)
-}
-
-func TestUCI(t *testing.T) {
-	inputs := []string{
-		"isready",
-		"uci",
-		"position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-		"go",
-	}
-	r := ChessGoRunner{}
-	for _, line := range inputs {
-		log.Println(r.HandleInput(line))
-	}
 }
 
 func TestSingleBoards(t *testing.T) {

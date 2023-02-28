@@ -6,7 +6,8 @@ import (
 	"os"
 	"runtime/debug"
 
-	. "github.com/cricklet/chessgo/internal/runner"
+	"github.com/cricklet/chessgo/internal/runner"
+	. "github.com/cricklet/chessgo/internal/uci"
 )
 
 func main() {
@@ -17,7 +18,9 @@ func main() {
 		}
 	}()
 
-	r := ChessGoRunner{}
+	r := UciRunner{
+		Runner: &runner.ChessGoRunner{},
+	}
 
 	scanner := bufio.NewScanner(os.Stdin)
 

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -205,38 +204,23 @@ func main() {
 
 			runner := runnerForPlayer(chessGoRunner.Player())
 
-			results := []string{}
+			err := runner.PerformMoves(chessGoRunner.StartFen, chessGoRunner.MoveHistory())
+			if err != nil {
+				logger.Println("setup: ", err)
+				return false
+			}
 
-			result, err := runner.HandleInput("position fen " + chessGoRunner.FenStringWithMoves())
-			results = append(results, result...)
+			bestMove, err := runner.Search()
 			if err != nil {
 				logger.Println("search: ", err)
 				return false
 			}
 
-			result, err = runner.HandleInput("go")
-			results = append(results, result...)
-			if err != nil {
-				logger.Println("search: ", err)
-				return false
-			}
-
-			result, err = runner.HandleInput("stop")
-			results = append(results, result...)
-			if err != nil {
-				logger.Println("search: ", err)
-				return false
-			}
-
-			bestMoveString := FindInSlice(results, func(v string) bool {
-				return strings.HasPrefix(v, "bestmove ")
-			})
-			if bestMoveString.HasValue() {
-				logger.Println("found move", bestMoveString.Value())
-				err := chessGoRunner.PerformMoveFromString(
-					strings.TrimPrefix(bestMoveString.Value(), "bestmove "))
+			if bestMove.HasValue() {
+				logger.Println("search: ", bestMove.Value())
+				err := chessGoRunner.PerformMoveFromString(bestMove.Value())
 				if err != nil {
-					logger.Println("perform: ", bestMoveString.Value(), err)
+					logger.Println("perform: ", bestMove.Value(), err)
 					return false
 				}
 			} else {
@@ -259,21 +243,19 @@ func main() {
 			shouldUpdate := false
 
 			if message.NewFen != nil {
-				for _, command := range []string{
-					"isready",
-					"uci",
-					"ucinewgame",
-					fmt.Sprintf("position fen %v", *message.NewFen),
-				} {
-					logger.Printf("uci '%v'\n", command)
-					_, err := chessGoRunner.HandleInput(command)
-					if err != nil {
-						logger.Println("setup chessgo: ", command, err) // TODO reset
-					}
-					_, err = stockfishRunner.HandleInput(command)
-					if err != nil {
-						logger.Println("setup stockfish: ", command, err) // TODO reset
-					}
+				err := chessGoRunner.SetupPosition(Position{
+					Fen:   *message.NewFen,
+					Moves: []string{},
+				})
+				if err != nil {
+					logger.Println("chessgo setup: ", err)
+				}
+				err = stockfishRunner.SetupPosition(Position{
+					Fen:   *message.NewFen,
+					Moves: []string{},
+				})
+				if err != nil {
+					logger.Println("stockfish setup: ", err)
 				}
 			} else if message.WhitePlayer != nil {
 				playerTypes[White] = PlayerTypeFromString(*message.WhitePlayer)
@@ -326,7 +308,7 @@ func main() {
 	}
 
 	var index = func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./static/index.html")
+		http.ServeFile(w, r, "../static/index.html")
 	}
 
 	log.Println("serving")
@@ -334,7 +316,7 @@ func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/ws", ws)
 	router.PathPrefix("/static").Handler(
-		http.StripPrefix("/static", http.FileServer(http.Dir("./static"))))
+		http.StripPrefix("/static", http.FileServer(http.Dir("../static"))))
 	router.PathPrefix("/{white}/{black}").HandlerFunc(index)
 	router.PathPrefix("/{white}/{black}/fen").HandlerFunc(index)
 	router.HandleFunc("/", index)
