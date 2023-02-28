@@ -22,7 +22,7 @@ type ChessGoRunner struct {
 	g *GameState
 	b *Bitboards
 
-	startPos string
+	StartFen string
 	history  []HistoryValue
 }
 
@@ -73,7 +73,10 @@ func (r *ChessGoRunner) PerformMove(move Move) error {
 
 func (r *ChessGoRunner) PerformMoveFromString(s string) error {
 	m := r.g.MoveFromString(s)
-	return r.PerformMove(m)
+	r.Logger.Println(r.g.Board.String())
+	err := r.PerformMove(m)
+	r.Logger.Println(r.g.Board.String())
+	return err
 }
 
 func firstIndexMotMatching[A any, B any](a []A, b []B, matches func(A, B) bool) int {
@@ -86,8 +89,8 @@ func firstIndexMotMatching[A any, B any](a []A, b []B, matches func(A, B) bool) 
 }
 
 func (r *ChessGoRunner) PerformMoves(startPos string, moves []string) error {
-	if r.startPos != startPos {
-		panic("please use ucinewgame")
+	if r.StartFen != startPos {
+		return fmt.Errorf("positions don't match: %v != %v", r.StartFen, startPos)
 	}
 
 	startIndex := firstIndexMotMatching(r.history, moves, func(a HistoryValue, b string) bool {
@@ -121,7 +124,7 @@ func (r *ChessGoRunner) SetupPosition(position Position) error {
 	bitboards := r.g.CreateBitboards()
 	r.b = &bitboards
 
-	r.startPos = position.fen
+	r.StartFen = position.fen
 
 	for _, m := range position.moves {
 		err := r.PerformMove(r.g.MoveFromString(m))
@@ -172,7 +175,7 @@ func (r *ChessGoRunner) HandleInput(input string) ([]string, error) {
 	} else if input == "ucinewgame" {
 		r.g = nil
 		r.b = nil
-		r.startPos = ""
+		r.StartFen = ""
 		r.history = []HistoryValue{}
 	} else if input == "isready" {
 		result = append(result, "readyok")
@@ -233,6 +236,13 @@ func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, error) {
 
 func (r *ChessGoRunner) FenString() string {
 	return FenStringForGame(r.g)
+}
+
+func (r *ChessGoRunner) FenStringWithMoves() string {
+	movesHistory := MapSlice(r.history, func(h HistoryValue) string {
+		return h.move.String()
+	})
+	return r.StartFen + " moves " + strings.Join(movesHistory, " ")
 }
 
 func (r *ChessGoRunner) Player() Player {

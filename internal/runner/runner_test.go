@@ -154,7 +154,7 @@ func TestStockfishManually(t *testing.T) {
 }
 
 func TestStockfish(t *testing.T) {
-	r := StockfishRunner{delay: time.Millisecond * 100}
+	r := StockfishRunner{Delay: time.Millisecond * 100}
 
 	for _, it := range []UciIteration{
 		{"isready\n", time.Millisecond * 100, Some("readyok"), Empty[string]()},
@@ -190,7 +190,7 @@ func TestStockfish(t *testing.T) {
 
 func TestBattle(t *testing.T) {
 	chessgo := ChessGoRunner{}
-	stockfish := StockfishRunner{delay: time.Millisecond * 100}
+	stockfish := StockfishRunner{Delay: time.Millisecond * 100}
 
 	// Setup both runners
 	for _, line := range []string{

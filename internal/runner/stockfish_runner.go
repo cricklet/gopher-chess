@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type StockfishRunner struct {
@@ -15,7 +17,8 @@ type StockfishRunner struct {
 	stdoutChan chan string
 	stderrChan chan string
 
-	delay time.Duration
+	Delay  time.Duration
+	Logger Logger
 }
 
 func (r *StockfishRunner) HandleInput(input string) ([]string, error) {
@@ -23,6 +26,10 @@ func (r *StockfishRunner) HandleInput(input string) ([]string, error) {
 	var err error
 
 	if r.cmd == nil {
+		if r.Logger == nil {
+			r.Logger = &DefaultLogger
+		}
+
 		r.cmd = exec.Command("stockfish")
 		r.stdin, err = r.cmd.StdinPipe()
 		if err != nil {
@@ -68,7 +75,7 @@ func (r *StockfishRunner) HandleInput(input string) ([]string, error) {
 
 	timeoutChan := make(chan bool)
 	go func() {
-		time.Sleep(r.delay)
+		time.Sleep(r.Delay)
 		timeoutChan <- true
 	}()
 
@@ -78,6 +85,9 @@ func (r *StockfishRunner) HandleInput(input string) ([]string, error) {
 		case <-timeoutChan:
 			done = true
 		case output := <-r.stdoutChan:
+			if !strings.HasPrefix(output, "option") && !strings.HasPrefix(output, "id") {
+				r.Logger.Println(output)
+			}
 			result = append(result, output)
 			if input == "isready" && output == "readyok" {
 				done = true

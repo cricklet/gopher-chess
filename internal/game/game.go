@@ -37,7 +37,10 @@ func (g *GameState) MoveFromString(s string) Move {
 
 	promotion := Empty[PieceType]()
 	if utf8.RuneCountInString(s) >= 5 {
-		promotion = Some(PieceTypeFromString(s[4:5]))
+		p := PieceTypeFromString(s[4:5])
+		if p != InvalidPiece {
+			promotion = Some(p)
+		}
 	}
 
 	var moveType MoveType

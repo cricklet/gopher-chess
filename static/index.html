@@ -492,7 +492,7 @@
 
     function send(obj) {
         const message = JSON.stringify(obj)
-        log("sending", message)
+        log("$ sending", message)
         socket.send(message)
     }
 
@@ -587,7 +587,7 @@
                     log(">", line)
                 }
             } else {
-                log('received', data)
+                log('$ received', data)
                 board = parseFenBoardString(data.fenString)
 
                 selectedFileRank = data.selection ? fileRankFromString(data.selection) : null

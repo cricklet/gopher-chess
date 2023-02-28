@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/runner"
@@ -118,50 +119,73 @@ func serve() {
 	var upgrader = websocket.Upgrader{}
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
-		runner := ChessGoRunner{}
+		chessGoRunner := ChessGoRunner{}
+		stockfishRunner := StockfishRunner{Delay: time.Millisecond * 10}
 
-		whitePlayer := User
-		blackPlayer := User
+		playerTypes := [2]PlayerType{User, User}
 		ready := false
+
+		var runnerForPlayer = func(p Player) Runner {
+			if playerTypes[p] == ChessGo {
+				return &chessGoRunner
+			} else if playerTypes[p] == Stockfish {
+				return &stockfishRunner
+			}
+			return nil
+		}
 
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			panic(err)
 		}
 
-		runner.Logger = &LogForwarding{
-			func(message string) {
-				log.Print("logging: ", message)
-				bytes, err := json.Marshal([]string{"server: " + message})
-				if err != nil {
-					fmt.Fprintln(os.Stderr, fmt.Sprint("logging: json marshal: ", err))
-				}
-				err = c.WriteMessage(websocket.TextMessage, bytes)
-				if err != nil {
-					fmt.Fprintln(os.Stderr, fmt.Sprint("logging: websocket: ", err))
-				}
+		var log = func(message string) {
+			log.Print("logging: ", message)
+			bytes, err := json.Marshal([]string{message})
+			if err != nil {
+				fmt.Fprintln(os.Stderr, fmt.Sprint("logging: json marshal: ", err))
+			}
+			err = c.WriteMessage(websocket.TextMessage, bytes)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, fmt.Sprint("logging: websocket: ", err))
+			}
+		}
+
+		logger := &LogForwarding{
+			writeCallback: func(message string) {
+				log(fmt.Sprintf("server: %v", message))
+			},
+		}
+		chessGoRunner.Logger = &LogForwarding{
+			writeCallback: func(message string) {
+				log(fmt.Sprintf("chessgo: %v", message))
+			},
+		}
+		stockfishRunner.Logger = &LogForwarding{
+			writeCallback: func(message string) {
+				log(fmt.Sprintf("stockfish: %v", message))
 			},
 		}
 
 		var finalizeUpdate = func(update UpdateToWeb) {
-			update.FenString = runner.FenString()
-			if runner.Player() == White {
+			update.FenString = chessGoRunner.FenString()
+			if chessGoRunner.Player() == White {
 				update.Player = "white"
 			} else {
 				update.Player = "black"
 			}
-			if lastMove := runner.LastMove(); lastMove.HasValue() {
+			if lastMove := chessGoRunner.LastMove(); lastMove.HasValue() {
 				update.LastMove = lastMove.Value().String()
 			}
 
-			runner.Logger.Println("sending", update)
+			logger.Println("sending", update)
 			bytes, err := json.Marshal(update)
 			if err != nil {
-				runner.Logger.Println("update: json marshal: ", err)
+				logger.Println("update: json marshal: ", err)
 			}
 			err = c.WriteMessage(websocket.TextMessage, bytes)
 			if err != nil {
-				runner.Logger.Println("websocket: ", err)
+				logger.Println("websocket: ", err)
 			}
 		}
 
@@ -169,30 +193,49 @@ func serve() {
 			if !ready {
 				return false
 			}
-			if (runner.Player() == White && whitePlayer != ChessGo) ||
-				(runner.Player() == Black && blackPlayer != ChessGo) {
+			if playerTypes[chessGoRunner.Player()] == User {
 				return false
 			}
 
-			result, err := runner.HandleInput("go")
+			runner := runnerForPlayer(chessGoRunner.Player())
+
+			results := []string{}
+
+			result, err := runner.HandleInput("position fen " + chessGoRunner.FenStringWithMoves())
+			results = append(results, result...)
 			if err != nil {
-				runner.Logger.Println("search: ", err)
+				logger.Println("search: ", err)
 				return false
 			}
 
-			bestMoveString := FindInSlice(result, func(v string) bool {
+			result, err = runner.HandleInput("go")
+			results = append(results, result...)
+			if err != nil {
+				logger.Println("search: ", err)
+				return false
+			}
+
+			result, err = runner.HandleInput("stop")
+			results = append(results, result...)
+			if err != nil {
+				logger.Println("search: ", err)
+				return false
+			}
+
+			bestMoveString := FindInSlice(results, func(v string) bool {
 				return strings.HasPrefix(v, "bestmove ")
 			})
 			if bestMoveString.HasValue() {
-				runner.Logger.Println("found move", bestMoveString.Value())
-			}
-			if bestMoveString.HasValue() {
-				err := runner.PerformMoveFromString(
+				logger.Println("found move", bestMoveString.Value())
+				err := chessGoRunner.PerformMoveFromString(
 					strings.TrimPrefix(bestMoveString.Value(), "bestmove "))
 				if err != nil {
-					runner.Logger.Println("perform %v: ", bestMoveString.Value(), err)
+					logger.Println("perform: ", bestMoveString.Value(), err)
 					return false
 				}
+			} else {
+				logger.Println("no move found")
+				return false
 			}
 
 			return true
@@ -202,9 +245,9 @@ func serve() {
 			var message MessageFromWeb
 			err := json.Unmarshal(bytes, &message)
 			if err != nil {
-				runner.Logger.Println("handleMessageFromWeb: json unmarshal: ", err)
+				logger.Println("handleMessageFromWeb: json unmarshal: ", err)
 			}
-			runner.Logger.Println("received", message)
+			logger.Println("received", message)
 
 			var update UpdateToWeb
 			shouldUpdate := false
@@ -216,36 +259,40 @@ func serve() {
 					"ucinewgame",
 					fmt.Sprintf("position fen %v", *message.NewFen),
 				} {
-					runner.Logger.Println(command)
-					_, err := runner.HandleInput(command)
+					logger.Printf("uci '%v'\n", command)
+					_, err := chessGoRunner.HandleInput(command)
 					if err != nil {
-						runner.Logger.Println("setup %v: ", command, err) // TODO reset
+						logger.Println("setup chessgo: ", command, err) // TODO reset
+					}
+					_, err = stockfishRunner.HandleInput(command)
+					if err != nil {
+						logger.Println("setup stockfish: ", command, err) // TODO reset
 					}
 				}
 			} else if message.WhitePlayer != nil {
-				whitePlayer = PlayerTypeFromString(*message.WhitePlayer)
+				playerTypes[White] = PlayerTypeFromString(*message.WhitePlayer)
 			} else if message.BlackPlayer != nil {
-				blackPlayer = PlayerTypeFromString(*message.BlackPlayer)
+				playerTypes[Black] = PlayerTypeFromString(*message.BlackPlayer)
 			} else if message.Selection != nil {
 				if *message.Selection != "" {
 					update.Selection = *message.Selection
-					result, err := runner.MovesForSelection(*message.Selection)
+					result, err := chessGoRunner.MovesForSelection(*message.Selection)
 					if err != nil {
-						runner.Logger.Println("moves for %v: ", message.Selection, err)
+						logger.Println("moves for: ", message.Selection, err)
 					}
 					update.PossibleMoves = result
 				}
 				shouldUpdate = true
 			} else if message.Move != nil {
-				err := runner.PerformMoveFromString(*message.Move)
+				err := chessGoRunner.PerformMoveFromString(*message.Move)
 				if err != nil {
-					runner.Logger.Println("perform %v: ", message.Move, err) // TODO reset
+					logger.Println("perform: ", message.Move, err) // TODO reset
 				}
 				shouldUpdate = true
 			} else if message.Rewind != nil {
-				err := runner.Rewind(*message.Rewind)
+				err := chessGoRunner.Rewind(*message.Rewind)
 				if err != nil {
-					runner.Logger.Println("rewind %v: ", message.Rewind, err) // TODO reset
+					logger.Println("rewind: ", message.Rewind, err) // TODO reset
 				}
 				shouldUpdate = true
 			} else if message.Ready != nil {
@@ -264,7 +311,7 @@ func serve() {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				runner.Logger.Printf("Error: %v", err)
+				logger.Printf("Error: %v", err)
 				break
 			} else {
 				handleMessageFromWeb(message)
