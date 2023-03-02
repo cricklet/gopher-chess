@@ -11,17 +11,17 @@ type UciRunner struct {
 	Runner Runner
 }
 
-func parseFen(input string) string {
+func parseFen(input string) (string, Error) {
 	s := strings.TrimPrefix(input, "position ")
 
 	if strings.HasPrefix(s, "fen ") {
 		s = strings.TrimPrefix(s, "fen ")
-		return strings.Split(s, " moves ")[0]
+		return strings.Split(s, " moves ")[0], NilError
 	} else if strings.HasPrefix(s, "startpos") {
-		return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+		return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", NilError
 	}
 
-	panic(Errorf("couldn't parse '%v'", s))
+	return "", Errorf("couldn't parse fen '%v'", input)
 }
 
 func parseMoves(input string) []string {
@@ -33,8 +33,9 @@ func parseMoves(input string) []string {
 	return result
 }
 
-func parsePosition(input string) Position {
-	return Position{Fen: parseFen(input), Moves: parseMoves(input)}
+func parsePosition(input string) (Position, Error) {
+	fen, err := parseFen(input)
+	return Position{Fen: fen, Moves: parseMoves(input)}, err
 }
 
 func (u *UciRunner) HandleInput(input string) ([]string, Error) {
@@ -48,14 +49,18 @@ func (u *UciRunner) HandleInput(input string) ([]string, Error) {
 	} else if input == "isready" {
 		result = append(result, "readyok")
 	} else if strings.HasPrefix(input, "position ") {
-		position := parsePosition(input)
+		position, err := parsePosition(input)
+		if !IsNil(err) {
+			return result, err
+		}
+
 		if u.Runner.IsNew() {
-			err := u.Runner.SetupPosition(position)
+			err = u.Runner.SetupPosition(position)
 			if !IsNil(err) {
 				return result, err
 			}
 		} else {
-			err := u.Runner.PerformMoves(position.Fen, position.Moves)
+			err = u.Runner.PerformMoves(position.Fen, position.Moves)
 			if !IsNil(err) {
 				return result, err
 			}

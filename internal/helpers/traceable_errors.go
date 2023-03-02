@@ -21,8 +21,15 @@ func IsNil(err error) bool {
 	return err == nil
 }
 
+var _errorNumber = 0
+var _errorIndents = []string{
+	".  ",
+	"-  ",
+}
+
 func (e Error) Error() string {
-	return Indent(tracerr.SprintSourceColor(e.err, 3), ". ")
+	_errorNumber = (_errorNumber + 1) % len(_errorIndents)
+	return Indent(tracerr.SprintSourceColor(e.err, 3), _errorIndents[_errorNumber])
 }
 
 func (e Error) String() string {

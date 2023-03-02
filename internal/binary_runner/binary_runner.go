@@ -2,9 +2,11 @@ package binary_runner
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -13,10 +15,11 @@ import (
 type BinaryRunner struct {
 	cmdPath string
 	cmd     *exec.Cmd
-	stdin   io.Writer
 
+	stdin      ReadableWriter
 	stdoutChan chan string
-	stderrChan chan string
+
+	stdRecord []string
 
 	timeout time.Duration
 	logger  Logger
@@ -30,9 +33,18 @@ func WithLogger(logger Logger) BinaryRunnerOption {
 	}
 }
 
-func SetupBinaryRunner(cmdPath string, delay time.Duration, options ...BinaryRunnerOption) (*BinaryRunner, Error) {
-	var err Error
+func (u *BinaryRunner) flush(indent string) string {
+	return Indent(strings.Join(u.stdRecord, "\n"), indent)
+}
 
+func wrapError(u *BinaryRunner, err error) Error {
+	if !IsNil(err) {
+		return Wrap(fmt.Errorf("%w\n.  %v\n", err, u.flush(".  ")))
+	}
+	return NilError
+}
+
+func SetupBinaryRunner(cmdPath string, delay time.Duration, options ...BinaryRunnerOption) (*BinaryRunner, Error) {
 	u := &BinaryRunner{
 		cmdPath: cmdPath,
 		timeout: delay,
@@ -48,42 +60,55 @@ func SetupBinaryRunner(cmdPath string, delay time.Duration, options ...BinaryRun
 
 	if u.cmd == nil {
 		u.cmd = exec.Command(cmdPath)
-		u.stdin, err = WrapReturn(u.cmd.StdinPipe())
+
+		var err error
+		u.stdin.Writer, err = u.cmd.StdinPipe()
+		u.stdin.ReadChan = make(chan string)
 		if !IsNil(err) {
-			return u, Wrap(err)
+			return u, wrapError(u, err)
 		}
+
 		var stdout io.Reader
 		var stderr io.Reader
-		stdout, err = WrapReturn(u.cmd.StdoutPipe())
+		stdout, err = u.cmd.StdoutPipe()
 		if !IsNil(err) {
-			return u, Wrap(err)
+			return u, wrapError(u, err)
 		}
-		stderr, err = WrapReturn(u.cmd.StderrPipe())
+		stderr, err = u.cmd.StderrPipe()
 		if !IsNil(err) {
-			return u, Wrap(err)
+			return u, wrapError(u, err)
 		}
+
+		recordLock := sync.Mutex{}
+
+		go func() {
+			for {
+				line := <-u.stdin.ReadChan
+				u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "in:  "+strings.TrimSpace(line))
+			}
+		}()
 
 		u.stdoutChan = make(chan string)
 		go func() {
 			stdoutScanner := bufio.NewScanner(bufio.NewReader(stdout))
 			for stdoutScanner.Scan() {
 				line := stdoutScanner.Text()
-				u.logger.Printf("%v > %v", u.cmdPath, line)
+				u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "out: "+line)
 				u.stdoutChan <- line
 			}
 		}()
 
-		u.stderrChan = make(chan string)
 		go func() {
 			stderrScanner := bufio.NewScanner(bufio.NewReader(stderr))
 			for stderrScanner.Scan() {
-				u.stderrChan <- stderrScanner.Text()
+				line := stderrScanner.Text()
+				u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "err: "+line)
 			}
 		}()
 
-		err = Wrap(u.cmd.Start())
+		err = u.cmd.Start()
 		if !IsNil(err) {
-			return u, Wrap(err)
+			return u, wrapError(u, err)
 		}
 	}
 
@@ -91,17 +116,17 @@ func SetupBinaryRunner(cmdPath string, delay time.Duration, options ...BinaryRun
 }
 
 func (u *BinaryRunner) RunAsync(input string) Error {
-	if u.cmd == nil || u.stdin == nil {
-		return Errorf("cmd not setup: %v", u.cmdPath)
+	if u.cmd == nil {
+		return wrapError(u, Errorf("cmd not setup: %v\n", u.cmdPath))
 	}
 
 	if u.cmd.ProcessState != nil && u.cmd.ProcessState.Exited() {
-		return Errorf("cmd exited: %v", u.cmdPath)
+		return wrapError(u, Errorf("cmd exited: %v\n", u.cmdPath))
 	}
 
 	_, err := u.stdin.Write([]byte(input + "\n"))
 	if !IsNil(err) {
-		return Wrap(err)
+		return wrapError(u, err)
 	}
 
 	return NilError

@@ -187,6 +187,10 @@ func (r *ChessGoRunner) Player() Player {
 	return r.g.Player
 }
 
+func (r *ChessGoRunner) Board() BoardArray {
+	return r.g.Board
+}
+
 func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	searcher := NewSearcher(r.Logger, r.g, r.b)
 

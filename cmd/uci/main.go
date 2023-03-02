@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"runtime/debug"
+	"time"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/cricklet/chessgo/internal/runner"
@@ -13,8 +13,7 @@ import (
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintln(os.Stderr, fmt.Sprint(r))
-			fmt.Fprintln(os.Stderr, string(debug.Stack()))
+			fmt.Fprintln(os.Stderr, "recover()", r)
 		}
 	}()
 
@@ -32,7 +31,8 @@ func main() {
 		}
 		result, err := r.HandleInput(input)
 		if !IsNil(err) {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, "error:", err)
+			time.Sleep(200 * time.Millisecond)
 			break
 		}
 		for _, v := range result {

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/binary_runner"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	. "github.com/cricklet/chessgo/internal/runner"
 )
 
 func makeDirIfMissing(dir string) Error {
@@ -30,7 +32,7 @@ func rmIfExists(path string) Error {
 	if IsNil(err) {
 		return Wrap(os.Remove(path))
 	}
-	return Wrap(err)
+	return NilError
 }
 
 func buildChessGoIfMissing(binaryPath string) Error {
@@ -88,35 +90,99 @@ func main() {
 	defer stockfish.Close()
 
 	var opponent *BinaryRunner
-	opponent, err = SetupBinaryRunner(binaryPath, time.Millisecond*100)
+	opponent, err = SetupBinaryRunner(binaryPath, time.Second*10)
 	if !IsNil(err) {
 		panic(err)
 	}
 	defer opponent.Close()
 
-	var runAsyncCheckingErrors = func(binary *BinaryRunner, cmd string) {
+	var runAsync = func(binary *BinaryRunner, cmd string) {
+		err = binary.RunAsync(cmd)
 		if !IsNil(err) {
 			panic(err)
 		}
-		err = binary.RunAsync(cmd)
 	}
 
-	var runCheckingErrors = func(binary *BinaryRunner, cmd string, waitFor Optional[string]) []string {
+	var run = func(binary *BinaryRunner, cmd string, waitFor Optional[string]) []string {
+		var result []string
+		result, err = binary.Run(cmd, waitFor)
 		if !IsNil(err) {
 			panic(err)
 		}
-		var result []string
-		result, err = binary.Run(cmd, waitFor)
 		return result
 	}
 
-	runCheckingErrors(stockfish, "isready", Some("readyok"))
-	runCheckingErrors(stockfish, "uci", Some("uciok"))
-	runAsyncCheckingErrors(stockfish, "ucinewgame")
-	runAsyncCheckingErrors(stockfish, "setoption name UCI_LimitStrength value true")
-	runAsyncCheckingErrors(stockfish, "setoption name UCI_Elo value 800")
-	runAsyncCheckingErrors(stockfish, "position startpos")
-	runAsyncCheckingErrors(stockfish, "go")
-	time.Sleep(time.Second)
-	runCheckingErrors(stockfish, "stop", Some("bestmove"))
+	var findMoveInOutput = func(output []string) string {
+		if !IsNil(err) {
+			panic(err)
+		}
+		if len(output) == 0 {
+			err = Errorf("output was empty")
+			return ""
+		}
+		bestMoveString := FindInSlice(output, func(v string) bool {
+			return strings.HasPrefix(v, "bestmove ")
+		})
+		if bestMoveString.HasValue() {
+			return strings.Split(bestMoveString.Value(), " ")[1]
+		}
+		err = Errorf("couldn't find bestmove in output %v", output)
+		return ""
+	}
+
+	run(stockfish, "isready", Some("readyok"))
+	run(stockfish, "uci", Some("uciok"))
+	runAsync(stockfish, "ucinewgame")
+	runAsync(stockfish, "setoption name UCI_LimitStrength value true")
+	runAsync(stockfish, "setoption name UCI_Elo value 800")
+	runAsync(stockfish, "position startpos")
+
+	run(opponent, "isready", Some("readyok"))
+	run(opponent, "uci", Some("uciok"))
+	runAsync(opponent, "ucinewgame")
+	runAsync(opponent, "setoption name UCI_LimitStrength value true")
+	runAsync(opponent, "setoption name UCI_Elo value 800")
+	runAsync(opponent, "position startpos")
+
+	moveHistory := []string{}
+	var move string
+
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	runner := ChessGoRunner{}
+	err = runner.SetupPosition(Position{
+		Fen:   fen,
+		Moves: []string{},
+	})
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	for i := 0; i < 10; i++ {
+		runAsync(stockfish, "go")
+		time.Sleep(time.Second)
+		move = findMoveInOutput(run(stockfish, "stop", Some("bestmove")))
+		moveHistory = append(moveHistory, move)
+
+		runAsync(opponent, fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " ")))
+		err = runner.PerformMoveFromString(move)
+		if !IsNil(err) {
+			panic(err)
+		}
+		fmt.Println("stockfish", move)
+		fmt.Println(runner.Board().String())
+
+		runAsync(opponent, "go")
+		time.Sleep(time.Second)
+		move = findMoveInOutput(run(opponent, "stop", Some("bestmove")))
+		moveHistory = append(moveHistory, move)
+
+		runAsync(stockfish, fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " ")))
+		err = runner.PerformMoveFromString(move)
+		if !IsNil(err) {
+			panic(err)
+		}
+
+		fmt.Println("opponent", move)
+		fmt.Println(runner.Board().String())
+	}
 }
