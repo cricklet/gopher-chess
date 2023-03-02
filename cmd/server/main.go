@@ -123,20 +123,8 @@ func main() {
 	var upgrader = websocket.Upgrader{}
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
-		chessGoRunner := ChessGoRunner{}
-		stockfishRunner := StockfishRunner{}
-
 		playerTypes := [2]PlayerType{User, User}
 		ready := false
-
-		var runnerForPlayer = func(p Player) Runner {
-			if playerTypes[p] == ChessGo {
-				return &chessGoRunner
-			} else if playerTypes[p] == Stockfish {
-				return &stockfishRunner
-			}
-			return nil
-		}
 
 		c, err := upgrader.Upgrade(w, r, nil)
 		if !IsNil(err) {
@@ -155,6 +143,25 @@ func main() {
 			}
 		}
 
+		chessGoRunner := ChessGoRunner{}
+
+		stockfishRunner := NewStockfishRunner(WithElo(800), WithLogger(
+			&LogForwarding{
+				writeCallback: func(message string) {
+					log(fmt.Sprintf("stockfish: %v", message))
+				},
+			},
+		))
+
+		var runnerForPlayer = func(p Player) Runner {
+			if playerTypes[p] == ChessGo {
+				return &chessGoRunner
+			} else if playerTypes[p] == Stockfish {
+				return stockfishRunner
+			}
+			return nil
+		}
+
 		logger := &LogForwarding{
 			writeCallback: func(message string) {
 				log(fmt.Sprintf("server: %v", message))
@@ -163,11 +170,6 @@ func main() {
 		chessGoRunner.Logger = &LogForwarding{
 			writeCallback: func(message string) {
 				log(fmt.Sprintf("chessgo: %v", message))
-			},
-		}
-		stockfishRunner.Logger = &LogForwarding{
-			writeCallback: func(message string) {
-				log(fmt.Sprintf("stockfish: %v", message))
 			},
 		}
 
@@ -307,7 +309,7 @@ func main() {
 	}
 
 	var index = func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "../static/index.html")
+		http.ServeFile(w, r, RootDir()+"/static/index.html")
 	}
 
 	log.Println("serving")
@@ -315,7 +317,7 @@ func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/ws", ws)
 	router.PathPrefix("/static").Handler(
-		http.StripPrefix("/static", http.FileServer(http.Dir("../static"))))
+		http.StripPrefix("/static", http.FileServer(http.Dir(RootDir()+"/static"))))
 	router.PathPrefix("/{white}/{black}").HandlerFunc(index)
 	router.PathPrefix("/{white}/{black}/fen").HandlerFunc(index)
 	router.HandleFunc("/", index)

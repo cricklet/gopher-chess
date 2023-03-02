@@ -27,6 +27,14 @@ type BinaryRunner struct {
 
 type BinaryRunnerOption func(*BinaryRunner)
 
+func (b *BinaryRunner) CmdPath() string {
+	return b.cmdPath
+}
+
+func (b *BinaryRunner) CmdName() string {
+	return Last(strings.Split(Last(strings.Split(b.cmdPath, "/")), "_"))
+}
+
 func WithLogger(logger Logger) BinaryRunnerOption {
 	return func(u *BinaryRunner) {
 		u.logger = logger
@@ -35,6 +43,10 @@ func WithLogger(logger Logger) BinaryRunnerOption {
 
 func (u *BinaryRunner) flush(indent string) string {
 	return Indent(strings.Join(u.stdRecord, "\n"), indent)
+}
+
+func (u *BinaryRunner) Flush() string {
+	return "> " + u.flush("> ")
 }
 
 func wrapError(u *BinaryRunner, err error) Error {
@@ -151,9 +163,10 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 	for !done {
 		select {
 		case <-timeoutChan:
-			u.logger.Printf("%v > %v", u.cmdPath, "timeout")
+			u.logger.Printf("%v", "timeout")
 			done = true
 		case output := <-u.stdoutChan:
+			u.logger.Printf("%v", output)
 			result = append(result, output)
 			if waitFor.HasValue() && strings.Contains(output, waitFor.Value()) {
 				foundOutput = true
@@ -163,7 +176,7 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 	}
 
 	if waitFor.HasValue() && !foundOutput {
-		return result, Errorf("timeout waiting for %v", waitFor.Value())
+		return result, wrapError(u, fmt.Errorf("timeout waiting for %v", waitFor.Value()))
 	}
 
 	return result, NilError

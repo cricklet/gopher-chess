@@ -269,6 +269,24 @@ func (p Piece) String() string {
 	}[p]
 }
 
+func (p Piece) Unicode() string {
+	return []string{
+		" ",
+		"♜",
+		"♞",
+		"♝",
+		"♚",
+		"♛",
+		"♟",
+		"♖",
+		"♘",
+		"♗",
+		"♔",
+		"♕",
+		"♙",
+	}[p]
+}
+
 func (p Piece) IsWhite() bool {
 	return p <= WP && p >= WR
 }
@@ -308,6 +326,29 @@ func (b BoardArray) String() string {
 			result += "\n"
 		}
 	}
+	return result
+}
+
+func (b BoardArray) Unicode() string {
+	result := ""
+	result += "  "
+	for file := 0; file < 8; file++ {
+		result += File(file).String() + " "
+	}
+	result += "\n"
+
+	for rank := 7; rank >= 0; rank-- {
+		result += Rank(rank).String() + " "
+		for file := 0; file < 8; file++ {
+			result += PieceAtFileRank(b, FileRank{File(file), Rank(rank)}).Unicode() + " "
+		}
+		result += Rank(rank).String() + " \n"
+	}
+	result += "  "
+	for file := 0; file < 8; file++ {
+		result += File(file).String() + " "
+	}
+
 	return result
 }
 

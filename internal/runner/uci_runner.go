@@ -8,7 +8,7 @@ import (
 )
 
 type UciRunner struct {
-	Runner Runner
+	Runner ChessGoRunner
 }
 
 func parseFen(input string) (string, Error) {
@@ -48,6 +48,10 @@ func (u *UciRunner) HandleInput(input string) ([]string, Error) {
 		u.Runner.Reset()
 	} else if input == "isready" {
 		result = append(result, "readyok")
+	} else if input == "fen" {
+		result = append(result, "position fen "+u.Runner.FenString())
+	} else if input == "fullfen" {
+		result = append(result, "position fen "+u.Runner.StartFen+" moves "+strings.Join(u.Runner.MoveHistory(), " "))
 	} else if strings.HasPrefix(input, "position ") {
 		position, err := parsePosition(input)
 		if !IsNil(err) {
@@ -72,10 +76,10 @@ func (u *UciRunner) HandleInput(input string) ([]string, Error) {
 		}
 
 		if move.IsEmpty() {
-			return result, Errorf("no legal moves")
+			result = append(result, "bestmove forfeit")
+		} else {
+			result = append(result, fmt.Sprintf("bestmove %v", move.Value()))
 		}
-
-		result = append(result, fmt.Sprintf("bestmove %v", move.Value()))
 	}
 	return result, NilError
 }

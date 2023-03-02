@@ -100,3 +100,40 @@ func TestNoLegalMoves(t *testing.T) {
 	assert.True(t, IsNil(err))
 	fmt.Println(searcher.DebugTree.Sprint(1))
 }
+
+func TestCheckMateSearch(t *testing.T) {
+	fen := "kQK5/8/8/8/8/8/8/8/8 b KQkq - 13 7"
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err))
+	bitboards := game.CreateBitboards()
+
+	searcher := NewSearcher(&SilentLogger, &game, &bitboards)
+
+	var result Optional[Move]
+	var errs []Error
+
+	go func() {
+		time.Sleep(time.Millisecond * 100)
+		searcher.OutOfTime = true
+	}()
+
+	result, errs = searcher.Search()
+
+	assert.Empty(t, errs)
+	assert.False(t, result.HasValue())
+}
+
+func TestCheckMateDetection(t *testing.T) {
+	fen := "kQK5/8/8/8/8/8/8/8/8 b KQkq - 13 7"
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err))
+	bitboards := game.CreateBitboards()
+
+	var noValidMoves bool
+	noValidMoves, err = NoValidMoves(&game, &bitboards)
+	assert.True(t, IsNil(err))
+	assert.True(t, noValidMoves)
+
+	isCheckMate := noValidMoves && PlayerIsInCheck(&game, &bitboards)
+	assert.True(t, isCheckMate)
+}

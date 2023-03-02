@@ -1,19 +1,46 @@
 package runner
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
-	. "github.com/cricklet/chessgo/internal/binary_runner"
+	binary_runner "github.com/cricklet/chessgo/internal/binary_runner"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type StockfishRunner struct {
-	Logger Logger
-	binary *BinaryRunner
+	logger Logger
+	binary *binary_runner.BinaryRunner
 
+	elo      Optional[int]
 	startFen string
 	moves    []string
+}
+
+type StockfishRunnerOption func(*StockfishRunner)
+
+func WithElo(elo int) StockfishRunnerOption {
+	return func(r *StockfishRunner) {
+		r.elo = Some(elo)
+	}
+}
+func WithLogger(logger Logger) StockfishRunnerOption {
+	return func(r *StockfishRunner) {
+		r.logger = logger
+	}
+}
+
+func NewStockfishRunner(options ...StockfishRunnerOption) *StockfishRunner {
+	r := &StockfishRunner{}
+	for _, o := range options {
+		o(r)
+	}
+	if r.logger == nil {
+		r.logger = &DefaultLogger
+	}
+
+	return r
 }
 
 var _ Runner = (*StockfishRunner)(nil)
@@ -22,7 +49,7 @@ func (r *StockfishRunner) SetupPosition(position Position) Error {
 	var err Error
 
 	if r.binary == nil {
-		r.binary, err = SetupBinaryRunner("stockfish", time.Millisecond*500)
+		r.binary, err = binary_runner.SetupBinaryRunner("stockfish", time.Millisecond*1000)
 		if !IsNil(err) {
 			return err
 		}
@@ -44,6 +71,23 @@ func (r *StockfishRunner) SetupPosition(position Position) Error {
 	}
 	if !Contains(output, "uciok") {
 		return Errorf("needs uciok")
+	}
+
+	err = r.binary.RunAsync("ucinewgame")
+	if !IsNil(err) {
+		return err
+	}
+
+	if r.elo.HasValue() && r.elo.Value() > 0 {
+		err = r.binary.RunAsync("setoption name UCI_LimitStrength value true")
+		if !IsNil(err) {
+			return err
+		}
+
+		err = r.binary.RunAsync(fmt.Sprintf("setoption name UCI_Elo value %v", r.elo.Value()))
+		if !IsNil(err) {
+			return err
+		}
 	}
 
 	r.startFen = position.Fen

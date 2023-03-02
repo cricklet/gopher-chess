@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -14,6 +15,13 @@ func Ignore(t ...any) {
 
 func Indent(s string, x string) string {
 	return strings.ReplaceAll(s, "\n", "\n"+x)
+}
+
+func IndentMany(indent string, xs ...any) string {
+	return strings.ReplaceAll(strings.Join(
+		MapSlice(xs, func(x any) string {
+			return fmt.Sprint(x)
+		}), "\n"), "\n", "\n"+indent)
 }
 
 func Last[T any](ts []T) T {

@@ -49,7 +49,25 @@ func WrapReturn[T any](x T, err error) (T, Error) {
 }
 
 func Join(others ...Error) Error {
-	return Error{others[0].err, MapSlice(others[1:], func(e Error) tracerr.Error { return e.err })}
+	hasError := false
+	for _, o := range others {
+		if !IsNil(o) {
+			hasError = true
+			break
+		}
+	}
+	if !hasError {
+		return NilError
+	}
+
+	others = FilterSlice(others, func(err Error) bool {
+		return !IsNil(err)
+	})
+	if len(others) == 1 {
+		return others[0]
+	} else {
+		return Error{others[0].err, MapSlice(others[1:], func(e Error) tracerr.Error { return e.err })}
+	}
 }
 
 func Errorf(format string, args ...interface{}) Error {

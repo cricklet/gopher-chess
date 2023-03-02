@@ -435,7 +435,7 @@ func (s *searcher) Search() (Optional[Move], []Error) {
 			return n.ReturnedScore
 		})
 
-		s.Logger.Println("evaluated ",
+		s.Logger.Println("evaluated",
 			"to depth", depth,
 			"- total evals", s.DebugTotalEvaluations,
 			"- best move", (*moves)[0].String(),
@@ -446,13 +446,63 @@ func (s *searcher) Search() (Optional[Move], []Error) {
 		}
 	}
 
-	if len(*moves) == 0 {
-		return Empty[Move](), nil
+	if len(*moves) == 0 || (*moves)[0].Evaluation.Value() == -Inf {
+		return Empty[Move](), nil // forfeit
 	}
 
 	// fmt.Println(s.DebugTree.Sprint(2))
 
 	return Some((*moves)[0]), nil
+}
+
+func PlayerIsInCheck(g *GameState, b *Bitboards) bool {
+	return KingIsInCheck(b, g.Player)
+}
+
+func IsLegal(g *GameState, b *Bitboards, move Move) (bool, Error) {
+	var returnError Error
+
+	player := g.Player
+
+	var update BoardUpdate
+	err := g.PerformMove(move, &update, b)
+	defer func() {
+		err = g.UndoUpdate(&update, b)
+		returnError = Join(returnError, err)
+	}()
+
+	if !IsNil(err) {
+		returnError = Join(returnError, err)
+		return false, returnError
+	}
+
+	if KingIsInCheck(b, player) {
+		returnError = Join(returnError, err)
+		return false, returnError
+	}
+
+	returnError = Join(returnError, err)
+	return true, returnError
+}
+
+func NoValidMoves(g *GameState, b *Bitboards) (bool, Error) {
+	moves := GetMovesBuffer()
+	defer ReleaseMovesBuffer(moves)
+
+	GeneratePseudoMovesSkippingCastling(b, g, moves)
+
+	for _, move := range *moves {
+		legal, err := IsLegal(g, b, move)
+		if !IsNil(err) {
+			return legal, err
+		}
+
+		if legal {
+			return false, NilError
+		}
+	}
+
+	return true, NilError
 }
 
 func evaluateCapturesInner(g *GameState, b *Bitboards, playerCanForceScore int, enemyCanForceScore int) (SearchResult, Error) {
@@ -626,7 +676,18 @@ func Search(g *GameState, b *Bitboards, depth int, logger Logger) (Optional[Move
 		}
 
 		currentScore := -enemyScore
-		logger.Println(i, "/", len(*moves), move, "searched", result.TotalSearched, "with initial search", result.TotalSearched-result.QuiescenceSearched, "and ending captures", result.QuiescenceSearched, "under", move.String(), "and found score", currentScore)
+
+		bestComparisonStr := "worse"
+		if currentScore > bestScoreSoFar {
+			bestComparisonStr = "better"
+		}
+		logger.Println(IndentMany(".  ", i, "/", len(*moves), move, "searched", result.TotalSearched,
+			"with initial search", result.TotalSearched-result.QuiescenceSearched,
+			"and ending captures", result.QuiescenceSearched,
+			"under", move.String(),
+			"with score", currentScore,
+			"which is", bestComparisonStr,
+			"than the bestScoreSoFar", bestScoreSoFar))
 
 		if currentScore > bestScoreSoFar {
 			bestScoreSoFar = currentScore

@@ -18,7 +18,12 @@ func main() {
 	}()
 
 	r := runner.UciRunner{
-		Runner: &runner.ChessGoRunner{},
+		Runner: runner.ChessGoRunner{
+			Logger: FuncLogger(
+				func(s string) {
+					fmt.Print(s)
+				}),
+		},
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)

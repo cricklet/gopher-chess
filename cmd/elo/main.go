@@ -12,6 +12,16 @@ import (
 	. "github.com/cricklet/chessgo/internal/runner"
 )
 
+type MatchResult struct {
+	Won   bool
+	Moves int
+}
+type EloResults struct {
+	Elo     int
+	Cmd     string
+	Matches []MatchResult
+}
+
 func makeDirIfMissing(dir string) Error {
 	_, err := os.Stat(dir)
 	if IsNil(err) {
@@ -50,6 +60,64 @@ func buildChessGoIfMissing(binaryPath string) Error {
 	return Wrap(err)
 }
 
+func runAsync(binary *BinaryRunner, cmd string) {
+	err := binary.RunAsync(cmd)
+	if !IsNil(err) {
+		panic(err)
+	}
+}
+
+func run(binary *BinaryRunner, cmd string, waitFor Optional[string]) []string {
+	var result []string
+	result, err := binary.Run(cmd, waitFor)
+	if !IsNil(err) {
+		panic(err)
+	}
+	return result
+}
+
+func findMoveInOutput(output []string) string {
+	if len(output) == 0 {
+		panic(Errorf("output was empty"))
+	}
+	bestMoveString := FindInSlice(output, func(v string) bool {
+		return strings.HasPrefix(v, "bestmove ")
+	})
+	if bestMoveString.HasValue() {
+		return strings.Split(bestMoveString.Value(), " ")[1]
+	}
+	panic(Errorf("couldn't find bestmove in output %v", output))
+}
+
+func search(binary *BinaryRunner, fen string, moveHistory []string, expectedFen string) []string {
+	fenInput := fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " "))
+	runAsync(binary, fenInput)
+
+	if strings.Contains(binary.CmdName(), "chessgo") {
+		binaryFenOpt := FindInSlice(run(binary, "fen", Some("position fen ")), func(v string) bool {
+			return strings.HasPrefix(v, "position fen ")
+		})
+		if binaryFenOpt.HasValue() {
+			binaryFen, _ := strings.CutPrefix(binaryFenOpt.Value(), "position fen ")
+			if binaryFen != expectedFen {
+				fmt.Println(binary.Flush())
+				panic(Errorf("wat\nprocessing %v\n%v (%v) != \n%v (expected)", fenInput, binaryFen, binary.CmdName(), expectedFen))
+			}
+		} else {
+			panic(Errorf("failed to get fen from %v", binary.CmdPath()))
+		}
+	}
+
+	runAsync(binary, "go")
+	time.Sleep(time.Millisecond * 100)
+	move := findMoveInOutput(run(binary, "stop", Some("bestmove")))
+	moveHistory = append(moveHistory, move)
+
+	fmt.Println(binary.CmdName(), ">", move)
+
+	return moveHistory
+}
+
 func main() {
 	var err Error
 
@@ -83,52 +151,19 @@ func main() {
 	}
 
 	var stockfish *BinaryRunner
-	stockfish, err = SetupBinaryRunner("stockfish", time.Millisecond*100)
+	stockfish, err = SetupBinaryRunner("stockfish", time.Millisecond*1000, WithLogger(&SilentLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
 	defer stockfish.Close()
 
+	printlnLogger := FuncLogger(func(s string) { fmt.Println("chessgo > " + Indent(s, "$ ")) })
 	var opponent *BinaryRunner
-	opponent, err = SetupBinaryRunner(binaryPath, time.Second*10)
+	opponent, err = SetupBinaryRunner(binaryPath, time.Millisecond*10000, WithLogger(printlnLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
 	defer opponent.Close()
-
-	var runAsync = func(binary *BinaryRunner, cmd string) {
-		err = binary.RunAsync(cmd)
-		if !IsNil(err) {
-			panic(err)
-		}
-	}
-
-	var run = func(binary *BinaryRunner, cmd string, waitFor Optional[string]) []string {
-		var result []string
-		result, err = binary.Run(cmd, waitFor)
-		if !IsNil(err) {
-			panic(err)
-		}
-		return result
-	}
-
-	var findMoveInOutput = func(output []string) string {
-		if !IsNil(err) {
-			panic(err)
-		}
-		if len(output) == 0 {
-			err = Errorf("output was empty")
-			return ""
-		}
-		bestMoveString := FindInSlice(output, func(v string) bool {
-			return strings.HasPrefix(v, "bestmove ")
-		})
-		if bestMoveString.HasValue() {
-			return strings.Split(bestMoveString.Value(), " ")[1]
-		}
-		err = Errorf("couldn't find bestmove in output %v", output)
-		return ""
-	}
 
 	run(stockfish, "isready", Some("readyok"))
 	run(stockfish, "uci", Some("uciok"))
@@ -140,12 +175,9 @@ func main() {
 	run(opponent, "isready", Some("readyok"))
 	run(opponent, "uci", Some("uciok"))
 	runAsync(opponent, "ucinewgame")
-	runAsync(opponent, "setoption name UCI_LimitStrength value true")
-	runAsync(opponent, "setoption name UCI_Elo value 800")
 	runAsync(opponent, "position startpos")
 
 	moveHistory := []string{}
-	var move string
 
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 	runner := ChessGoRunner{}
@@ -157,32 +189,40 @@ func main() {
 		panic(err)
 	}
 
-	for i := 0; i < 10; i++ {
-		runAsync(stockfish, "go")
-		time.Sleep(time.Second)
-		move = findMoveInOutput(run(stockfish, "stop", Some("bestmove")))
-		moveHistory = append(moveHistory, move)
+	nextPlayer := stockfish
 
-		runAsync(opponent, fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " ")))
-		err = runner.PerformMoveFromString(move)
+	for i := 0; i < 1000; i++ {
+		currentPlayer := nextPlayer
+		if nextPlayer == stockfish {
+			nextPlayer = opponent
+		} else {
+			nextPlayer = stockfish
+		}
+
+		moveHistory = search(currentPlayer, fen, moveHistory, runner.FenString())
+		if Last(moveHistory) == "forfeit" {
+			fmt.Println("finished, winner is:", nextPlayer.CmdName())
+			break
+		}
+		err = runner.PerformMoveFromString(Last(moveHistory))
 		if !IsNil(err) {
 			panic(err)
 		}
-		fmt.Println("stockfish", move)
-		fmt.Println(runner.Board().String())
+		// fmt.Println(fen + " moves " + strings.Join(moveHistory, " "))
 
-		runAsync(opponent, "go")
-		time.Sleep(time.Second)
-		move = findMoveInOutput(run(opponent, "stop", Some("bestmove")))
-		moveHistory = append(moveHistory, move)
+		fmt.Println()
+		fmt.Println(runner.Board().Unicode())
+		fmt.Println()
 
-		runAsync(stockfish, fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " ")))
-		err = runner.PerformMoveFromString(move)
-		if !IsNil(err) {
-			panic(err)
+		var noValidMoves bool
+		noValidMoves, err = runner.NoValidMoves()
+		if noValidMoves {
+			if runner.PlayerIsInCheck() {
+				fmt.Println("finished, winner is:", currentPlayer.CmdName())
+			} else {
+				fmt.Println("finished, draw")
+			}
+			return
 		}
-
-		fmt.Println("opponent", move)
-		fmt.Println(runner.Board().String())
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
+	"github.com/cricklet/chessgo/internal/evaluation"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/search"
@@ -209,4 +210,16 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	}
 
 	return Empty[string](), NilError
+}
+
+func (r *ChessGoRunner) PlayerIsInCheck() bool {
+	return PlayerIsInCheck(r.g, r.b)
+}
+
+func (r *ChessGoRunner) NoValidMoves() (bool, Error) {
+	return NoValidMoves(r.g, r.b)
+}
+
+func (r *ChessGoRunner) Evaluate(player Player) int {
+	return evaluation.Evaluate(r.b, player)
 }

@@ -92,10 +92,13 @@ func generateJumpMovesByLookup(
 var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = CreatePool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
 func GeneratePseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, false /* allPossiblePromotions */)
+	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, false /* allPossiblePromotions */, false /*skipCastling*/)
 }
 func GeneratePseudoMovesWithAllPromotions(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, true /* allPossiblePromotions */)
+	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, true /* allPossiblePromotions */, false /*skipCastling*/)
+}
+func GeneratePseudoMovesSkippingCastling(b *Bitboards, g *GameState, moves *[]Move) {
+	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, true /* allPossiblePromotions */, true /*skipCastling*/)
 }
 func GenerateSortedPseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
 	GeneratePseudoMoves(b, g, moves)
@@ -120,7 +123,7 @@ func GenerateSortedPseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
 	})
 }
 func GeneratePseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, true /* onlyCaptures */, false /* allPossiblePromotions */)
+	GeneratePseudoMovesInternal(b, g, moves, true /* onlyCaptures */, false /* allPossiblePromotions */, true /* skipCastling */)
 }
 
 var possiblePromotions = []PieceType{Queen, Rook, Bishop, Knight}
@@ -157,7 +160,7 @@ func appendPawnMovesAndPossiblePromotions(moves []Move, moveType MoveType, playe
 	return moves
 }
 
-func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, onlyCaptures bool, allPossiblePromotions bool) {
+func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, onlyCaptures bool, allPossiblePromotions bool, skipCastling bool) {
 	player := g.Player
 	playerBoards := b.Players[player]
 	enemyBoards := &b.Players[player.Other()]
@@ -265,7 +268,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 		*moves = generateJumpMovesByLookup(playerBoards.Pieces[King], b.Occupied, playerBoards.Occupied, KingAttackMasks, onlyCaptures, *moves)
 	}
 
-	if !onlyCaptures {
+	if !onlyCaptures && !skipCastling {
 		// generate king castle
 		for _, castlingSide := range AllCastlingSides {
 			canCastle := true
@@ -339,12 +342,14 @@ func playerIndexIsAttacked(player Player, startIndex int, occupied Bitboard, ene
 	{
 		{
 			knightMask := KnightAttackMasks[startIndex]
-			potential := enemyBitboards.Pieces[Knight] & knightMask
+			enemyKnights := enemyBitboards.Pieces[Knight]
+			potential := enemyKnights & knightMask
 			attackers |= potential
 		}
 		{
 			kingMask := KingAttackMasks[startIndex]
-			potential := enemyBitboards.Pieces[King] & kingMask
+			enemyKing := enemyBitboards.Pieces[King]
+			potential := enemyKing & kingMask
 			attackers |= potential
 		}
 	}
