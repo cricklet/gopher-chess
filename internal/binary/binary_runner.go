@@ -1,4 +1,4 @@
-package binary_runner
+package binary
 
 import (
 	"bufio"

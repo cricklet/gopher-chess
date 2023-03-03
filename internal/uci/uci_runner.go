@@ -1,14 +1,19 @@
-package runner
+package uci
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
-type UciRunner struct {
-	Runner ChessGoRunner
+type uciRunner struct {
+	Runner chessgo.ChessGoRunner
+}
+
+func NewUciRunner(r chessgo.ChessGoRunner) uciRunner {
+	return uciRunner{r}
 }
 
 func parseFen(input string) (string, Error) {
@@ -38,7 +43,7 @@ func parsePosition(input string) (Position, Error) {
 	return Position{Fen: fen, Moves: parseMoves(input)}, err
 }
 
-func (u *UciRunner) HandleInput(input string) ([]string, Error) {
+func (u *uciRunner) HandleInput(input string) ([]string, Error) {
 	result := []string{}
 	if input == "uci" {
 		result = append(result, "id name chessgo 1")

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/cricklet/chessgo/internal/binary_runner"
+	. "github.com/cricklet/chessgo/internal/binary"
+	. "github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	. "github.com/cricklet/chessgo/internal/runner"
 )
 
 type MatchResult struct {
@@ -180,7 +180,7 @@ func main() {
 	moveHistory := []string{}
 
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-	runner := ChessGoRunner{}
+	runner := NewChessGoRunner(nil)
 	err = runner.SetupPosition(Position{
 		Fen:   fen,
 		Moves: []string{},

@@ -1,17 +1,17 @@
-package runner
+package stockfish
 
 import (
 	"fmt"
 	"strings"
 	"time"
 
-	binary_runner "github.com/cricklet/chessgo/internal/binary_runner"
+	"github.com/cricklet/chessgo/internal/binary"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type StockfishRunner struct {
 	logger Logger
-	binary *binary_runner.BinaryRunner
+	binary *binary.BinaryRunner
 
 	elo      Optional[int]
 	startFen string
@@ -49,7 +49,7 @@ func (r *StockfishRunner) SetupPosition(position Position) Error {
 	var err Error
 
 	if r.binary == nil {
-		r.binary, err = binary_runner.SetupBinaryRunner("stockfish", time.Millisecond*1000)
+		r.binary, err = binary.SetupBinaryRunner("stockfish", time.Millisecond*1000)
 		if !IsNil(err) {
 			return err
 		}

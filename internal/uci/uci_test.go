@@ -1,4 +1,4 @@
-package runner
+package uci
 
 import (
 	"bufio"
@@ -9,27 +9,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUci(t *testing.T) {
-	runner := ChessGoRunner{}
+	runner := chessgo.NewChessGoRunner(nil)
 	inputs := []string{
 		"isready",
 		"uci",
 		"position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 		"go",
 	}
-	r := UciRunner{runner}
+	r := uciRunner{runner}
 	for _, line := range inputs {
 		log.Println(r.HandleInput(line))
 	}
 }
 
 func TestUciIndexBug2(t *testing.T) {
-	runner := ChessGoRunner{}
-	r := UciRunner{runner}
+	runner := chessgo.NewChessGoRunner(nil)
+	r := uciRunner{runner}
 	for _, line := range []string{
 		"isready",
 		"uci",
@@ -45,8 +46,8 @@ func TestUciIndexBug2(t *testing.T) {
 }
 
 func TestUciIndexBug3(t *testing.T) {
-	runner := ChessGoRunner{}
-	r := UciRunner{runner}
+	runner := chessgo.NewChessGoRunner(nil)
+	r := uciRunner{runner}
 	for _, line := range []string{
 		"isready",
 		"uci",
@@ -62,8 +63,8 @@ func TestUciIndexBug3(t *testing.T) {
 }
 
 func TestUciCastlingBug1(t *testing.T) {
-	runner := ChessGoRunner{}
-	r := UciRunner{runner}
+	runner := chessgo.NewChessGoRunner(nil)
+	r := uciRunner{runner}
 	fen := "rn1qk2r/ppp3pp/3b1n2/3ppb2/8/2NPBNP1/PPP2PBP/R2QK2R b KQkq - 15 8"
 	moves := []string{
 		"e8g8",
@@ -79,6 +80,14 @@ func TestUciCastlingBug1(t *testing.T) {
 		_, err := r.HandleInput(line)
 		assert.True(t, IsNil(err))
 	}
+}
+
+type uciExpected struct {
+	Input string
+	Wait  time.Duration
+
+	ExpectedOutput       Optional[string]
+	ExpectedOutputPrefix Optional[string]
 }
 
 func TestUciStockfishManually(t *testing.T) {
@@ -108,7 +117,7 @@ func TestUciStockfishManually(t *testing.T) {
 		}
 	}()
 
-	for _, it := range []UciIteration{
+	for _, it := range []uciExpected{
 		{"isready\n", time.Millisecond * 500, Some("readyok"), Empty[string]()},
 		{"uci\n", time.Millisecond * 500, Some("uciok"), Empty[string]()},
 		{"position startpos\n", time.Millisecond * 500, Empty[string](), Empty[string]()},

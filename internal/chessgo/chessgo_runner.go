@@ -1,4 +1,4 @@
-package runner
+package chessgo
 
 import (
 	"time"
@@ -9,17 +9,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/search"
 )
-
-type Runner interface {
-	PerformMoveFromString(s string) Error
-	SetupPosition(position Position) Error
-	PerformMoves(startPos string, moves []string) Error
-	MovesForSelection(s string) ([]string, Error)
-	Rewind(num int) Error
-	Reset()
-	Search() (Optional[string], Error)
-	IsNew() bool
-}
 
 type ChessGoRunner struct {
 	Logger Logger
@@ -32,6 +21,18 @@ type ChessGoRunner struct {
 }
 
 var _ Runner = (*ChessGoRunner)(nil)
+
+type ChessGoOption func(*ChessGoRunner)
+
+func WithLogger(l Logger) ChessGoOption {
+	return func(r *ChessGoRunner) {
+		r.Logger = l
+	}
+}
+
+func NewChessGoRunner(l Logger) ChessGoRunner {
+	return ChessGoRunner{Logger: l}
+}
 
 type HistoryValue struct {
 	move   Move
@@ -146,11 +147,6 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	}
 
 	return NilError
-}
-
-type Position struct {
-	Fen   string
-	Moves []string
 }
 
 func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, Error) {

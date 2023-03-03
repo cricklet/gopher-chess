@@ -6,8 +6,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/runner"
+	"github.com/cricklet/chessgo/internal/uci"
 )
 
 func main() {
@@ -17,14 +18,12 @@ func main() {
 		}
 	}()
 
-	r := runner.UciRunner{
-		Runner: runner.ChessGoRunner{
-			Logger: FuncLogger(
-				func(s string) {
-					fmt.Print(s)
-				}),
-		},
-	}
+	r := uci.NewUciRunner(chessgo.NewChessGoRunner(
+		FuncLogger(
+			func(s string) {
+				fmt.Print(s)
+			}),
+	))
 
 	scanner := bufio.NewScanner(os.Stdin)
 

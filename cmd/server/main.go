@@ -8,8 +8,9 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	. "github.com/cricklet/chessgo/internal/runner"
+	"github.com/cricklet/chessgo/internal/stockfish"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
@@ -143,9 +144,9 @@ func main() {
 			}
 		}
 
-		chessGoRunner := ChessGoRunner{}
+		chessGoRunner := chessgo.NewChessGoRunner(nil)
 
-		stockfishRunner := NewStockfishRunner(WithElo(800), WithLogger(
+		stockfishRunner := stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
 			&LogForwarding{
 				writeCallback: func(message string) {
 					log(fmt.Sprintf("stockfish: %v", message))
