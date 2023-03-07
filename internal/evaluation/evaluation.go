@@ -136,9 +136,8 @@ func EvaluateDevelopment(b *Bitboards, player Player) int {
 	return development
 }
 
-func Evaluate(b *Bitboards, player Player) int {
+func EvaluatePieces(b *Bitboards, player Player) int {
 	enemy := player.Other()
-
 	pieceValues :=
 		500*OnesCount(b.Players[player].Pieces[Rook]) +
 			300*OnesCount(b.Players[player].Pieces[Knight]) +
@@ -153,10 +152,18 @@ func Evaluate(b *Bitboards, player Player) int {
 			900*OnesCount(b.Players[enemy].Pieces[Queen]) +
 			100*OnesCount(b.Players[enemy].Pieces[Pawn])
 
+	return pieceValues - enemyValues
+}
+
+func Evaluate(b *Bitboards, player Player) int {
+	enemy := player.Other()
+
 	developmentValues := EvaluateDevelopment(b, player)
 	enemyDevelopmentValues := EvaluateDevelopment(b, enemy)
 
-	return pieceValues + developmentValues - enemyValues - enemyDevelopmentValues
+	pieceValues := EvaluatePieces(b, player)
+
+	return pieceValues + developmentValues - enemyDevelopmentValues
 }
 
 var _pieceScores = []int{

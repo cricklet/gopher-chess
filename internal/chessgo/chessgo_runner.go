@@ -219,3 +219,7 @@ func (r *ChessGoRunner) NoValidMoves() (bool, Error) {
 func (r *ChessGoRunner) Evaluate(player Player) int {
 	return evaluation.Evaluate(r.b, player)
 }
+
+func (r *ChessGoRunner) EvaluateSimple(player Player) int {
+	return evaluation.EvaluatePieces(r.b, player)
+}

@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/cricklet/chessgo/internal/binary"
+	"github.com/cricklet/chessgo/internal/binary"
 	. "github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
+
+var logger = NewLiveLogger()
 
 type MatchResult struct {
 	Won   bool
@@ -60,14 +62,14 @@ func buildChessGoIfMissing(binaryPath string) Error {
 	return Wrap(err)
 }
 
-func runAsync(binary *BinaryRunner, cmd string) {
+func runAsync(binary *binary.BinaryRunner, cmd string) {
 	err := binary.RunAsync(cmd)
 	if !IsNil(err) {
 		panic(err)
 	}
 }
 
-func run(binary *BinaryRunner, cmd string, waitFor Optional[string]) []string {
+func run(binary *binary.BinaryRunner, cmd string, waitFor Optional[string]) []string {
 	var result []string
 	result, err := binary.Run(cmd, waitFor)
 	if !IsNil(err) {
@@ -89,7 +91,7 @@ func findMoveInOutput(output []string) string {
 	panic(Errorf("couldn't find bestmove in output %v", output))
 }
 
-func search(binary *BinaryRunner, fen string, moveHistory []string, expectedFen string) []string {
+func search(player Player, binary *binary.BinaryRunner, fen string, moveHistory []string, expectedFen string) []string {
 	fenInput := fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " "))
 	runAsync(binary, fenInput)
 
@@ -100,7 +102,7 @@ func search(binary *BinaryRunner, fen string, moveHistory []string, expectedFen 
 		if binaryFenOpt.HasValue() {
 			binaryFen, _ := strings.CutPrefix(binaryFenOpt.Value(), "position fen ")
 			if binaryFen != expectedFen {
-				fmt.Println(binary.Flush())
+				logger.Println(binary.Flush())
 				panic(Errorf("wat\nprocessing %v\n%v (%v) != \n%v (expected)", fenInput, binaryFen, binary.CmdName(), expectedFen))
 			}
 		} else {
@@ -113,9 +115,99 @@ func search(binary *BinaryRunner, fen string, moveHistory []string, expectedFen 
 	move := findMoveInOutput(run(binary, "stop", Some("bestmove")))
 	moveHistory = append(moveHistory, move)
 
-	fmt.Println(binary.CmdName(), ">", move)
+	logger.Printf("%v (%v) > %v\n\n", binary.CmdName(), player.String(), move)
 
 	return moveHistory
+}
+
+type Result int
+
+const (
+	StockfishWin Result = iota
+	OpponentWin
+	Draw
+	Unknown
+)
+
+const hintColor = "\033[38;5;255m"
+const resetColors = "\033[0m"
+
+func playGame(
+	stockfish *binary.BinaryRunner,
+	opponent *binary.BinaryRunner,
+	runner *ChessGoRunner,
+) (Result, Error) {
+	var err Error
+
+	run(stockfish, "isready", Some("readyok"))
+	run(stockfish, "uci", Some("uciok"))
+	runAsync(stockfish, "ucinewgame")
+	runAsync(stockfish, "setoption name UCI_LimitStrength value true")
+	runAsync(stockfish, "setoption name UCI_Elo value 800")
+	runAsync(stockfish, "position startpos")
+
+	run(opponent, "isready", Some("readyok"))
+	run(opponent, "uci", Some("uciok"))
+	runAsync(opponent, "ucinewgame")
+	runAsync(opponent, "position startpos")
+
+	moveHistory := []string{}
+
+	if !IsNil(err) {
+		return Unknown, err
+	}
+
+	binaryToPlayer := map[*binary.BinaryRunner]Player{
+		stockfish: White,
+		opponent:  Black,
+	}
+
+	nextBinary := stockfish
+
+	for i := 0; i < 1000; i++ {
+		currentBinary := nextBinary
+		if nextBinary == stockfish {
+			nextBinary = opponent
+		} else {
+			nextBinary = stockfish
+		}
+
+		moveHistory = search(binaryToPlayer[currentBinary], currentBinary, runner.StartFen, moveHistory, runner.FenString())
+		if Last(moveHistory) == "forfeit" {
+			logger.Println("finished, winner is:", nextBinary.CmdName())
+			break
+		}
+		err = runner.PerformMoveFromString(Last(moveHistory))
+		if !IsNil(err) {
+			return Unknown, err
+		}
+		// logger.Println(fen + " moves " + strings.Join(moveHistory, " "))
+
+		logger.SetFooter(
+			fmt.Sprintf("\n%v%v\n\nfen: %v\npiece score: %v%v",
+				runner.Board().Unicode(),
+				hintColor,
+				runner.StartFen+" moves "+strings.Join(moveHistory, " "),
+				runner.Evaluate(binaryToPlayer[opponent]),
+				resetColors),
+		)
+
+		var noValidMoves bool
+		noValidMoves, err = runner.NoValidMoves()
+		if noValidMoves {
+			if runner.PlayerIsInCheck() {
+				if currentBinary == stockfish {
+					return StockfishWin, NilError
+				} else {
+					return OpponentWin, NilError
+				}
+			} else {
+				return Draw, NilError
+			}
+		}
+	}
+
+	return Unknown, NilError
 }
 
 func main() {
@@ -150,34 +242,20 @@ func main() {
 		panic(err)
 	}
 
-	var stockfish *BinaryRunner
-	stockfish, err = SetupBinaryRunner("stockfish", time.Millisecond*1000, WithLogger(&SilentLogger))
+	var stockfish *binary.BinaryRunner
+	stockfish, err = binary.SetupBinaryRunner("stockfish", time.Millisecond*1000, binary.WithLogger(&SilentLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
 	defer stockfish.Close()
 
-	printlnLogger := FuncLogger(func(s string) { fmt.Println("chessgo > " + Indent(s, "$ ")) })
-	var opponent *BinaryRunner
-	opponent, err = SetupBinaryRunner(binaryPath, time.Millisecond*10000, WithLogger(printlnLogger))
+	printlnLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
+	var opponent *binary.BinaryRunner
+	opponent, err = binary.SetupBinaryRunner(binaryPath, time.Millisecond*10000, binary.WithLogger(printlnLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
 	defer opponent.Close()
-
-	run(stockfish, "isready", Some("readyok"))
-	run(stockfish, "uci", Some("uciok"))
-	runAsync(stockfish, "ucinewgame")
-	runAsync(stockfish, "setoption name UCI_LimitStrength value true")
-	runAsync(stockfish, "setoption name UCI_Elo value 800")
-	runAsync(stockfish, "position startpos")
-
-	run(opponent, "isready", Some("readyok"))
-	run(opponent, "uci", Some("uciok"))
-	runAsync(opponent, "ucinewgame")
-	runAsync(opponent, "position startpos")
-
-	moveHistory := []string{}
 
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 	runner := NewChessGoRunner(nil)
@@ -189,40 +267,18 @@ func main() {
 		panic(err)
 	}
 
-	nextPlayer := stockfish
+	var result Result
+	result, err = playGame(stockfish, opponent, &runner)
+	if !IsNil(err) {
+		panic(err)
+	}
 
-	for i := 0; i < 1000; i++ {
-		currentPlayer := nextPlayer
-		if nextPlayer == stockfish {
-			nextPlayer = opponent
-		} else {
-			nextPlayer = stockfish
-		}
-
-		moveHistory = search(currentPlayer, fen, moveHistory, runner.FenString())
-		if Last(moveHistory) == "forfeit" {
-			fmt.Println("finished, winner is:", nextPlayer.CmdName())
-			break
-		}
-		err = runner.PerformMoveFromString(Last(moveHistory))
-		if !IsNil(err) {
-			panic(err)
-		}
-		// fmt.Println(fen + " moves " + strings.Join(moveHistory, " "))
-
-		fmt.Println()
-		fmt.Println(runner.Board().Unicode())
-		fmt.Println()
-
-		var noValidMoves bool
-		noValidMoves, err = runner.NoValidMoves()
-		if noValidMoves {
-			if runner.PlayerIsInCheck() {
-				fmt.Println("finished, winner is:", currentPlayer.CmdName())
-			} else {
-				fmt.Println("finished, draw")
-			}
-			return
-		}
+	switch result {
+	case StockfishWin:
+		logger.Println("stockfish won")
+	case OpponentWin:
+		logger.Println("opponent won")
+	case Draw:
+		logger.Println("draw")
 	}
 }

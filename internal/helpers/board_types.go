@@ -17,6 +17,14 @@ const (
 	Black
 )
 
+var _playerStrings = [2]string{
+	"white", "black",
+}
+
+func (p Player) String() string {
+	return _playerStrings[p]
+}
+
 type Piece uint
 
 const (
@@ -272,18 +280,30 @@ func (p Piece) String() string {
 func (p Piece) Unicode() string {
 	return []string{
 		" ",
-		"♜",
-		"♞",
-		"♝",
-		"♚",
-		"♛",
-		"♟",
 		"♖",
 		"♘",
 		"♗",
 		"♔",
 		"♕",
 		"♙",
+		"♜",
+		"♞",
+		"♝",
+		"♚",
+		"♛",
+		"♟",
+	}[p]
+}
+
+func (p PieceType) Unicode() string {
+	return []string{
+		"♜",
+		"♞",
+		"♝",
+		"♚",
+		"♛",
+		"♟",
+		" ",
 	}[p]
 }
 
@@ -329,24 +349,49 @@ func (b BoardArray) String() string {
 	return result
 }
 
+const _hintForeground = "\033[38;5;255m"
+const _whiteForeground = "\033[38;5;255m"
+const _blackForeground = "\033[38;5;232m"
+const _whiteBackground = "\033[48;5;244m"
+const _blackBackground = "\033[48;5;243m"
+const _resetColors = "\x1b[0m"
+
 func (b BoardArray) Unicode() string {
 	result := ""
 	result += "  "
 	for file := 0; file < 8; file++ {
-		result += File(file).String() + " "
+		result += _hintForeground + " " + File(file).String() + " " + _resetColors
 	}
 	result += "\n"
 
 	for rank := 7; rank >= 0; rank-- {
-		result += Rank(rank).String() + " "
+		result += _hintForeground + Rank(rank).String() + " " + _resetColors
 		for file := 0; file < 8; file++ {
-			result += PieceAtFileRank(b, FileRank{File(file), Rank(rank)}).Unicode() + " "
+			squareColor := (file%2 + rank%2) % 2
+			piece := PieceAtFileRank(b, FileRank{File(file), Rank(rank)})
+
+			if squareColor == int(White) {
+				result += _whiteBackground
+			} else {
+				result += _blackBackground
+			}
+			if piece.IsWhite() {
+				result += _whiteForeground
+			} else {
+				result += _blackForeground
+			}
+
+			result += " " + piece.PieceType().Unicode() + " "
+
+			result += _hintForeground
+			squareColor = 1 - squareColor
+			result += _resetColors
 		}
-		result += Rank(rank).String() + " \n"
+		result += _hintForeground + " " + Rank(rank).String() + _resetColors + "\n"
 	}
 	result += "  "
 	for file := 0; file < 8; file++ {
-		result += File(file).String() + " "
+		result += _hintForeground + " " + File(file).String() + " " + _resetColors
 	}
 
 	return result
