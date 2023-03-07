@@ -180,6 +180,14 @@ func (r *ChessGoRunner) MoveHistory() []string {
 	})
 }
 
+// func pgnFromMoveHistory(moves []Move) []string {
+// 	result := []string{}
+// 	for i, move := range moves {
+// 		pgnMove := i / 2
+// 		move.EndIndex
+// 	}
+// }
+
 func (r *ChessGoRunner) Player() Player {
 	return r.g.Player
 }

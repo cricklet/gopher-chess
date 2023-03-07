@@ -22,7 +22,7 @@ type BinaryRunner struct {
 	stdRecord []string
 
 	timeout time.Duration
-	logger  Logger
+	Logger  Logger
 }
 
 type BinaryRunnerOption func(*BinaryRunner)
@@ -37,7 +37,7 @@ func (b *BinaryRunner) CmdName() string {
 
 func WithLogger(logger Logger) BinaryRunnerOption {
 	return func(u *BinaryRunner) {
-		u.logger = logger
+		u.Logger = logger
 	}
 }
 
@@ -66,8 +66,8 @@ func SetupBinaryRunner(cmdPath string, delay time.Duration, options ...BinaryRun
 		option(u)
 	}
 
-	if u.logger == nil {
-		u.logger = &DefaultLogger
+	if u.Logger == nil {
+		u.Logger = &DefaultLogger
 	}
 
 	if u.cmd == nil {
@@ -163,10 +163,10 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 	for !done {
 		select {
 		case <-timeoutChan:
-			u.logger.Printf("%v", "timeout")
+			u.Logger.Printf("%v", "timeout")
 			done = true
 		case output := <-u.stdoutChan:
-			u.logger.Printf("%v", output)
+			u.Logger.Printf("%v", output)
 			result = append(result, output)
 			if waitFor.HasValue() && strings.Contains(output, waitFor.Value()) {
 				foundOutput = true

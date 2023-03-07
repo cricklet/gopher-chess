@@ -3,6 +3,9 @@ package helpers
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/acarl005/stripansi"
 )
 
 type LiveLogger struct {
@@ -31,7 +34,43 @@ func (l *LiveLogger) Print(xs ...interface{}) {
 	PrintLive(Some(fmt.Sprint(xs...)), l.footer, l.footer)
 }
 
+func runeCountIgnoringAnsi(s string) int {
+	return utf8.RuneCountInString(stripansi.Strip(s))
+}
+
+func wrapLine(s string, width int) string {
+	if runeCountIgnoringAnsi(s) < width {
+		return s
+	}
+
+	words := strings.Split(s, " ")
+	lines := []string{}
+	line := []string{}
+	for _, word := range words {
+		joinedLine := strings.Join(line, " ")
+		if runeCountIgnoringAnsi(joinedLine)+runeCountIgnoringAnsi(word)+1 > width && len(line) != 0 {
+			lines = append(lines, joinedLine)
+			line = []string{word}
+		} else {
+			line = append(line, word)
+		}
+	}
+	lines = append(lines, strings.Join(line, " "))
+	return strings.Join(
+		MapSlice(lines, func(s string) string { return strings.TrimSpace(s) }), "\n")
+}
+
+func wrapText(s string, width int, indent string) string {
+	result := []string{}
+	for _, line := range strings.Split(s, "\n") {
+		result = append(result, Indent(wrapLine(line, width), indent))
+	}
+
+	return strings.Join(result, "\n")
+}
+
 func (l *LiveLogger) SetFooter(s string) {
+	s = wrapText(s, termWidth(), "  ")
 	PrintLive(Empty[string](), l.footer, s)
 	l.footer = s
 }

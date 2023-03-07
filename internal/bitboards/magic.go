@@ -52,7 +52,7 @@ func unmarshalMagics(path string, magics *[64]MagicValue) Error {
 		//lint:ignore nilerr reason it's fine if we haven't cached better magics. We'll compute new ones now.
 		return NilError
 	}
-	err = json.Unmarshal(input, &RookBestMagics)
+	err = json.Unmarshal(input, magics)
 	if !IsNil(err) {
 		return Wrap(err)
 	}

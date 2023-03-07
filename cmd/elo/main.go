@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,13 +17,42 @@ import (
 var logger = NewLiveLogger()
 
 type MatchResult struct {
-	Won   bool
-	Moves int
+	Won          bool
+	Draw         bool
+	Unknown      bool
+	Fen          string
+	StockfishElo int
 }
 type EloResults struct {
-	Elo     int
 	Cmd     string
 	Matches []MatchResult
+}
+
+func unmarshalEloResults(path string, results *EloResults) Error {
+	_, err := os.Stat(path)
+	if !IsNil(err) {
+		// It's fine if it doesn't exist
+		return NilError
+	}
+	input, err := os.ReadFile(path)
+	if !IsNil(err) {
+		return Wrap(err)
+	}
+	err = json.Unmarshal(input, results)
+	if !IsNil(err) {
+		return Wrap(err)
+	}
+
+	return NilError
+}
+
+func marshalEloResults(path string, results *EloResults) Error {
+	output, err := json.MarshalIndent(results, "", "  ")
+	if !IsNil(err) {
+		return Wrap(err)
+	}
+	err = os.WriteFile(path, output, 0600)
+	return Wrap(err)
 }
 
 func makeDirIfMissing(dir string) Error {
@@ -29,14 +60,11 @@ func makeDirIfMissing(dir string) Error {
 	if IsNil(err) {
 		return NilError
 	}
-	if os.IsNotExist(err) {
-		err = os.Mkdir(dir, 0755)
-		if !IsNil(err) {
-			return Wrap(err)
-		}
-		return NilError
+	err = os.Mkdir(dir, 0755)
+	if !IsNil(err) {
+		return Wrap(err)
 	}
-	return Wrap(err)
+	return NilError
 }
 
 func rmIfExists(path string) Error {
@@ -63,6 +91,7 @@ func buildChessGoIfMissing(binaryPath string) Error {
 }
 
 func runAsync(binary *binary.BinaryRunner, cmd string) {
+	binary.Logger.Print("=>", cmd)
 	err := binary.RunAsync(cmd)
 	if !IsNil(err) {
 		panic(err)
@@ -71,6 +100,7 @@ func runAsync(binary *binary.BinaryRunner, cmd string) {
 
 func run(binary *binary.BinaryRunner, cmd string, waitFor Optional[string]) []string {
 	var result []string
+	binary.Logger.Print("=>", cmd)
 	result, err := binary.Run(cmd, waitFor)
 	if !IsNil(err) {
 		panic(err)
@@ -115,7 +145,7 @@ func search(player Player, binary *binary.BinaryRunner, fen string, moveHistory 
 	move := findMoveInOutput(run(binary, "stop", Some("bestmove")))
 	moveHistory = append(moveHistory, move)
 
-	logger.Printf("%v (%v) > %v\n\n", binary.CmdName(), player.String(), move)
+	logger.Printf("%v (%v) > %v\n", binary.CmdName(), player.String(), move)
 
 	return moveHistory
 }
@@ -134,6 +164,7 @@ const resetColors = "\033[0m"
 
 func playGame(
 	stockfish *binary.BinaryRunner,
+	stockfishElo int,
 	opponent *binary.BinaryRunner,
 	runner *ChessGoRunner,
 ) (Result, Error) {
@@ -143,7 +174,7 @@ func playGame(
 	run(stockfish, "uci", Some("uciok"))
 	runAsync(stockfish, "ucinewgame")
 	runAsync(stockfish, "setoption name UCI_LimitStrength value true")
-	runAsync(stockfish, "setoption name UCI_Elo value 800")
+	runAsync(stockfish, fmt.Sprintf("setoption name UCI_Elo value %v", stockfishElo))
 	runAsync(stockfish, "position startpos")
 
 	run(opponent, "isready", Some("readyok"))
@@ -174,8 +205,11 @@ func playGame(
 
 		moveHistory = search(binaryToPlayer[currentBinary], currentBinary, runner.StartFen, moveHistory, runner.FenString())
 		if Last(moveHistory) == "forfeit" {
-			logger.Println("finished, winner is:", nextBinary.CmdName())
-			break
+			if currentBinary == stockfish {
+				return OpponentWin, NilError
+			} else {
+				return StockfishWin, NilError
+			}
 		}
 		err = runner.PerformMoveFromString(Last(moveHistory))
 		if !IsNil(err) {
@@ -219,15 +253,23 @@ func main() {
 	binaryPath := fmt.Sprintf("%s/%v_chessgo", resultsDir, time.Now().Format("2006_01_02"))
 	jsonPath := fmt.Sprintf("%s/%v_results.json", resultsDir, time.Now().Format("2006_01_02"))
 
-	if len(args) == 1 {
-		if args[0] == "clean" {
-			err = rmIfExists(binaryPath)
-			if !IsNil(err) {
-				panic(err)
+	stockfishElo := 800
+
+	if len(args) > 0 {
+		for _, arg := range args {
+			if arg == "clean" {
+				err = rmIfExists(binaryPath)
+				if !IsNil(err) {
+					panic(err)
+				}
+				err = rmIfExists(jsonPath)
+				if !IsNil(err) {
+					panic(err)
+				}
+				return
 			}
-			err = rmIfExists(jsonPath)
-			if !IsNil(err) {
-				panic(err)
+			if v, err := strconv.ParseInt(arg, 10, 64); err == nil {
+				stockfishElo = int(v)
 			}
 		}
 	}
@@ -243,15 +285,21 @@ func main() {
 	}
 
 	var stockfish *binary.BinaryRunner
-	stockfish, err = binary.SetupBinaryRunner("stockfish", time.Millisecond*1000, binary.WithLogger(&SilentLogger))
+	stockfishLogger := FuncLogger(func(s string) {
+		if strings.Contains(s, "info") {
+			return
+		}
+		logger.Println("stockfish > " + Indent(s, "$ "))
+	})
+	stockfish, err = binary.SetupBinaryRunner("stockfish", time.Millisecond*1000, binary.WithLogger(stockfishLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
 	defer stockfish.Close()
 
-	printlnLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
 	var opponent *binary.BinaryRunner
-	opponent, err = binary.SetupBinaryRunner(binaryPath, time.Millisecond*10000, binary.WithLogger(printlnLogger))
+	chessgoLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
+	opponent, err = binary.SetupBinaryRunner(binaryPath, time.Millisecond*10000, binary.WithLogger(chessgoLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -268,17 +316,45 @@ func main() {
 	}
 
 	var result Result
-	result, err = playGame(stockfish, opponent, &runner)
+	result, err = playGame(stockfish, stockfishElo, opponent, &runner)
 	if !IsNil(err) {
 		panic(err)
 	}
 
+	newResult := MatchResult{
+		Fen:          runner.StartFen + " moves " + strings.Join(runner.MoveHistory(), " "),
+		StockfishElo: stockfishElo,
+	}
+
 	switch result {
 	case StockfishWin:
+		newResult.Won = false
 		logger.Println("stockfish won")
 	case OpponentWin:
+		newResult.Won = true
 		logger.Println("opponent won")
 	case Draw:
+		newResult.Draw = true
 		logger.Println("draw")
+	case Unknown:
+		newResult.Unknown = true
+		logger.Println("wat")
+	}
+
+	results := EloResults{
+		Cmd:     opponent.CmdPath(),
+		Matches: []MatchResult{},
+	}
+
+	err = unmarshalEloResults(jsonPath, &results)
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	results.Matches = append(results.Matches, newResult)
+
+	err = marshalEloResults(jsonPath, &results)
+	if !IsNil(err) {
+		panic(err)
 	}
 }
