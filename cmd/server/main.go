@@ -121,7 +121,6 @@ func main() {
 		}
 	}()
 
-	log.Println("starting webserver")
 	var upgrader = websocket.Upgrader{}
 
 	searchVersion := chessgo.V1
@@ -316,25 +315,20 @@ func main() {
 		http.ServeFile(w, r, RootDir()+"/static/index.html")
 	}
 
-	log.Println("serving")
-
 	port := 8002
 
 	args := os.Args[1:]
-	if len(args) > 0 {
-		i := 0
-		for i < len(args) {
-			arg := args[i]
-			if parsed, err := strconv.ParseInt(arg, 10, 32); err != nil {
-				port = int(parsed)
-			} else if arg == "v1" {
-				searchVersion = chessgo.V1
-			} else if arg == "v2" {
-				searchVersion = chessgo.V2
-			}
-			i += 1
+	for _, arg := range args {
+		if parsed, err := strconv.ParseInt(arg, 10, 64); err == nil {
+			port = int(parsed)
+		} else if arg == "v1" {
+			searchVersion = chessgo.V1
+		} else if arg == "v2" {
+			searchVersion = chessgo.V2
 		}
 	}
+
+	log.Println("serving at", port)
 
 	router := mux.NewRouter()
 	router.HandleFunc("/ws", ws)
