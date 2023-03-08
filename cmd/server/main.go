@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
+	"strconv"
 
 	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -324,8 +325,8 @@ func main() {
 		i := 0
 		for i < len(args) {
 			arg := args[i]
-			if arg == "80" {
-				port = 80
+			if parsed, err := strconv.ParseInt(arg, 10, 32); err != nil {
+				port = int(parsed)
 			} else if arg == "v1" {
 				searchVersion = chessgo.V1
 			} else if arg == "v2" {
