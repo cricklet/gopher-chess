@@ -488,7 +488,8 @@
         }
     }
 
-    let socket = new WebSocket("ws://0.0.0.0:8002/ws");
+
+    var socket = new WebSocket("ws://" + location.host + "/ws");
 
     function send(obj) {
         const message = JSON.stringify(obj)
