@@ -7,6 +7,7 @@ import (
 
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/cricklet/chessgo/internal/stockfish"
+	"github.com/pkg/profile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -136,4 +137,50 @@ func TestBattle(t *testing.T) {
 	}
 
 	assert.Equal(t, 4, len(chessgo.history))
+}
+
+func TestChessGoBattle(t *testing.T) {
+	chessgo1 := NewChessGoRunner(WithLogger(&SilentLogger))
+	chessgo2 := NewChessGoRunner(WithLogger(&SilentLogger))
+
+	// Setup both runners
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	startPosition := Position{
+		Fen:   fen,
+		Moves: []string{},
+	}
+
+	err := chessgo1.SetupPosition(startPosition)
+	assert.True(t, IsNil(err))
+	err = chessgo2.SetupPosition(startPosition)
+	assert.True(t, IsNil(err))
+
+	defer profile.Start(profile.ProfilePath("../../data/TestChessGoBattle")).Stop()
+
+	for i := 0; i < 5; i++ {
+		var err Error
+		var move Optional[string]
+
+		move, err = chessgo1.Search()
+		assert.True(t, IsNil(err))
+		assert.True(t, move.HasValue())
+
+		fmt.Println("> chessgo 1: ", move)
+
+		err = chessgo1.PerformMoveFromString(move.Value())
+		assert.True(t, IsNil(err))
+		err = chessgo2.PerformMoveFromString(move.Value())
+		assert.True(t, IsNil(err))
+
+		move, err = chessgo2.Search()
+		assert.True(t, IsNil(err))
+		assert.True(t, move.HasValue())
+
+		fmt.Println("> chessgo 2: ", move)
+
+		err = chessgo1.PerformMoveFromString(move.Value())
+		assert.True(t, IsNil(err))
+		err = chessgo2.PerformMoveFromString(move.Value())
+		assert.True(t, IsNil(err))
+	}
 }

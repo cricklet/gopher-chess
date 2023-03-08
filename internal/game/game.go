@@ -9,13 +9,12 @@ import (
 )
 
 type GameState struct {
-	Board                         BoardArray
-	Player                        Player
-	PlayerAndCastlingSideAllowed  [2][2]bool
-	EnPassantTarget               Optional[FileRank]
-	HalfMoveClock                 int
-	FullMoveClock                 int
-	FenAndMoveHistoryForDebugging [][2]string
+	Board                        BoardArray
+	Player                       Player
+	PlayerAndCastlingSideAllowed [2][2]bool
+	EnPassantTarget              Optional[FileRank]
+	HalfMoveClock                int
+	FullMoveClock                int
 }
 
 func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
@@ -141,8 +140,6 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) Er
 		return err
 	}
 
-	g.FenAndMoveHistoryForDebugging = append(g.FenAndMoveHistoryForDebugging, [2]string{FenStringForGame(g), move.DebugString()})
-
 	err = g.applyMoveToBitboards(b, update)
 	if !IsNil(err) {
 		return err
@@ -235,7 +232,6 @@ func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) Error {
 		g.Board[index] = piece
 	}
 
-	g.FenAndMoveHistoryForDebugging = g.FenAndMoveHistoryForDebugging[:len(g.FenAndMoveHistoryForDebugging)-1]
 	return NilError
 }
 

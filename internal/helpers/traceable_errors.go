@@ -1,8 +1,6 @@
 package helpers
 
 import (
-	"errors"
-
 	"github.com/ztrue/tracerr"
 )
 
@@ -14,8 +12,7 @@ type Error struct {
 var NilError = Error{nil, nil}
 
 func IsNil(err error) bool {
-	var traceableErr Error
-	if errors.As(err, &traceableErr) {
+	if traceableErr, ok := err.(Error); ok {
 		return traceableErr.First() == nil
 	}
 	return err == nil

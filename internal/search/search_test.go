@@ -2,7 +2,6 @@ package search
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -31,10 +30,6 @@ func TestOpening(t *testing.T) {
 
 	assert.True(t, IsNil(err))
 	assert.Empty(t, errs)
-
-	err = Wrap(os.WriteFile(RootDir()+"/data/debug-search-openings.tree", []byte(searcher.DebugTree.Sprint(10)), 0600))
-	assert.True(t, IsNil(err))
-	fmt.Println(searcher.DebugTree.Sprint(1))
 
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true}
 	assert.True(t, expectedOpenings[result.Value().String()])
@@ -65,10 +60,6 @@ func TestPointlessSacrifice(t *testing.T) {
 	fmt.Println(game.Board.String())
 
 	assert.NotEqual(t, "c8f5", result.Value().String())
-
-	err = Wrap(os.WriteFile(RootDir()+"/data/debug-search-pointless-sacrifice.tree", []byte(searcher.DebugTree.Sprint(4)), 0600))
-	assert.True(t, IsNil(err))
-	fmt.Println(searcher.DebugTree.Sprint(1))
 }
 
 func TestNoLegalMoves(t *testing.T) {
@@ -96,9 +87,6 @@ func TestNoLegalMoves(t *testing.T) {
 	fmt.Println(game.Board.String())
 
 	assert.True(t, result.HasValue())
-	err = Wrap(os.WriteFile(RootDir()+"/data/debug-no-legal-move.tree", []byte(searcher.DebugTree.Sprint(4)), 0600))
-	assert.True(t, IsNil(err))
-	fmt.Println(searcher.DebugTree.Sprint(1))
 }
 
 func TestCheckMateSearch(t *testing.T) {
