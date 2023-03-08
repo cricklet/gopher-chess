@@ -16,8 +16,8 @@ import (
 )
 
 const _footerEval = 1
-const _footerBoard = 3
-const _footerCurrent = 5
+const _footerCurrent = 2
+const _footerBoard = 4
 const _footerPgn = 6
 const _footerHistory = 8
 
