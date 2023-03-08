@@ -2,6 +2,7 @@ package stockfish
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -144,6 +145,24 @@ func (r *StockfishRunner) MovesForSelection(selection string) ([]string, Error) 
 
 func (r *StockfishRunner) Rewind(num int) Error {
 	return Errorf("not implemented")
+}
+
+func StockfishEvalFromGo(output []string) Optional[int] {
+	centipawnScores := FilterSlice(output, func(v string) bool {
+		return strings.Contains(v, "score cp ")
+	})
+	if len(centipawnScores) > 0 {
+		centipawnScoreStr := Last(centipawnScores)
+		centipawnScoreStr = strings.Split(
+			strings.Split(centipawnScoreStr, "score cp ")[1],
+			" ")[0]
+		centipawnScore, err := WrapReturn(strconv.Atoi(centipawnScoreStr))
+		if !IsNil(err) {
+			return Empty[int]()
+		}
+		return Some(centipawnScore)
+	}
+	return Empty[int]()
 }
 
 func (r *StockfishRunner) Search() (Optional[string], Error) {

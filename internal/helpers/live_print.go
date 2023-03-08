@@ -9,7 +9,7 @@ import (
 )
 
 type LiveLogger struct {
-	footer string
+	footers []string
 }
 
 var _ Logger = &LiveLogger{}
@@ -17,9 +17,13 @@ var _ Logger = &LiveLogger{}
 func NewLiveLogger() *LiveLogger {
 	fmt.Print("\033[B")
 	fmt.Print("\033[B")
-	l := &LiveLogger{footer: ""}
-	PrintLive(Empty[string](), "", l.footer)
+	l := &LiveLogger{footers: []string{}}
+	PrintLive(Empty[string](), l.FooterString(), l.FooterString())
 	return l
+}
+
+func (l *LiveLogger) FooterString() string {
+	return strings.Join(l.footers, "\n")
 }
 
 func (l *LiveLogger) Println(v ...interface{}) {
@@ -31,7 +35,7 @@ func (l *LiveLogger) Printf(format string, v ...interface{}) {
 }
 
 func (l *LiveLogger) Print(xs ...interface{}) {
-	PrintLive(Some(fmt.Sprint(xs...)), l.footer, l.footer)
+	PrintLive(Some(fmt.Sprint(xs...)), l.FooterString(), l.FooterString())
 }
 
 func runeCountIgnoringAnsi(s string) int {
@@ -69,10 +73,17 @@ func wrapText(s string, width int, indent string) string {
 	return strings.Join(result, "\n")
 }
 
-func (l *LiveLogger) SetFooter(s string) {
+func (l *LiveLogger) SetFooter(s string, index int) {
 	s = wrapText(s, termWidth(), "  ")
-	PrintLive(Empty[string](), l.footer, s)
-	l.footer = s
+
+	prevFooterString := l.FooterString()
+
+	for i := len(l.footers) - 1; i <= index; i++ {
+		l.footers = append(l.footers, "")
+	}
+	l.footers[index] = s
+
+	PrintLive(Empty[string](), prevFooterString, l.FooterString())
 }
 
 func PrintLive(output Optional[string], previousFooter string, footer string) {

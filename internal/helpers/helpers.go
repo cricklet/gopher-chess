@@ -202,3 +202,10 @@ var (
 func RootDir() string {
 	return _basepath
 }
+
+const hintColor = "\033[38;5;255m"
+const resetColors = "\033[0m"
+
+func HintText(text string) string {
+	return hintColor + text + resetColors
+}

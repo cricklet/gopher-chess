@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,12 @@ import (
 	. "github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
+
+const _footerEval = 1
+const _footerBoard = 3
+const _footerCurrent = 5
+const _footerPgn = 6
+const _footerHistory = 8
 
 var logger = NewLiveLogger()
 
@@ -29,6 +36,52 @@ type EloResults struct {
 	Cmd         string
 	Matches     []MatchResult
 	EloEstimate int
+}
+
+func (r EloResults) estimateElo() int {
+	if len(r.Matches) == 0 {
+		return 800
+	}
+	sum := 0
+	for _, match := range r.Matches {
+		if match.Won {
+			sum += match.StockfishElo + 400
+		} else if match.Draw {
+			sum += match.StockfishElo
+		} else if match.Unknown {
+			// This is actually a draw, but we don't detect it yet
+			sum += match.StockfishElo
+		} else {
+			sum += match.StockfishElo - 400
+		}
+	}
+
+	return sum / len(r.Matches)
+}
+
+func (r EloResults) matchHistory() string {
+	if len(r.Matches) == 0 {
+		return "<new>"
+	}
+	wins := []int{}
+	losses := []int{}
+	draws := []int{}
+	for _, match := range r.Matches {
+		if match.Won {
+			wins = append(wins, match.StockfishElo)
+		} else if match.Draw {
+			draws = append(draws, match.StockfishElo)
+		} else if match.Unknown {
+			draws = append(draws, match.StockfishElo)
+		} else {
+			losses = append(losses, match.StockfishElo)
+		}
+	}
+
+	wins = sort.IntSlice(wins)
+	losses = sort.IntSlice(losses)
+	draws = sort.IntSlice(draws)
+	return fmt.Sprintf("wins: %v\ndraws: %v\nlosses: %v", wins, draws, losses)
 }
 
 func unmarshalEloResults(path string, results *EloResults) Error {
@@ -163,13 +216,11 @@ const (
 	Unknown
 )
 
-const hintColor = "\033[38;5;255m"
-const resetColors = "\033[0m"
-
 func playGame(
 	stockfish *binary.BinaryRunner,
 	stockfishElo int,
 	opponent *binary.BinaryRunner,
+	opponentPlays Player,
 	runner *ChessGoRunner,
 ) (Result, Error) {
 	var err Error
@@ -193,8 +244,8 @@ func playGame(
 	}
 
 	binaryToPlayer := map[*binary.BinaryRunner]Player{
-		stockfish: White,
-		opponent:  Black,
+		stockfish: opponentPlays.Other(),
+		opponent:  opponentPlays,
 	}
 
 	nextBinary := stockfish
@@ -221,15 +272,8 @@ func playGame(
 		}
 		// logger.Println(fen + " moves " + strings.Join(moveHistory, " "))
 
-		logger.SetFooter(
-			fmt.Sprintf("\n%v%v\n\npgn: %v\npiece score: %v\nstockfish elo: %v%v",
-				runner.Board().Unicode(),
-				hintColor,
-				runner.PgnFromMoveHistory(),
-				runner.EvaluateSimple(binaryToPlayer[opponent]),
-				stockfishElo,
-				resetColors),
-		)
+		logger.SetFooter(HintText(runner.PgnFromMoveHistory()), _footerPgn)
+		logger.SetFooter(runner.Board().Unicode(), _footerBoard)
 
 		var noValidMoves bool
 		noValidMoves, err = runner.NoValidMoves()
@@ -249,11 +293,41 @@ func playGame(
 	return Unknown, NilError
 }
 
-func mainInner(binaryPath string, binaryArgs []string, stockfishElo int, jsonPath string) {
+func mainInner(
+	binaryPath string,
+	binaryArgs []string,
+	stockfishElo int,
+) MatchResult {
 	var err Error
+
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	runner := NewChessGoRunner()
+	err = runner.SetupPosition(Position{
+		Fen:   fen,
+		Moves: []string{},
+	})
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	opponentPlays := Black
 
 	var stockfish *binary.BinaryRunner
 	stockfishLogger := FuncLogger(func(s string) {
+		if strings.Contains(s, "score cp ") {
+			evalStr := strings.Split(
+				strings.Split(s, "score cp ")[1], " ")[0]
+			centipawnScore, err := WrapReturn(strconv.Atoi(evalStr))
+			if !IsNil(err) {
+				panic(err)
+			}
+
+			logger.SetFooter(HintText(fmt.Sprintf("stockfish eval: %v, piece eval: %v",
+				-centipawnScore,
+				runner.EvaluateSimple(opponentPlays))),
+				_footerEval)
+		}
+
 		if strings.Contains(s, "info") {
 			return
 		}
@@ -273,18 +347,8 @@ func mainInner(binaryPath string, binaryArgs []string, stockfishElo int, jsonPat
 	}
 	defer opponent.Close()
 
-	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-	runner := NewChessGoRunner()
-	err = runner.SetupPosition(Position{
-		Fen:   fen,
-		Moves: []string{},
-	})
-	if !IsNil(err) {
-		panic(err)
-	}
-
 	var result Result
-	result, err = playGame(stockfish, stockfishElo, opponent, &runner)
+	result, err = playGame(stockfish, stockfishElo, opponent, opponentPlays, &runner)
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -311,38 +375,7 @@ func mainInner(binaryPath string, binaryArgs []string, stockfishElo int, jsonPat
 		logger.Println("wat")
 	}
 
-	results := EloResults{
-		Cmd:     opponent.CmdPath(),
-		Matches: []MatchResult{},
-	}
-
-	err = unmarshalEloResults(jsonPath, &results)
-	if !IsNil(err) {
-		panic(err)
-	}
-
-	results.Matches = append(results.Matches, newResult)
-
-	sum := 0
-	for _, match := range results.Matches {
-		if match.Won {
-			sum += match.StockfishElo + 400
-		} else if match.Draw {
-			sum += match.StockfishElo
-		} else {
-			sum += match.StockfishElo - 400
-		}
-	}
-
-	eloEstimate := sum / len(results.Matches)
-	logger.Printf("elo so far: %v\n", eloEstimate)
-
-	results.EloEstimate = eloEstimate
-
-	err = marshalEloResults(jsonPath, &results)
-	if !IsNil(err) {
-		panic(err)
-	}
+	return newResult
 }
 
 func main() {
@@ -401,9 +434,41 @@ func main() {
 
 	if len(stockfishElos) == 0 {
 		stockfishElos = []int{800}
-	} else {
-		for _, stockfishElo := range stockfishElos {
-			mainInner(binaryPath, binaryArgs, stockfishElo, jsonPath)
+	}
+
+	results := EloResults{
+		Cmd:     binaryPath,
+		Matches: []MatchResult{},
+	}
+
+	err = unmarshalEloResults(jsonPath, &results)
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	for _, stockfishElo := range stockfishElos {
+		currentSuffix := HintText(fmt.Sprintf(
+			"stockfish elo: %v, chessgo elo: %v",
+			stockfishElo,
+			results.estimateElo()))
+		historySuffix := HintText(results.matchHistory())
+		logger.SetFooter(currentSuffix, _footerCurrent)
+		logger.SetFooter(historySuffix, _footerHistory)
+		result := mainInner(binaryPath, binaryArgs, stockfishElo)
+
+		err = unmarshalEloResults(jsonPath, &results)
+		if !IsNil(err) {
+			panic(err)
+		}
+
+		results.Matches = append(results.Matches, result)
+		results.EloEstimate = results.estimateElo()
+
+		logger.Printf("elo so far: %v\n", results.estimateElo())
+
+		err = marshalEloResults(jsonPath, &results)
+		if !IsNil(err) {
+			panic(err)
 		}
 	}
 }

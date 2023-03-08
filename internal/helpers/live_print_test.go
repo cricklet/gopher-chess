@@ -20,25 +20,25 @@ func TestPrintLive(t *testing.T) {
 
 func TestLiveLogger(t *testing.T) {
 	l := NewLiveLogger()
-	l.SetFooter("a")
+	l.SetFooter("a", 0)
 	l.Println("1")
 	time.Sleep(500 * time.Millisecond)
-	l.SetFooter("ab")
+	l.SetFooter("ab", 0)
 	l.Println("12")
 	time.Sleep(500 * time.Millisecond)
-	l.SetFooter("abc")
+	l.SetFooter("abc", 0)
 	l.Println("123")
 }
 
 func TestLiveLogger2(t *testing.T) {
 	l := NewLiveLogger()
-	l.SetFooter("a")
+	l.SetFooter("a", 0)
 	l.Println("1")
 	time.Sleep(500 * time.Millisecond)
-	l.SetFooter("a\nb")
+	l.SetFooter("a\nb", 0)
 	l.Println("12")
 	time.Sleep(500 * time.Millisecond)
-	l.SetFooter("a\nb\nc")
+	l.SetFooter("a\nb\nc", 0)
 	l.Println("123")
 }
 
