@@ -250,7 +250,7 @@ func playGame(
 
 	nextBinary := stockfish
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 200; i++ {
 		currentBinary := nextBinary
 		if nextBinary == stockfish {
 			nextBinary = opponent

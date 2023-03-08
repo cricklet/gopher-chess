@@ -382,6 +382,12 @@ func (s *searcherV2) evaluateMove(move Move, alpha int, beta int, depth int) (in
 		return returnScore, returnNode, returnErrors
 	}
 
+	if depth <= 1 && !s.OutOfTime {
+		if KingIsInCheck(s.Bitboards, player.Other()) {
+			depth = 1
+		}
+	}
+
 	if depth == 0 {
 		if move.MoveType == CaptureMove || move.MoveType == EnPassantMove {
 			returnScore, returnNode.Children, returnErrors = s.evaluateCaptures(alpha, beta)
