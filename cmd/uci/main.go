@@ -19,12 +19,10 @@ func main() {
 	}()
 
 	args := os.Args[1:]
-	searchVersion := chessgo.V1
+	searchVersion := chessgo.V2
 
 	for _, arg := range args {
-		if arg == "v1" {
-			searchVersion = chessgo.V1
-		} else if arg == "v2" {
+		if arg == "v2" {
 			searchVersion = chessgo.V2
 		}
 	}

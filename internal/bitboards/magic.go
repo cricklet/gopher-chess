@@ -70,15 +70,15 @@ func marshalMagics(path string, magics *[64]MagicValue) Error {
 }
 
 func initMagicTables() Error {
-	err := unmarshalMagics(RootDir()+"/data/magics-for-rook.json", &RookBestMagics)
-	if !IsNil(err) {
-		return err
-	}
+	// err := unmarshalMagics(RootDir()+"/data/magics-for-rook.json", &RookBestMagics)
+	// if !IsNil(err) {
+	// 	return err
+	// }
 
-	err = unmarshalMagics(RootDir()+"/data/magics-for-bishop.json", &BishopBestMagics)
-	if !IsNil(err) {
-		return err
-	}
+	// err = unmarshalMagics(RootDir()+"/data/magics-for-bishop.json", &BishopBestMagics)
+	// if !IsNil(err) {
+	// 	return err
+	// }
 
 	RookMagicTable = generateMagicMoveTable(RookDirs, RookBestMagics, "rook magics ")
 	BishopMagicTable = generateMagicMoveTable(BishopDirs, BishopBestMagics, "bishop magic")
@@ -104,15 +104,15 @@ func initMagicTables() Error {
 	// log.Println("rook bits for magic index: best", lowestRookBits, "average", sumRookBits/64.0)
 	// log.Println("bishop bits for magic index: best", lowestBishopBits, "average", sumBishopBits/64.0)
 
-	err = marshalMagics(RootDir()+"/data/magics-for-rook.json", &RookBestMagics)
-	if !IsNil(err) {
-		return err
-	}
+	// err = marshalMagics(RootDir()+"/data/magics-for-rook.json", &RookBestMagics)
+	// if !IsNil(err) {
+	// 	return err
+	// }
 
-	err = marshalMagics(RootDir()+"/data/magics-for-bishop.json", &BishopBestMagics)
-	if !IsNil(err) {
-		return err
-	}
+	// err = marshalMagics(RootDir()+"/data/magics-for-bishop.json", &BishopBestMagics)
+	// if !IsNil(err) {
+	// 	return err
+	// }
 
 	return NilError
 }

@@ -123,7 +123,7 @@ func main() {
 
 	var upgrader = websocket.Upgrader{}
 
-	searchVersion := chessgo.V1
+	searchVersion := chessgo.V2
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		playerTypes := [2]PlayerType{User, User}
@@ -321,8 +321,6 @@ func main() {
 	for _, arg := range args {
 		if parsed, err := strconv.ParseInt(arg, 10, 64); err == nil {
 			port = int(parsed)
-		} else if arg == "v1" {
-			searchVersion = chessgo.V1
 		} else if arg == "v2" {
 			searchVersion = chessgo.V2
 		}

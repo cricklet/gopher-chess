@@ -14,8 +14,7 @@ import (
 type SearchVersion int
 
 const (
-	V1 SearchVersion = iota
-	V2
+	V2 SearchVersion = iota
 )
 
 type ChessGoRunner struct {
@@ -230,12 +229,7 @@ func (r *ChessGoRunner) Board() BoardArray {
 func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	var move Optional[Move] = Empty[Move]()
 	var err Error
-	if r.SearchVersion == V1 {
-		move, err = Search(r.g, r.b, 3, r.Logger)
-		if !IsNil(err) {
-			return Empty[string](), err
-		}
-	} else if r.SearchVersion == V2 {
+	if r.SearchVersion == V2 {
 		searcher := NewSearcherV2(r.Logger, r.g, r.b)
 
 		go func() {

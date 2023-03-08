@@ -320,7 +320,7 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 		}
 
 		if len(perftIssueMap) > 0 {
-			t.Error(Errorf("found invalid moves %v", pp(perftIssueMap)))
+			t.Error(Errorf(pp(perftIssueMap)))
 			for move, issue := range perftIssueMap {
 				invalidMovesToSearch = append(invalidMovesToSearch, InvalidMovesToSearch{move, issue.comparison, initialState})
 			}
@@ -572,4 +572,53 @@ func TestPosition6(t *testing.T) {
 		89890,
 	}
 	assertPerftCountsMatch(t, s, EXPECTED_COUNT)
+}
+
+func TestPosition5QueenRetreat(t *testing.T) {
+	s := "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+
+	g, err := GamestateFromFenString(s)
+	assert.True(t, IsNil(err))
+
+	b := g.CreateBitboards()
+
+	err = g.PerformMove(g.MoveFromString("d1d4"), &BoardUpdate{}, &b)
+	assert.True(t, IsNil(err))
+
+	err = g.PerformMove(g.MoveFromString("f2e4"), &BoardUpdate{}, &b)
+	assert.True(t, IsNil(err))
+
+	expectedBoardString := []string{
+		"rnbq k r",
+		"pp Pbppp",
+		"  p     ",
+		"        ",
+		"  BQn   ",
+		"        ",
+		"PPP N PP",
+		"RNB K  R",
+	}
+	expectedBitboardString := MapSlice(expectedBoardString, func(s string) string {
+		result := ""
+		for _, c := range s {
+			if c == ' ' {
+				result += "0"
+			} else {
+				result += "1"
+			}
+		}
+		return result
+	})
+
+	assert.Equal(t, strings.Join(expectedBoardString, "\n"), g.Board.String())
+	assert.Equal(t, strings.Join(expectedBitboardString, "\n"), b.Occupied.String())
+
+	moves := []Move{}
+	GeneratePseudoMovesWithAllPromotions(&b, &g, &moves)
+	moveStrings := MapSlice(moves, func(m Move) string { return m.String() })
+
+	numExpectedMoves := 55
+	assert.Equal(t, numExpectedMoves, len(moves))
+	assert.True(t, Contains(moveStrings, "d4g7"))
+	assert.True(t, Contains(moveStrings, "d4g1"))
 }
