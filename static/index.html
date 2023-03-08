@@ -488,8 +488,8 @@
         }
     }
 
-
-    var socket = new WebSocket("ws://" + location.host + "/ws");
+    var websocketProtocol = location.protocol === "https:" ? "wss:" : "ws:";
+    var socket = new WebSocket(websocketProtocol + location.host + "/ws");
 
     function send(obj) {
         const message = JSON.stringify(obj)
