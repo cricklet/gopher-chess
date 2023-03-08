@@ -17,7 +17,7 @@ func TestOpening(t *testing.T) {
 	assert.True(t, IsNil(err))
 	bitboards := game.CreateBitboards()
 
-	searcher := NewSearcher(&DefaultLogger, &game, &bitboards)
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards)
 
 	var result Optional[Move]
 	var errs []Error
@@ -46,7 +46,7 @@ func TestPointlessSacrifice(t *testing.T) {
 	assert.True(t, IsNil(err))
 	bitboards := game.CreateBitboards()
 
-	searcher := NewSearcher(&DefaultLogger, &game, &bitboards)
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards)
 
 	var result Optional[Move]
 	var errs []Error
@@ -77,7 +77,7 @@ func TestNoLegalMoves(t *testing.T) {
 	assert.True(t, IsNil(err))
 	bitboards := game.CreateBitboards()
 
-	searcher := NewSearcher(&DefaultLogger, &game, &bitboards)
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards)
 
 	var result Optional[Move]
 	var errs []Error
@@ -107,7 +107,7 @@ func TestCheckMateSearch(t *testing.T) {
 	assert.True(t, IsNil(err))
 	bitboards := game.CreateBitboards()
 
-	searcher := NewSearcher(&SilentLogger, &game, &bitboards)
+	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards)
 
 	var result Optional[Move]
 	var errs []Error

@@ -20,12 +20,15 @@ type MatchResult struct {
 	Won          bool
 	Draw         bool
 	Unknown      bool
-	Fen          string
+	StartFen     string
+	PositionFen  string
+	PgnMoves     string
 	StockfishElo int
 }
 type EloResults struct {
-	Cmd     string
-	Matches []MatchResult
+	Cmd         string
+	Matches     []MatchResult
+	EloEstimate int
 }
 
 func unmarshalEloResults(path string, results *EloResults) Error {
@@ -91,7 +94,7 @@ func buildChessGoIfMissing(binaryPath string) Error {
 }
 
 func runAsync(binary *binary.BinaryRunner, cmd string) {
-	binary.Logger.Print("=>", cmd)
+	binary.Logger.Print("in=>", cmd)
 	err := binary.RunAsync(cmd)
 	if !IsNil(err) {
 		panic(err)
@@ -100,7 +103,7 @@ func runAsync(binary *binary.BinaryRunner, cmd string) {
 
 func run(binary *binary.BinaryRunner, cmd string, waitFor Optional[string]) []string {
 	var result []string
-	binary.Logger.Print("=>", cmd)
+	binary.Logger.Print("in=>", cmd)
 	result, err := binary.Run(cmd, waitFor)
 	if !IsNil(err) {
 		panic(err)
@@ -218,10 +221,10 @@ func playGame(
 		// logger.Println(fen + " moves " + strings.Join(moveHistory, " "))
 
 		logger.SetFooter(
-			fmt.Sprintf("\n%v%v\n\nfen: %v\npiece score: %v%v",
+			fmt.Sprintf("\n%v%v\n\npgn: %v\npiece score: %v%v",
 				runner.Board().Unicode(),
 				hintColor,
-				runner.StartFen+" moves "+strings.Join(moveHistory, " "),
+				runner.PgnFromMoveHistory(),
 				runner.Evaluate(binaryToPlayer[opponent]),
 				resetColors),
 		)
@@ -299,7 +302,7 @@ func main() {
 
 	var opponent *binary.BinaryRunner
 	chessgoLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
-	opponent, err = binary.SetupBinaryRunner(binaryPath, time.Millisecond*10000, binary.WithLogger(chessgoLogger))
+	opponent, err = binary.SetupBinaryRunner(binaryPath, time.Millisecond*20000, binary.WithLogger(chessgoLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -322,7 +325,9 @@ func main() {
 	}
 
 	newResult := MatchResult{
-		Fen:          runner.StartFen + " moves " + strings.Join(runner.MoveHistory(), " "),
+		StartFen:     runner.StartFen,
+		PositionFen:  runner.StartFen + " moves " + strings.Join(runner.MoveHistory(), " "),
+		PgnMoves:     runner.PgnFromMoveHistory(),
 		StockfishElo: stockfishElo,
 	}
 
@@ -353,8 +358,25 @@ func main() {
 
 	results.Matches = append(results.Matches, newResult)
 
+	sum := 0
+	for _, match := range results.Matches {
+		if match.Won {
+			sum += match.StockfishElo + 400
+		} else if match.Draw {
+			sum += match.StockfishElo
+		} else {
+			sum += match.StockfishElo - 400
+		}
+	}
+
+	eloEstimate := sum / len(results.Matches)
+	fmt.Printf("elo so far: %v\n", eloEstimate)
+
+	results.EloEstimate = eloEstimate
+
 	err = marshalEloResults(jsonPath, &results)
 	if !IsNil(err) {
 		panic(err)
 	}
+
 }

@@ -349,7 +349,7 @@ func (b BoardArray) String() string {
 	return result
 }
 
-const _hintForeground = "\033[38;5;255m"
+const _hintForeground = "\033[38;5;244m"
 const _whiteForeground = "\033[38;5;255m"
 const _blackForeground = "\033[38;5;232m"
 const _whiteBackground = "\033[48;5;244m"
@@ -387,12 +387,13 @@ func (b BoardArray) Unicode() string {
 			squareColor = 1 - squareColor
 			result += _resetColors
 		}
-		result += _hintForeground + " " + Rank(rank).String() + _resetColors + "\n"
+		// result += _hintForeground + " " + Rank(rank).String() + _resetColors
+		result += "\n"
 	}
-	result += "  "
-	for file := 0; file < 8; file++ {
-		result += _hintForeground + " " + File(file).String() + " " + _resetColors
-	}
+	// result += "  "
+	// for file := 0; file < 8; file++ {
+	// 	result += _hintForeground + " " + File(file).String() + " " + _resetColors
+	// }
 
 	return result
 }
@@ -464,6 +465,7 @@ type Move struct {
 	MoveType       MoveType
 	StartIndex     int
 	EndIndex       int
+	IsCheck        Optional[bool]
 	PromotionPiece Optional[PieceType]
 	Evaluation     Optional[int]
 }
@@ -471,7 +473,7 @@ type Move struct {
 func MoveFromString(s string, m MoveType) Move {
 	first := s[0:2]
 	second := s[2:4]
-	return Move{m, BoardIndexFromString(first), BoardIndexFromString(second), Empty[PieceType](), Empty[int]()}
+	return Move{m, BoardIndexFromString(first), BoardIndexFromString(second), Empty[bool](), Empty[PieceType](), Empty[int]()}
 }
 
 func (m Move) String() string {

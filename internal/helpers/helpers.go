@@ -21,7 +21,7 @@ func IndentMany(indent string, xs ...any) string {
 	return strings.ReplaceAll(strings.Join(
 		MapSlice(xs, func(x any) string {
 			return fmt.Sprint(x)
-		}), "\n"), "\n", "\n"+indent)
+		}), " "), "\n", "\n"+indent)
 }
 
 func Last[T any](ts []T) T {
@@ -154,6 +154,13 @@ func (o Optional[T]) HasValue() bool {
 
 func (o Optional[T]) Value() T {
 	return o._t
+}
+
+func MapOptional[T, V any](o Optional[T], f func(T) V) Optional[V] {
+	if o.HasValue() {
+		return Some(f(o.Value()))
+	}
+	return Empty[V]()
 }
 
 func AbsDiff(x int, y int) int {

@@ -1,6 +1,7 @@
 package chessgo
 
 import (
+	"fmt"
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -180,13 +181,25 @@ func (r *ChessGoRunner) MoveHistory() []string {
 	})
 }
 
-// func pgnFromMoveHistory(moves []Move) []string {
-// 	result := []string{}
-// 	for i, move := range moves {
-// 		pgnMove := i / 2
-// 		move.EndIndex
-// 	}
-// }
+func (r *ChessGoRunner) PgnFromMoveHistory() string {
+	result := ""
+	fullMove := 1
+	halfMove := 0
+	for _, move := range r.history {
+		if halfMove == 0 {
+			result += fmt.Sprintf("%v. ", fullMove)
+		}
+
+		result += fmt.Sprintf("%v ", move.move.String())
+
+		halfMove += 1
+		if halfMove == 2 {
+			halfMove = 0
+			fullMove += 1
+		}
+	}
+	return result
+}
 
 func (r *ChessGoRunner) Player() Player {
 	return r.g.Player
@@ -197,7 +210,7 @@ func (r *ChessGoRunner) Board() BoardArray {
 }
 
 func (r *ChessGoRunner) Search() (Optional[string], Error) {
-	searcher := NewSearcher(r.Logger, r.g, r.b)
+	searcher := NewSearcherV2(r.Logger, r.g, r.b)
 
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -213,7 +226,12 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 		return Some(move.Value().String()), NilError
 	}
 
-	return Empty[string](), NilError
+	// move, err := Search(r.g, r.b, 3, r.Logger)
+	// if !IsNil(err) {
+	// 	return Empty[string](), err
+	// }
+
+	return MapOptional(move, func(m Move) string { return m.String() }), NilError
 }
 
 func (r *ChessGoRunner) PlayerIsInCheck() bool {
