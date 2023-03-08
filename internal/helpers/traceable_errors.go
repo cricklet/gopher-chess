@@ -47,6 +47,9 @@ func Wrap(err error) Error {
 func WrapReturn[T any](x T, err error) (T, Error) {
 	return x, Wrap(err)
 }
+func JoinReturn[T any](x T, errs []Error) (T, Error) {
+	return x, Join(errs...)
+}
 
 func Join(others ...Error) Error {
 	hasError := false

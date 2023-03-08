@@ -49,7 +49,7 @@ func (r *StockfishRunner) SetupPosition(position Position) Error {
 	var err Error
 
 	if r.binary == nil {
-		r.binary, err = binary.SetupBinaryRunner("stockfish", time.Millisecond*1000)
+		r.binary, err = binary.SetupBinaryRunner("stockfish", []string{}, time.Millisecond*1000)
 		if !IsNil(err) {
 			return err
 		}

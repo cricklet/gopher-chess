@@ -11,7 +11,7 @@ import (
 )
 
 func TestIndexBug2(t *testing.T) {
-	r := NewChessGoRunner(nil)
+	r := NewChessGoRunner()
 	err := r.SetupPosition(Position{
 		Fen:   "2kr3r/p1p2ppp/2n1b3/2bqp3/Pp1p4/1P1P1N1P/2PBBPP1/R2Q1RK1 w - - 24 13",
 		Moves: []string{},
@@ -26,7 +26,7 @@ func TestIndexBug2(t *testing.T) {
 }
 
 func TestIndexBug3(t *testing.T) {
-	r := NewChessGoRunner(nil)
+	r := NewChessGoRunner()
 	err := r.SetupPosition(Position{
 		Fen:   "2k1r3/8/2np2p1/p1bq4/Pp2P1P1/1P1p4/2PBQ3/R4RK1 w - - 48 25",
 		Moves: []string{},
@@ -48,7 +48,7 @@ func TestCastlingBug1(t *testing.T) {
 	}
 
 	{
-		r := NewChessGoRunner(nil)
+		r := NewChessGoRunner()
 		err := r.SetupPosition(Position{
 			Fen:   fen,
 			Moves: []string{},
@@ -68,7 +68,7 @@ func TestCastlingBug1(t *testing.T) {
 		}
 	}
 	{
-		r := NewChessGoRunner(nil)
+		r := NewChessGoRunner()
 		err := r.SetupPosition(Position{
 			Fen:   fen,
 			Moves: moves,
@@ -93,7 +93,7 @@ type UciIteration struct {
 }
 
 func TestBattle(t *testing.T) {
-	chessgo := NewChessGoRunner(nil)
+	chessgo := NewChessGoRunner()
 	stockfish := stockfish.NewStockfishRunner()
 
 	// Setup both runners

@@ -56,7 +56,7 @@ func wrapError(u *BinaryRunner, err error) Error {
 	return NilError
 }
 
-func SetupBinaryRunner(cmdPath string, delay time.Duration, options ...BinaryRunnerOption) (*BinaryRunner, Error) {
+func SetupBinaryRunner(cmdPath string, args []string, delay time.Duration, options ...BinaryRunnerOption) (*BinaryRunner, Error) {
 	u := &BinaryRunner{
 		cmdPath: cmdPath,
 		timeout: delay,
@@ -71,7 +71,8 @@ func SetupBinaryRunner(cmdPath string, delay time.Duration, options ...BinaryRun
 	}
 
 	if u.cmd == nil {
-		u.cmd = exec.Command(cmdPath)
+		u.Logger.Println(cmdPath, args)
+		u.cmd = exec.Command(cmdPath, args...)
 
 		var err error
 		u.stdin.Writer, err = u.cmd.StdinPipe()

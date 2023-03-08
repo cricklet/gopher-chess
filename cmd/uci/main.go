@@ -18,11 +18,23 @@ func main() {
 		}
 	}()
 
+	args := os.Args[1:]
+	searchVersion := chessgo.V1
+
+	for _, arg := range args {
+		if arg == "v1" {
+			searchVersion = chessgo.V1
+		} else if arg == "v2" {
+			searchVersion = chessgo.V2
+		}
+	}
+
 	r := uci.NewUciRunner(chessgo.NewChessGoRunner(
-		FuncLogger(
+		chessgo.WithSearchVersion(searchVersion),
+		chessgo.WithLogger(FuncLogger(
 			func(s string) {
 				fmt.Print(s)
-			}),
+			})),
 	))
 
 	scanner := bufio.NewScanner(os.Stdin)

@@ -84,6 +84,7 @@ func buildChessGoIfMissing(binaryPath string) Error {
 		return NilError
 	}
 	if os.IsNotExist(err) {
+		logger.Println("go", "build", "-o", binaryPath, "cmd/uci/main.go")
 		err = exec.Command("go", "build", "-o", binaryPath, "cmd/uci/main.go").Run()
 		if !IsNil(err) {
 			return Wrap(err)
@@ -198,7 +199,7 @@ func playGame(
 
 	nextBinary := stockfish
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100; i++ {
 		currentBinary := nextBinary
 		if nextBinary == stockfish {
 			nextBinary = opponent
@@ -221,11 +222,12 @@ func playGame(
 		// logger.Println(fen + " moves " + strings.Join(moveHistory, " "))
 
 		logger.SetFooter(
-			fmt.Sprintf("\n%v%v\n\npgn: %v\npiece score: %v%v",
+			fmt.Sprintf("\n%v%v\n\npgn: %v\npiece score: %v\nstockfish elo: %v%v",
 				runner.Board().Unicode(),
 				hintColor,
 				runner.PgnFromMoveHistory(),
-				runner.Evaluate(binaryToPlayer[opponent]),
+				runner.EvaluateSimple(binaryToPlayer[opponent]),
+				stockfishElo,
 				resetColors),
 		)
 
@@ -247,45 +249,8 @@ func playGame(
 	return Unknown, NilError
 }
 
-func main() {
+func mainInner(binaryPath string, binaryArgs []string, stockfishElo int, jsonPath string) {
 	var err Error
-
-	args := os.Args[1:]
-
-	resultsDir := RootDir() + "/data/elo_results"
-	binaryPath := fmt.Sprintf("%s/%v_chessgo", resultsDir, time.Now().Format("2006_01_02"))
-	jsonPath := fmt.Sprintf("%s/%v_results.json", resultsDir, time.Now().Format("2006_01_02"))
-
-	stockfishElo := 800
-
-	if len(args) > 0 {
-		for _, arg := range args {
-			if arg == "clean" {
-				err = rmIfExists(binaryPath)
-				if !IsNil(err) {
-					panic(err)
-				}
-				err = rmIfExists(jsonPath)
-				if !IsNil(err) {
-					panic(err)
-				}
-				return
-			}
-			if v, err := strconv.ParseInt(arg, 10, 64); err == nil {
-				stockfishElo = int(v)
-			}
-		}
-	}
-
-	err = makeDirIfMissing(resultsDir)
-	if !IsNil(err) {
-		panic(err)
-	}
-
-	err = buildChessGoIfMissing(binaryPath)
-	if !IsNil(err) {
-		panic(err)
-	}
 
 	var stockfish *binary.BinaryRunner
 	stockfishLogger := FuncLogger(func(s string) {
@@ -294,7 +259,7 @@ func main() {
 		}
 		logger.Println("stockfish > " + Indent(s, "$ "))
 	})
-	stockfish, err = binary.SetupBinaryRunner("stockfish", time.Millisecond*1000, binary.WithLogger(stockfishLogger))
+	stockfish, err = binary.SetupBinaryRunner("stockfish", []string{}, time.Millisecond*1000, binary.WithLogger(stockfishLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -302,14 +267,14 @@ func main() {
 
 	var opponent *binary.BinaryRunner
 	chessgoLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
-	opponent, err = binary.SetupBinaryRunner(binaryPath, time.Millisecond*20000, binary.WithLogger(chessgoLogger))
+	opponent, err = binary.SetupBinaryRunner(binaryPath, binaryArgs, time.Millisecond*20000, binary.WithLogger(chessgoLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
 	defer opponent.Close()
 
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-	runner := NewChessGoRunner(nil)
+	runner := NewChessGoRunner()
 	err = runner.SetupPosition(Position{
 		Fen:   fen,
 		Moves: []string{},
@@ -370,7 +335,7 @@ func main() {
 	}
 
 	eloEstimate := sum / len(results.Matches)
-	fmt.Printf("elo so far: %v\n", eloEstimate)
+	logger.Printf("elo so far: %v\n", eloEstimate)
 
 	results.EloEstimate = eloEstimate
 
@@ -378,5 +343,67 @@ func main() {
 	if !IsNil(err) {
 		panic(err)
 	}
+}
 
+func main() {
+	var err Error
+
+	args := os.Args[1:]
+
+	stockfishElos := []int{}
+	shouldClean := false
+	binaryArgs := []string{}
+
+	tag := ""
+
+	for _, arg := range args {
+		if arg == "clean" {
+			shouldClean = true
+		} else if v, err := strconv.ParseInt(arg, 10, 64); err == nil {
+			stockfishElos = append(stockfishElos, int(v))
+		} else if arg == "v1" || arg == "v2" {
+			binaryArgs = append(binaryArgs, arg)
+			tag = arg + "_"
+		} else {
+			tag = arg + "_"
+		}
+	}
+
+	resultsDir := RootDir() + "/data/elo_results"
+	binaryPath := fmt.Sprintf("%s/%v%v_chessgo", resultsDir, tag, time.Now().Format("2006_01_02"))
+	jsonPath := fmt.Sprintf("%s/%v%v_results.json", resultsDir, tag, time.Now().Format("2006_01_02"))
+
+	logger.Println(resultsDir)
+	logger.Println(binaryPath)
+	logger.Println(jsonPath)
+
+	if shouldClean {
+		err = rmIfExists(binaryPath)
+		if !IsNil(err) {
+			panic(err)
+		}
+		err = rmIfExists(jsonPath)
+		if !IsNil(err) {
+			panic(err)
+		}
+		return
+	}
+
+	err = makeDirIfMissing(resultsDir)
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	err = buildChessGoIfMissing(binaryPath)
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	if len(stockfishElos) == 0 {
+		stockfishElos = []int{800}
+	} else {
+		for _, stockfishElo := range stockfishElos {
+			mainInner(binaryPath, binaryArgs, stockfishElo, jsonPath)
+		}
+	}
 }

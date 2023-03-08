@@ -123,6 +123,8 @@ func main() {
 	log.Println("starting webserver")
 	var upgrader = websocket.Upgrader{}
 
+	searchVersion := chessgo.V1
+
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		playerTypes := [2]PlayerType{User, User}
 		ready := false
@@ -144,7 +146,7 @@ func main() {
 			}
 		}
 
-		chessGoRunner := chessgo.NewChessGoRunner(nil)
+		chessGoRunner := chessgo.NewChessGoRunner(chessgo.WithSearchVersion(searchVersion))
 
 		stockfishRunner := stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
 			&LogForwarding{
@@ -315,6 +317,24 @@ func main() {
 
 	log.Println("serving")
 
+	port := 8002
+
+	args := os.Args[1:]
+	if len(args) > 0 {
+		i := 0
+		for i < len(args) {
+			arg := args[i]
+			if arg == "80" {
+				port = 80
+			} else if arg == "v1" {
+				searchVersion = chessgo.V1
+			} else if arg == "v2" {
+				searchVersion = chessgo.V2
+			}
+			i += 1
+		}
+	}
+
 	router := mux.NewRouter()
 	router.HandleFunc("/ws", ws)
 	router.PathPrefix("/static").Handler(
@@ -323,7 +343,7 @@ func main() {
 	router.PathPrefix("/{white}/{black}/fen").HandlerFunc(index)
 	router.HandleFunc("/", index)
 	http.Handle("/", router)
-	err := http.ListenAndServe(":8002", router)
+	err := http.ListenAndServe(fmt.Sprintf(":%v", port), router)
 	if !IsNil(err) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

@@ -11,8 +11,16 @@ import (
 	. "github.com/cricklet/chessgo/internal/search"
 )
 
+type SearchVersion int
+
+const (
+	V1 SearchVersion = iota
+	V2
+)
+
 type ChessGoRunner struct {
-	Logger Logger
+	Logger        Logger
+	SearchVersion SearchVersion
 
 	g *GameState
 	b *Bitboards
@@ -31,8 +39,18 @@ func WithLogger(l Logger) ChessGoOption {
 	}
 }
 
-func NewChessGoRunner(l Logger) ChessGoRunner {
-	return ChessGoRunner{Logger: l}
+func WithSearchVersion(s SearchVersion) ChessGoOption {
+	return func(r *ChessGoRunner) {
+		r.SearchVersion = s
+	}
+}
+
+func NewChessGoRunner(opts ...ChessGoOption) ChessGoRunner {
+	r := ChessGoRunner{}
+	for _, opt := range opts {
+		opt(&r)
+	}
+	return r
 }
 
 type HistoryValue struct {
@@ -210,26 +228,30 @@ func (r *ChessGoRunner) Board() BoardArray {
 }
 
 func (r *ChessGoRunner) Search() (Optional[string], Error) {
-	searcher := NewSearcherV2(r.Logger, r.g, r.b)
+	var move Optional[Move] = Empty[Move]()
+	var err Error
+	if r.SearchVersion == V1 {
+		move, err = Search(r.g, r.b, 3, r.Logger)
+		if !IsNil(err) {
+			return Empty[string](), err
+		}
+	} else if r.SearchVersion == V2 {
+		searcher := NewSearcherV2(r.Logger, r.g, r.b)
 
-	go func() {
-		time.Sleep(2 * time.Second)
-		searcher.OutOfTime = true
-	}()
+		go func() {
+			time.Sleep(2 * time.Second)
+			searcher.OutOfTime = true
+		}()
 
-	move, errs := searcher.Search()
-	if len(errs) != 0 {
-		return Empty[string](), Join(errs...)
+		move, err = JoinReturn(searcher.Search())
+		if !IsNil(err) {
+			return Empty[string](), err
+		}
+
+		if move.HasValue() {
+			return Some(move.Value().String()), NilError
+		}
 	}
-
-	if move.HasValue() {
-		return Some(move.Value().String()), NilError
-	}
-
-	// move, err := Search(r.g, r.b, 3, r.Logger)
-	// if !IsNil(err) {
-	// 	return Empty[string](), err
-	// }
 
 	return MapOptional(move, func(m Move) string { return m.String() }), NilError
 }
