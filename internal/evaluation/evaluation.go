@@ -14,9 +14,9 @@ type EvaluationBitboard struct {
 var _developmentScale = 10
 
 var RookDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
-	{0, 0, 0, 0, 0, 0, 0, 0},
-	{1, 2, 2, 2, 2, 2, 2, 1},
-	{-1, 0, 0, 0, 0, 0, 0, -1},
+	{0, 0, 0, 1, 1, 0, 0, 0},
+	{0, 2, 2, 2, 2, 2, 2, 0},
+	{1, 0, 0, 0, 0, 0, 0, 1},
 	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{-1, 0, 0, 0, 0, 0, 0, -1},
@@ -27,8 +27,8 @@ var RookDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 var PawnDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{4, 4, 4, 4, 4, 4, 4, 4},
 	{3, 3, 3, 4, 4, 3, 3, 3},
-	{2, 2, 2, 3, 3, 2, 2, 2},
-	{2, 2, 2, 3, 3, 2, 2, 2},
+	{3, 3, 3, 3, 3, 3, 3, 3},
+	{2, 2, 2, 1, 1, 2, 2, 2},
 	{1, 1, 1, 3, 3, 1, 1, 1},
 	{0, 1, 1, 2, 2, 1, 1, 0},
 	{0, 0, 0, 0, 0, 0, 0, 0},
@@ -56,14 +56,14 @@ var KnightDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{-2, -2, -2, -2, -2, -2, -2, -2},
 }, _developmentScale)
 var QueenDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
-	{-2, -2, -2, -1, -1, -2, -2, -2},
-	{-2, 0, 0, 1, 1, 0, 0, -2},
-	{-2, 0, 0, 0, 0, 0, 0, -2},
+	{-1, -1, -1, -1, -1, -1, -1, -1},
+	{-1, 1, 1, 1, 1, 1, 1, -1},
+	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{-1, 0, 0, 0, 0, 0, 0, -1},
 	{0, 0, 0, 0, 0, 0, 0, 0},
-	{-2, 0, 0, 0, 0, 0, 0, -2},
-	{-2, 0, 0, 0, 0, 0, 0, -2},
-	{-2, -2, -2, -1, -1, -2, -2, -20},
+	{-1, 0, 0, 0, 0, 0, 0, -1},
+	{-1, 0, 0, 1, 1, 0, 0, -1},
+	{-1, -1, -1, 0, 0, -1, -1, -1},
 }, _developmentScale/2)
 
 var NullDevelopmentBitboards = [2][]EvaluationBitboard{
@@ -126,13 +126,48 @@ func evaluateDevelopmentForPiece(b Bitboard, e []EvaluationBitboard) int {
 	return result
 }
 
+var PawnCenterBitboards = [2]Bitboard{
+	BitboardFromStrings([8]string{
+		"00000000",
+		"00000000",
+		"00001000",
+		"00001000",
+		"00001000",
+		"00001000",
+		"00000000",
+		"00000000",
+	}),
+	BitboardFromStrings([8]string{
+		"00000000",
+		"00000000",
+		"00010000",
+		"00010000",
+		"00010000",
+		"00010000",
+		"00000000",
+		"00000000",
+	}),
+}
+
 func EvaluateDevelopment(b *Bitboards, player Player) int {
 	development := 0
 	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Rook], RookDevelopmentBitboards[player])
 	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Knight], KnightDevelopmentBitboards[player])
 	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Bishop], BishopDevelopmentBitboards[player])
-	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Queen], QueenDevelopmentBitboards[player])
 	development += evaluateDevelopmentForPiece(b.Players[player].Pieces[Pawn], PawnDevelopmentBitboards[player])
+
+	pawnsInCenter := 0
+	for _, pawnCenter := range PawnCenterBitboards {
+		if pawnCenter&b.Players[player].Pieces[Pawn] != 0 {
+			pawnsInCenter += 1
+		}
+	}
+	if pawnsInCenter == 2 {
+		development += _developmentScale * 2
+	} else if pawnsInCenter == 1 {
+		development += _developmentScale * 1
+	}
+
 	return development
 }
 

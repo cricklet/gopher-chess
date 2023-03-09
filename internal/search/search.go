@@ -1,11 +1,16 @@
 package search
 
 import (
+	"strconv"
+	"strings"
+
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/evaluation"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
+
+const _limitExtendingSearchDepth = 3
 
 type searcherV2 struct {
 	Logger Logger
@@ -16,6 +21,8 @@ type searcherV2 struct {
 	Bitboards *Bitboards
 
 	MaximizingPlayer Player
+
+	extendingSearchDepth int
 
 	DebugTotalEvaluations int
 }
@@ -240,9 +247,14 @@ func (s *searcherV2) evaluateMove(move Move, alpha int, beta int, depth int) (in
 		return returnScore, returnErrors
 	}
 
-	if depth <= 1 && !s.OutOfTime {
+	if depth <= 1 && !s.OutOfTime &&
+		s.extendingSearchDepth < _limitExtendingSearchDepth {
 		if KingIsInCheck(s.Bitboards, player.Other()) {
-			depth = 1
+			depth += 1
+			s.extendingSearchDepth += 1
+			defer func() {
+				s.extendingSearchDepth -= 1
+			}()
 		}
 	}
 
@@ -288,6 +300,11 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 		SortMaxFirst(moves, func(m Move) int {
 			return m.Evaluation.Value()
 		})
+
+		s.Logger.Println(
+			strings.Join(MapSlice(*moves, func(m Move) string {
+				return m.String() + " " + strconv.Itoa(m.Evaluation.Value())
+			}), " "))
 
 		s.Logger.Println("evaluated",
 			"to depth", depth,

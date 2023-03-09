@@ -196,6 +196,10 @@ var AllOnes Bitboard = ^AllZeros
 
 var Zeros = []int{0, 0, 0, 0, 0, 0, 0, 0}
 var Ones = []int{1, 1, 1, 1, 1, 1, 1, 1}
+var Twos = []int{2, 2, 2, 2, 2, 2, 2, 2}
+var Threes = []int{3, 3, 3, 3, 3, 3, 3, 3}
+var Fours = []int{4, 4, 4, 4, 4, 4, 4, 4}
+var Fives = []int{5, 5, 5, 5, 5, 5, 5, 5}
 var Sixes = []int{6, 6, 6, 6, 6, 6, 6, 6}
 var Sevens = []int{7, 7, 7, 7, 7, 7, 7, 7}
 var ZeroToSeven = []int{0, 1, 2, 3, 4, 5, 6, 7}

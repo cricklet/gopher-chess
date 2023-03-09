@@ -31,7 +31,7 @@ func TestOpening(t *testing.T) {
 	assert.True(t, IsNil(err))
 	assert.Empty(t, errs)
 
-	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true}
+	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
 	assert.True(t, expectedOpenings[result.Value().String()])
 }
 

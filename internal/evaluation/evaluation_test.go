@@ -27,5 +27,5 @@ func TestEvaluation(t *testing.T) {
 	}, "\n"), g.Board.String())
 
 	assert.Equal(t, EvaluateDevelopment(&bitboards, White), 2*_developmentScale)
-	assert.Equal(t, EvaluateDevelopment(&bitboards, Black), -2*_developmentScale)
+	assert.Equal(t, EvaluateDevelopment(&bitboards, Black), 0*_developmentScale)
 }
