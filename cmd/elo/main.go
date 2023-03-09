@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -37,6 +38,11 @@ type EloResults struct {
 	Cmd         string
 	Matches     []MatchResult
 	EloEstimate int
+}
+
+func (r EloResults) statsString() string {
+	cmdName := Last(strings.Split(r.Cmd, "/"))
+	return fmt.Sprintf("%v: %v (%v)", cmdName, r.EloEstimate, len(r.Matches))
 }
 
 func (r EloResults) estimateElo() int {
@@ -384,12 +390,44 @@ func mainInner(
 	return newResult
 }
 
+func allJsonFilesInDir(dir string) ([]string, Error) {
+	filePaths := []string{}
+
+	err := Wrap(filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".json") {
+			filePaths = append(filePaths, path)
+		}
+		return nil
+	}))
+	if !IsNil(err) {
+		return filePaths, err
+	}
+
+	return filePaths, NilError
+}
+
+func allEloResultsInDir(dir string) ([]EloResults, Error) {
+	filePaths, err := allJsonFilesInDir(dir)
+	if !IsNil(err) {
+		return nil, err
+	}
+
+	results := []EloResults{}
+	for _, filePath := range filePaths {
+		result := EloResults{}
+		unmarshalEloResults(filePath, &result)
+		results = append(results, result)
+	}
+	return results, NilError
+}
+
 func main() {
 	var err Error
 
 	args := os.Args[1:]
 
 	shouldClean := false
+	printStats := false
 	binaryArgs := []string{}
 
 	tags := []string{}
@@ -397,21 +435,36 @@ func main() {
 	for _, arg := range args {
 		if arg == "clean" {
 			shouldClean = true
+		} else if arg == "stats" {
+			printStats = true
 		} else {
 			binaryArgs = append(binaryArgs, arg)
 			tags = append(tags, arg)
 		}
 	}
 
-	tag := strings.Join(tags, "_")
+	fileNameBase := strings.Join(append([]string{time.Now().Format("2006_01_02")}, tags...), "_")
 
 	resultsDir := RootDir() + "/data/elo_results"
-	binaryPath := fmt.Sprintf("%s/%v_%v", resultsDir, time.Now().Format("2006_01_02"), tag)
-	jsonPath := fmt.Sprintf("%s/%v_%v_results.json", resultsDir, time.Now().Format("2006_01_02"), tag)
+	binaryPath := fmt.Sprintf("%s/%v", resultsDir, fileNameBase)
+	jsonPath := fmt.Sprintf("%s/%v_results.json", resultsDir, fileNameBase)
 
 	logger.Println(resultsDir)
 	logger.Println(binaryPath)
 	logger.Println(jsonPath)
+
+	if printStats {
+		allEloResults, err := allEloResultsInDir(resultsDir)
+		if !IsNil(err) {
+			panic(err)
+		}
+		statsStrings := []string{}
+		for _, results := range allEloResults {
+			statsStrings = append(statsStrings, results.statsString())
+		}
+
+		fmt.Println(strings.Join(statsStrings, "\n"))
+	}
 
 	if shouldClean {
 		err = rmIfExists(binaryPath)
@@ -422,6 +475,9 @@ func main() {
 		if !IsNil(err) {
 			panic(err)
 		}
+	}
+
+	if shouldClean || printStats {
 		return
 	}
 
