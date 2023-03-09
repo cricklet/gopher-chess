@@ -123,6 +123,7 @@ func main() {
 	}()
 
 	var upgrader = websocket.Upgrader{}
+	var searchOptions search.SearcherOptions = search.DefaultSearchOptions
 
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		playerTypes := [2]PlayerType{User, User}
@@ -146,7 +147,7 @@ func main() {
 		}
 
 		chessGoRunner := chessgo.NewChessGoRunner(
-			chessgo.WithSearchOptions(search.DefaultSearchOptions))
+			chessgo.WithSearchOptions(searchOptions))
 
 		stockfishRunner := stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
 			&LogForwarding{
@@ -317,16 +318,27 @@ func main() {
 
 	port := 8002
 
+	searcherArgs := []string{}
+
 	args := os.Args[1:]
 	for _, arg := range args {
 		if parsed, err := strconv.ParseInt(arg, 10, 64); err == nil {
 			port = int(parsed)
-		} else if arg == "v2" {
-			searchVersion = chessgo.V2
+		} else {
+			searcherArgs = append(searcherArgs, arg)
+		}
+	}
+
+	var err Error
+	if len(searcherArgs) != 0 {
+		searchOptions, err = search.SearcherOptionsFromArgs(searcherArgs...)
+		if !IsNil(err) {
+			panic(err)
 		}
 	}
 
 	log.Println("serving at", port)
+	log.Println("with search options", searchOptions)
 
 	router := mux.NewRouter()
 	router.HandleFunc("/ws", ws)
@@ -336,7 +348,7 @@ func main() {
 	router.PathPrefix("/{white}/{black}/fen").HandlerFunc(index)
 	router.HandleFunc("/", index)
 	http.Handle("/", router)
-	err := http.ListenAndServe(fmt.Sprintf(":%v", port), router)
+	err = Wrap(http.ListenAndServe(fmt.Sprintf(":%v", port), router))
 	if !IsNil(err) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

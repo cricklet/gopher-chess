@@ -11,8 +11,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/search"
 )
 
-type SearchVersion int
-
 type ChessGoRunner struct {
 	Logger        Logger
 	SearchOptions SearcherOptions

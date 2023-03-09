@@ -1,6 +1,7 @@
 package search
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,14 @@ type SearcherOptions struct {
 
 var DefaultSearchOptions = SearcherOptions{
 	incDepthForCheck: Empty[int](),
+}
+
+func (s SearcherOptions) String() string {
+	result := ""
+	if s.incDepthForCheck.HasValue() {
+		result += fmt.Sprintf("incDepthForCheck=%d", s.incDepthForCheck.Value())
+	}
+	return "SearcherOptions<" + result + ">"
 }
 
 func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
