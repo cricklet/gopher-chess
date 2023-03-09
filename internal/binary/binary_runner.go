@@ -14,6 +14,7 @@ import (
 
 type BinaryRunner struct {
 	cmdPath string
+	cmdName string
 	cmd     *exec.Cmd
 
 	stdin      ReadableWriter
@@ -32,7 +33,7 @@ func (b *BinaryRunner) CmdPath() string {
 }
 
 func (b *BinaryRunner) CmdName() string {
-	return Last(strings.Split(Last(strings.Split(b.cmdPath, "/")), "_"))
+	return b.cmdName
 }
 
 func WithLogger(logger Logger) BinaryRunnerOption {

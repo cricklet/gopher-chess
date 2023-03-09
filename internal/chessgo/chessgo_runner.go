@@ -13,13 +13,9 @@ import (
 
 type SearchVersion int
 
-const (
-	V2 SearchVersion = iota
-)
-
 type ChessGoRunner struct {
 	Logger        Logger
-	SearchVersion SearchVersion
+	SearchOptions SearcherOptions
 
 	g *GameState
 	b *Bitboards
@@ -38,9 +34,9 @@ func WithLogger(l Logger) ChessGoOption {
 	}
 }
 
-func WithSearchVersion(s SearchVersion) ChessGoOption {
+func WithSearchOptions(s SearcherOptions) ChessGoOption {
 	return func(r *ChessGoRunner) {
-		r.SearchVersion = s
+		r.SearchOptions = s
 	}
 }
 
@@ -229,22 +225,21 @@ func (r *ChessGoRunner) Board() BoardArray {
 func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	var move Optional[Move] = Empty[Move]()
 	var err Error
-	if r.SearchVersion == V2 {
-		searcher := NewSearcherV2(r.Logger, r.g, r.b)
 
-		go func() {
-			time.Sleep(2 * time.Second)
-			searcher.OutOfTime = true
-		}()
+	searcher := NewSearcherV2(r.Logger, r.g, r.b, r.SearchOptions)
 
-		move, err = JoinReturn(searcher.Search())
-		if !IsNil(err) {
-			return Empty[string](), err
-		}
+	go func() {
+		time.Sleep(2 * time.Second)
+		searcher.OutOfTime = true
+	}()
 
-		if move.HasValue() {
-			return Some(move.Value().String()), NilError
-		}
+	move, err = JoinReturn(searcher.Search())
+	if !IsNil(err) {
+		return Empty[string](), err
+	}
+
+	if move.HasValue() {
+		return Some(move.Value().String()), NilError
 	}
 
 	return MapOptional(move, func(m Move) string { return m.String() }), NilError
@@ -264,4 +259,8 @@ func (r *ChessGoRunner) Evaluate(player Player) int {
 
 func (r *ChessGoRunner) EvaluateSimple(player Player) int {
 	return evaluation.EvaluatePieces(r.b, player)
+}
+
+func (r *ChessGoRunner) DrawClock() int {
+	return r.g.HalfMoveClock
 }

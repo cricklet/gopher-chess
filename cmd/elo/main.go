@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"sort"
@@ -272,7 +273,8 @@ func playGame(
 		}
 		// logger.Println(fen + " moves " + strings.Join(moveHistory, " "))
 
-		logger.SetFooter(HintText(runner.PgnFromMoveHistory()), _footerPgn)
+		pgnString := fmt.Sprintf("%v\n%v", runner.PgnFromMoveHistory(), runner.FenString())
+		logger.SetFooter(HintText(pgnString), _footerPgn)
 		logger.SetFooter(runner.Board().Unicode(), _footerBoard)
 
 		var noValidMoves bool
@@ -287,6 +289,10 @@ func playGame(
 			} else {
 				return Draw, NilError
 			}
+		}
+
+		if runner.DrawClock() >= 50 {
+			return Draw, NilError
 		}
 	}
 
@@ -341,7 +347,7 @@ func mainInner(
 
 	var opponent *binary.BinaryRunner
 	chessgoLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
-	opponent, err = binary.SetupBinaryRunner(binaryPath, binaryArgs, time.Millisecond*20000, binary.WithLogger(chessgoLogger))
+	opponent, err = binary.SetupBinaryRunner(binaryPath, binaryArgs, time.Millisecond*10000, binary.WithLogger(chessgoLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -383,28 +389,25 @@ func main() {
 
 	args := os.Args[1:]
 
-	stockfishElos := []int{}
 	shouldClean := false
 	binaryArgs := []string{}
 
-	tag := ""
+	tags := []string{}
 
 	for _, arg := range args {
 		if arg == "clean" {
 			shouldClean = true
-		} else if v, err := strconv.ParseInt(arg, 10, 64); err == nil {
-			stockfishElos = append(stockfishElos, int(v))
-		} else if arg == "v1" || arg == "v2" {
-			binaryArgs = append(binaryArgs, arg)
-			tag = arg + "_"
 		} else {
-			tag = arg + "_"
+			binaryArgs = append(binaryArgs, arg)
+			tags = append(tags, arg)
 		}
 	}
 
+	tag := strings.Join(tags, "_")
+
 	resultsDir := RootDir() + "/data/elo_results"
-	binaryPath := fmt.Sprintf("%s/%v%v_chessgo", resultsDir, tag, time.Now().Format("2006_01_02"))
-	jsonPath := fmt.Sprintf("%s/%v%v_results.json", resultsDir, tag, time.Now().Format("2006_01_02"))
+	binaryPath := fmt.Sprintf("%s/%v_%v", resultsDir, time.Now().Format("2006_01_02"), tag)
+	jsonPath := fmt.Sprintf("%s/%v_%v_results.json", resultsDir, time.Now().Format("2006_01_02"), tag)
 
 	logger.Println(resultsDir)
 	logger.Println(binaryPath)
@@ -432,10 +435,6 @@ func main() {
 		panic(err)
 	}
 
-	if len(stockfishElos) == 0 {
-		stockfishElos = []int{800}
-	}
-
 	results := EloResults{
 		Cmd:     binaryPath,
 		Matches: []MatchResult{},
@@ -446,7 +445,9 @@ func main() {
 		panic(err)
 	}
 
-	for _, stockfishElo := range stockfishElos {
+	stockfishElo := results.estimateElo()
+
+	for i := 0; i < 10; i++ {
 		currentSuffix := HintText(fmt.Sprintf(
 			"stockfish elo: %v, chessgo elo: %v",
 			stockfishElo,
@@ -454,6 +455,7 @@ func main() {
 		historySuffix := HintText(results.matchHistory())
 		logger.SetFooter(currentSuffix, _footerCurrent)
 		logger.SetFooter(historySuffix, _footerHistory)
+
 		result := mainInner(binaryPath, binaryArgs, stockfishElo)
 
 		err = unmarshalEloResults(jsonPath, &results)
@@ -469,6 +471,14 @@ func main() {
 		err = marshalEloResults(jsonPath, &results)
 		if !IsNil(err) {
 			panic(err)
+		}
+
+		if result.Won {
+			stockfishElo += []int{0, 50, 100}[rand.Intn(3)]
+		} else if result.Draw {
+			stockfishElo += []int{-50, 0, 50}[rand.Intn(3)]
+		} else {
+			stockfishElo += []int{-100, -50, 0}[rand.Intn(3)]
 		}
 	}
 }

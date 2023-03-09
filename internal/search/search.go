@@ -10,8 +10,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
-const _limitExtendingSearchDepth = 3
-
 type searcherV2 struct {
 	Logger Logger
 
@@ -22,19 +20,54 @@ type searcherV2 struct {
 
 	MaximizingPlayer Player
 
-	extendingSearchDepth int
+	extendingSearchDepth      int
+	limitExtendingSearchDepth int
 
 	DebugTotalEvaluations int
 }
 
-func NewSearcherV2(logger Logger, game *GameState, bitboards *Bitboards) searcherV2 {
-	return searcherV2{
+type SearcherOptions struct {
+	incDepthForCheck Optional[int]
+}
+
+var DefaultSearchOptions = SearcherOptions{
+	incDepthForCheck: Empty[int](),
+}
+
+func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
+	options := SearcherOptions{}
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "incDepthForCheck") {
+			if strings.Contains(arg, "=") {
+				n, err := strconv.ParseInt(strings.Split(arg, "=")[1], 10, 64)
+				if err != nil {
+					return options, Wrap(err)
+				}
+				options.incDepthForCheck = Some(int(n))
+			} else {
+				options.incDepthForCheck = Some(3)
+			}
+		} else {
+			return options, Errorf("unknwon option: %s", arg)
+		}
+	}
+
+	return options, NilError
+}
+
+func NewSearcherV2(logger Logger, game *GameState, bitboards *Bitboards, options SearcherOptions) searcherV2 {
+	s := searcherV2{
 		Logger:           logger,
 		OutOfTime:        false,
 		Game:             game,
 		Bitboards:        bitboards,
 		MaximizingPlayer: game.Player,
 	}
+	if options.incDepthForCheck.HasValue() {
+		s.limitExtendingSearchDepth = options.incDepthForCheck.Value()
+	}
+	return s
 }
 
 func (s *searcherV2) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, Error) {
@@ -248,7 +281,7 @@ func (s *searcherV2) evaluateMove(move Move, alpha int, beta int, depth int) (in
 	}
 
 	if depth <= 1 && !s.OutOfTime &&
-		s.extendingSearchDepth < _limitExtendingSearchDepth {
+		s.extendingSearchDepth < s.limitExtendingSearchDepth {
 		if KingIsInCheck(s.Bitboards, player.Other()) {
 			depth += 1
 			s.extendingSearchDepth += 1

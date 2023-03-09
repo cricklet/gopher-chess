@@ -11,6 +11,7 @@ import (
 
 	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/search"
 	"github.com/cricklet/chessgo/internal/stockfish"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -123,8 +124,6 @@ func main() {
 
 	var upgrader = websocket.Upgrader{}
 
-	searchVersion := chessgo.V2
-
 	var ws = func(w http.ResponseWriter, r *http.Request) {
 		playerTypes := [2]PlayerType{User, User}
 		ready := false
@@ -146,7 +145,8 @@ func main() {
 			}
 		}
 
-		chessGoRunner := chessgo.NewChessGoRunner(chessgo.WithSearchVersion(searchVersion))
+		chessGoRunner := chessgo.NewChessGoRunner(
+			chessgo.WithSearchOptions(search.DefaultSearchOptions))
 
 		stockfishRunner := stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
 			&LogForwarding{

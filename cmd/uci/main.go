@@ -8,6 +8,7 @@ import (
 
 	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/search"
 	"github.com/cricklet/chessgo/internal/uci"
 )
 
@@ -19,16 +20,14 @@ func main() {
 	}()
 
 	args := os.Args[1:]
-	searchVersion := chessgo.V2
 
-	for _, arg := range args {
-		if arg == "v2" {
-			searchVersion = chessgo.V2
-		}
+	searchOptions, err := search.SearcherOptionsFromArgs(args...)
+	if !IsNil(err) {
+		panic(err)
 	}
 
 	r := uci.NewUciRunner(chessgo.NewChessGoRunner(
-		chessgo.WithSearchVersion(searchVersion),
+		chessgo.WithSearchOptions(searchOptions),
 		chessgo.WithLogger(FuncLogger(
 			func(s string) {
 				fmt.Print(s)
