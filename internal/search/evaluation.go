@@ -1,4 +1,4 @@
-package evaluation
+package search
 
 import (
 	. "github.com/cricklet/chessgo/internal/bitboards"
@@ -209,6 +209,9 @@ func Evaluate(b *Bitboards, player Player, args ...EvaluationOption) int {
 				result += evaluateDevelopmentForPiece(
 					b.Players[enemy].Pieces[King],
 					EnemyKingEndgameBitboards[enemy])
+			}
+			if KingIsInCheck(b, enemy) {
+				result += 1000
 			}
 		}
 	}

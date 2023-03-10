@@ -91,12 +91,14 @@ func TestNoLegalMoves(t *testing.T) {
 }
 
 func TestCheckMateSearch(t *testing.T) {
-	fen := "kQK5/8/8/8/8/8/8/8/8 b KQkq - 13 7"
+	fen := "kQK5/8/8/8/8/8/8/8 b KQkq - 13 7"
 	game, err := GamestateFromFenString(fen)
 	assert.True(t, IsNil(err), err)
 	bitboards := game.CreateBitboards()
 
-	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards, SearcherOptions{})
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards, SearcherOptions{
+		debugSearchTree: &debugSearchTree{},
+	})
 
 	var result Optional[Move]
 	var errs []Error
@@ -109,7 +111,12 @@ func TestCheckMateSearch(t *testing.T) {
 	result, errs = searcher.Search()
 
 	assert.Empty(t, errs)
-	assert.False(t, result.HasValue())
+	assert.False(t, result.HasValue(), result)
+
+	debugString := searcher.options.debugSearchTree.DebugString(2)
+	fmt.Println(debugString)
+	err = Wrap(os.WriteFile(RootDir()+"/data/TestCheckMateSearch.tree", []byte(debugString), 0600))
+	assert.True(t, IsNil(err), err)
 }
 
 func TestCheckMateDetection(t *testing.T) {
@@ -135,6 +142,41 @@ func TestCheckMateInOne(t *testing.T) {
 
 	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
 		SearcherOptions{
+			debugSearchTree:   &debugSearchTree{},
+			handleLegality:    true,
+			evaluationOptions: []EvaluationOption{EndgamePushEnemyKing},
+		})
+
+	var result Optional[Move]
+	var errs []Error
+
+	go func() {
+		time.Sleep(time.Millisecond * 50)
+		searcher.OutOfTime = true
+	}()
+
+	result, errs = searcher.Search()
+
+	assert.Empty(t, errs)
+	assert.True(t, result.HasValue())
+
+	debugString := searcher.options.debugSearchTree.DebugString(3)
+	fmt.Println(debugString)
+	checkMateMoves := map[string]bool{"c2c7": true, "c2c8": true}
+	assert.True(t, checkMateMoves[result.Value().String()], result.Value().String())
+
+	err = Wrap(os.WriteFile(RootDir()+"/data/TestCheckMateInOne.tree", []byte(debugString), 0600))
+	assert.True(t, IsNil(err), err)
+}
+
+func TestCheckMateInOne2(t *testing.T) {
+	fen := "5b2/3kp2p/4r3/1p6/4n3/p3P1p1/3p1r2/6K1 b - - 1 46"
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err), err)
+	bitboards := game.CreateBitboards()
+
+	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
+		SearcherOptions{
 			debugSearchTree: &debugSearchTree{},
 			handleLegality:  true,
 		})
@@ -154,9 +196,9 @@ func TestCheckMateInOne(t *testing.T) {
 
 	debugString := searcher.options.debugSearchTree.DebugString(2)
 	fmt.Println(debugString)
-	checkMateMoves := map[string]bool{"c2c7": true, "c2c8": true}
+	checkMateMoves := map[string]bool{"d2d1q": true}
 	assert.True(t, checkMateMoves[result.Value().String()], result.Value().String())
 
-	err = Wrap(os.WriteFile(RootDir()+"/data/TestCheckMateInOne.tree", []byte(debugString), 0600))
+	err = Wrap(os.WriteFile(RootDir()+"/data/TestCheckMateInOne2.tree", []byte(debugString), 0600))
 	assert.True(t, IsNil(err), err)
 }

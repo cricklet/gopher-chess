@@ -465,7 +465,6 @@ type Move struct {
 	MoveType       MoveType
 	StartIndex     int
 	EndIndex       int
-	IsCheck        Optional[bool]
 	PromotionPiece Optional[PieceType]
 	Evaluation     Optional[int]
 }
@@ -473,7 +472,7 @@ type Move struct {
 func MoveFromString(s string, m MoveType) Move {
 	first := s[0:2]
 	second := s[2:4]
-	return Move{m, BoardIndexFromString(first), BoardIndexFromString(second), Empty[bool](), Empty[PieceType](), Empty[int]()}
+	return Move{m, BoardIndexFromString(first), BoardIndexFromString(second), Empty[PieceType](), Empty[int]()}
 }
 
 func (m Move) String() string {

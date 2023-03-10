@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
-	. "github.com/cricklet/chessgo/internal/evaluation"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
@@ -34,12 +33,16 @@ func (s *debugSearchTree) DebugString(depth int) string {
 			continue
 		}
 		if line.Score.HasValue() {
+			scoreString := fmt.Sprint(line.Score.Value())
+			if line.Legal.HasValue() && !line.Legal.Value() {
+				scoreString = "illegal"
+			}
 			result += fmt.Sprintf("%v%v (%v %v) %v\n",
 				strings.Repeat(" ", line.Depth),
 				line.DebugString,
 				line.Alpha,
 				line.Beta,
-				line.Score.Value())
+				scoreString)
 		}
 		// else {
 		// 	result += fmt.Sprintf("%v>%v (%v %v)\n",
@@ -462,7 +465,7 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 
 	s.GenerateSortedPseudoMoves(moves)
 
-	for depth := 2; ; depth += 2 {
+	for depth := 2; depth < 20; depth += 2 {
 		errs := func() []Error {
 			if s.options.debugSearchTree != nil {
 				s.options.debugSearchTree.DepthPush(fmt.Sprintf("depth %d", depth))
@@ -520,8 +523,13 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 		}
 	}
 
-	if len(*moves) == 0 || (*moves)[0].Evaluation.Value() == -Inf {
-		return Empty[Move](), nil // forfeit
+	if len(*moves) == 0 {
+		return Empty[Move](), nil // forfeit / stalemate
+	}
+
+	bestMove := (*moves)[0]
+	if !bestMove.Evaluation.HasValue() || bestMove.Evaluation.Value() == -Inf {
+		return Empty[Move](), nil // forfeit / stalemate
 	}
 
 	// fmt.Println(s.DebugTree.Sprint(2))

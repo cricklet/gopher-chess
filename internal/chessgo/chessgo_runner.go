@@ -5,9 +5,9 @@ import (
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
-	"github.com/cricklet/chessgo/internal/evaluation"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/search"
 	. "github.com/cricklet/chessgo/internal/search"
 )
 
@@ -252,11 +252,11 @@ func (r *ChessGoRunner) NoValidMoves() (bool, Error) {
 }
 
 func (r *ChessGoRunner) Evaluate(player Player) int {
-	return evaluation.Evaluate(r.b, player)
+	return search.Evaluate(r.b, player)
 }
 
 func (r *ChessGoRunner) EvaluateSimple(player Player) int {
-	return evaluation.EvaluatePieces(r.b, player) - evaluation.EvaluatePieces(r.b, player.Other())
+	return search.EvaluatePieces(r.b, player) - search.EvaluatePieces(r.b, player.Other())
 }
 
 func (r *ChessGoRunner) DrawClock() int {
