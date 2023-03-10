@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bluele/psort"
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -127,6 +128,7 @@ type SearcherOptions struct {
 	evaluationOptions []EvaluationOption
 	handleLegality    bool
 	debugSearchTree   *debugSearchTree
+	sortPartial       Optional[int]
 }
 
 var DefaultSearchOptions = SearcherOptions{
@@ -140,7 +142,43 @@ var AllSearchOptions = []string{
 	"incDepthForCheck",
 	"endgamePushEnemyKing",
 	"handleLegality",
-	"debugSearchTree",
+	"sortPartial",
+	"sortPartial=0",
+	"sortPartial=10",
+}
+
+var DisallowedSearchOptionCombinations = [][]string{
+	{"sortPartial", "sortPartial"},
+}
+
+func RemoveFirstPrefixMatch(slice []string, prefix string) ([]string, bool) {
+	for i, item := range slice {
+		if strings.HasPrefix(item, prefix) {
+			return append(slice[:i], slice[i+1:]...), true
+		}
+	}
+	return slice, false
+}
+
+func FilterDisallowedSearchOptions(allOptions [][]string) [][]string {
+	return FilterSlice(allOptions, func(options []string) bool {
+		for _, disallowedOptions := range DisallowedSearchOptionCombinations {
+			disallowed := true
+
+			for _, disallowedOption := range disallowedOptions {
+				var foundDisallowedOption bool
+				options, foundDisallowedOption = RemoveFirstPrefixMatch(Clone(options), disallowedOption)
+				if !foundDisallowedOption {
+					disallowed = false
+					break
+				}
+			}
+			if disallowed {
+				return false
+			}
+		}
+		return true
+	})
 }
 
 func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
@@ -160,6 +198,16 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 				options.incDepthForCheck = incDepthForCheck{
 					depthLimit: 3,
 				}
+			}
+		} else if strings.HasPrefix(arg, "sortPartial") {
+			if strings.Contains(arg, "=") {
+				n, err := strconv.ParseInt(strings.Split(arg, "=")[1], 10, 64)
+				if err != nil {
+					return options, Wrap(err)
+				}
+				options.sortPartial = Some(int(n))
+			} else {
+				options.sortPartial = Some(3)
 			}
 		} else if strings.HasPrefix(arg, "endgamePushEnemyKing") {
 			options.evaluationOptions = append(options.evaluationOptions, EndgamePushEnemyKing)
@@ -187,28 +235,41 @@ func NewSearcherV2(logger Logger, game *GameState, bitboards *Bitboards, options
 	return s
 }
 
+func (s *searcherV2) basicMoveEvaluation(moves *[]Move) {
+	for i := range *moves {
+		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], s.Game))
+	}
+}
+
+func (s *searcherV2) SortMoves(moves *[]Move) {
+	if s.options.sortPartial.HasValue() {
+		n := s.options.sortPartial.Value()
+		if n == 0 {
+			return
+		} else {
+			s.basicMoveEvaluation(moves)
+			psort.Slice(*moves, func(i, j int) bool {
+				return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
+			}, n)
+			return
+		}
+	}
+	s.basicMoveEvaluation(moves)
+	sort.SliceStable(*moves, func(i, j int) bool {
+		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
+	})
+}
+
 func (s *searcherV2) GenerateSortedPseudoMoves(moves *[]Move) {
 	GeneratePseudoMoves(s.Bitboards, s.Game, moves)
-
-	for i := range *moves {
-		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], s.Game))
-	}
-
-	sort.SliceStable(*moves, func(i, j int) bool {
-		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
-	})
+	s.SortMoves(moves)
 }
+
 func (s *searcherV2) GenerateSortedPseudoCaptures(moves *[]Move) {
 	GeneratePseudoCaptures(s.Bitboards, s.Game, moves)
-
-	for i := range *moves {
-		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], s.Game))
-	}
-
-	sort.SliceStable(*moves, func(i, j int) bool {
-		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
-	})
+	s.SortMoves(moves)
 }
+
 func (s *searcherV2) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, Error) {
 	err := s.Game.PerformMove(move, update, s.Bitboards)
 	if !IsNil(err) {

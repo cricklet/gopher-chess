@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluele/psort"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/stretchr/testify/assert"
@@ -201,4 +202,28 @@ func TestCheckMateInOne2(t *testing.T) {
 
 	err = Wrap(os.WriteFile(RootDir()+"/data/TestCheckMateInOne2.tree", []byte(debugString), 0600))
 	assert.True(t, IsNil(err), err)
+}
+
+func TestPartialSort(t *testing.T) {
+	xs := []int{3, 1, 8, 10, 2, 7, 5, 6, 4, 9}
+	psort.Slice(xs, func(i, j int) bool {
+		return xs[i] > xs[j]
+	}, 3)
+	assert.Equal(t, 10, xs[0])
+	assert.Equal(t, 9, xs[1])
+	assert.Equal(t, 8, xs[2])
+	assert.Equal(t, 10, len(xs))
+	fmt.Println(xs)
+}
+
+func TestDisallowedOptions(t *testing.T) {
+	options := [][]string{
+		{"sortPartial", "incDepthForCheck"},
+		{"sortPartial", "sortPartial=0"},
+		{"sortPartial=10", "sortPartial=0"},
+	}
+
+	options = FilterDisallowedSearchOptions(options)
+	assert.Equal(t, 1, len(options))
+	assert.Equal(t, []string{"sortPartial", "incDepthForCheck"}, options[0])
 }

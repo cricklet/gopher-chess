@@ -15,6 +15,8 @@ require (
 
 require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
+	github.com/bluele/psort v0.0.0-20190615170025-4b4db64b65b8 // indirect
+	github.com/deckarep/golang-set/v2 v2.2.0 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/kr/pretty v0.3.1 // indirect

@@ -69,6 +69,10 @@ func (r EloResults) estimateElo() int {
 	return sum / len(r.Matches)
 }
 
+func (r EloResults) numMatches() int {
+	return len(r.Matches)
+}
+
 func (r EloResults) matchHistory() string {
 	if len(r.Matches) == 0 {
 		return "<new>"
@@ -337,7 +341,7 @@ func playGameBinaries(
 				panic(err)
 			}
 
-			logger.SetFooter(HintText(fmt.Sprintf("stockfish eval: %v, piece eval: %v",
+			logger.SetFooter(HintText(fmt.Sprintf("eval: %v, piece: %v",
 				-centipawnScore,
 				runner.EvaluateSimple(opponentPlays))),
 				_footerEval)
@@ -391,6 +395,11 @@ func playGameBinaries(
 		logger.Println("wat")
 	}
 
+	runAsync(stockfish, "quit")
+	runAsync(opponent, "quit")
+	opponent.Wait()
+	stockfish.Wait()
+
 	return newResult
 }
 
@@ -428,7 +437,7 @@ func allEloResultsInDir(dir string) ([]EloResults, Error) {
 func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPath string) {
 	var err Error
 	if shouldClean {
-		fmt.Printf("cleaning %v\n     and %v\n", binaryPath, jsonPath)
+		logger.Printf("cleaning %v\n     and %v\n", binaryPath, jsonPath)
 		err = rmIfExists(binaryPath)
 		if !IsNil(err) {
 			panic(err)
@@ -455,7 +464,11 @@ func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPat
 		panic(err)
 	}
 
-	stockfishElo := results.estimateElo() + []int{-50, 0, 50, 100}[rand.Intn(4)]
+	randomOffset := []int{-100, -50, 0, 50, 100}[rand.Intn(5)]
+	if len(results.Matches) < 5 {
+		randomOffset = []int{-50, 0, 100, 200}[rand.Intn(4)]
+	}
+	stockfishElo := results.estimateElo() + randomOffset
 
 	currentSuffix := HintText(fmt.Sprintf(
 		"stockfish elo: %v, chessgo elo: %v (%v)",
@@ -494,7 +507,8 @@ func main() {
 	printStats := false
 	userSpecifiedBinaryArgs := []string{}
 
-	performAllArgPermutations := false
+	performArgPermutations := false
+	shouldProfile := false
 
 	tags := []string{}
 
@@ -511,7 +525,9 @@ func main() {
 		} else if arg == "stats" {
 			printStats = true
 		} else if arg == "permutations" {
-			performAllArgPermutations = true
+			performArgPermutations = true
+		} else if arg == "profile" {
+			shouldProfile = true
 		} else {
 			userSpecifiedBinaryArgs = append(userSpecifiedBinaryArgs, arg)
 		}
@@ -533,7 +549,7 @@ func main() {
 			statsStrings = append(statsStrings, results.statsString())
 		}
 
-		fmt.Println(strings.Join(statsStrings, "\n"))
+		logger.Println(strings.Join(statsStrings, "\n"))
 	}
 
 	if printStats {
@@ -549,18 +565,20 @@ func main() {
 		userSpecifiedBinaryArgs,
 	}
 
-	if performAllArgPermutations {
-		if len(userSpecifiedBinaryArgs) != 0 {
-			panic("binary args will be automatically populated")
+	if performArgPermutations {
+		if len(userSpecifiedBinaryArgs) > 0 {
+			allBinaryArgsToTry = append(combinations.All(userSpecifiedBinaryArgs), []string{})
+		} else {
+			allBinaryArgsToTry = append(combinations.All(AllSearchOptions), []string{})
 		}
-		allBinaryArgsToTry = append(combinations.All(FilterSlice(
-			AllSearchOptions, func(v string) bool {
-				return !strings.Contains(v, "debug")
-			})), []string{})
 	}
+	allBinaryArgsToTry = FilterDisallowedSearchOptions(allBinaryArgsToTry)
 
-	fmt.Println(PrettyPrint(allBinaryArgsToTry))
-	time.Sleep(time.Second * 2)
+	logger.Println("trying", len(allBinaryArgsToTry), "arg permutations")
+	for _, binaryArgs := range allBinaryArgsToTry {
+		logger.Println("  ", binaryArgs)
+	}
+	time.Sleep(time.Second * 1)
 
 	numRuns := 200
 	if shouldClean {
@@ -568,13 +586,19 @@ func main() {
 	}
 
 	for i := 0; i < numRuns; i++ {
-		nextBinaryArgs := allBinaryArgsToTry[i%len(allBinaryArgsToTry)]
-		nextTags := append(tags, nextBinaryArgs...)
+		func() {
+			nextBinaryArgs := allBinaryArgsToTry[i%len(allBinaryArgsToTry)]
+			nextTags := append(tags, nextBinaryArgs...)
 
-		fileNameBase := strings.Join(append([]string{time.Now().Format("2006_01_02")}, nextTags...), "_")
-		binaryPath := fmt.Sprintf("%s/%v", resultsDir, fileNameBase)
-		jsonPath := fmt.Sprintf("%s/%v.json", resultsDir, fileNameBase)
-		mainInner(shouldClean, nextBinaryArgs, binaryPath, jsonPath)
+			if shouldProfile {
+				nextBinaryArgs = append(nextBinaryArgs, "profile")
+				shouldProfile = false
+			}
+			fileNameBase := strings.Join(append([]string{time.Now().Format("2006_01_02")}, nextTags...), "_")
+			binaryPath := fmt.Sprintf("%s/%v", resultsDir, fileNameBase)
+			jsonPath := fmt.Sprintf("%s/%v.json", resultsDir, fileNameBase)
+			mainInner(shouldClean, nextBinaryArgs, binaryPath, jsonPath)
+		}()
 
 		if !shouldClean {
 			time.Sleep(time.Second * 10)

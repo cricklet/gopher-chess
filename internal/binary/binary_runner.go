@@ -184,6 +184,13 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 	return result, NilError
 }
 
+func (u *BinaryRunner) Wait() {
+	if u.cmd != nil {
+		_ = u.cmd.Wait()
+		u.cmd = nil
+	}
+}
+
 func (u *BinaryRunner) Close() {
 	if u.cmd != nil {
 		_ = u.cmd.Process.Kill()

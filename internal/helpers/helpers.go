@@ -30,6 +30,10 @@ func Last[T any](ts []T) T {
 	return ts[len(ts)-1]
 }
 
+func Clone[T any](ts []T) []T {
+	return append([]T(nil), ts...)
+}
+
 func MapSlice[T, U any](ts []T, f func(T) U) []U {
 	us := make([]U, len(ts))
 	for i := range ts {
