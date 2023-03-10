@@ -68,12 +68,12 @@ func ReduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
 }
 
 func SortMaxFirst[T any](ts *[]T, f func(T) int) {
-	sort.Slice(*ts, func(i, j int) bool {
+	sort.SliceStable(*ts, func(i, j int) bool {
 		return f((*ts)[j]) < f((*ts)[i])
 	})
 }
 func SortMinFirst[T any](ts *[]T, f func(T) int) {
-	sort.Slice(*ts, func(i, j int) bool {
+	sort.SliceStable(*ts, func(i, j int) bool {
 		return f((*ts)[i]) < f((*ts)[j])
 	})
 }
@@ -134,6 +134,13 @@ func ReverseBits(n uint8) uint8 {
 type Optional[T any] struct {
 	_hasValue bool
 	_t        T
+}
+
+func (o Optional[T]) String() string {
+	if o._hasValue {
+		return fmt.Sprintf("Some(%v)", o._t)
+	}
+	return "None"
 }
 
 func Some[T any](t T) Optional[T] {

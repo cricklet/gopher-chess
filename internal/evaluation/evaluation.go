@@ -65,6 +65,16 @@ var QueenDevelopmentBitboards = evaluationsPerPlayer([8][8]int{
 	{-1, 0, 0, 1, 1, 0, 0, -1},
 	{-1, -1, -1, 0, 0, -1, -1, -1},
 }, _developmentScale/2)
+var EnemyKingEndgameBitboards = evaluationsPerPlayer([8][8]int{
+	{4, 4, 3, 3, 3, 3, 4, 4},
+	{4, 3, 2, 2, 2, 2, 3, 4},
+	{3, 2, 0, 0, 0, 0, 2, 3},
+	{3, 2, 0, 0, 0, 0, 2, 3},
+	{3, 2, 0, 0, 0, 0, 2, 3},
+	{3, 2, 0, 0, 0, 0, 2, 3},
+	{4, 3, 2, 2, 2, 2, 3, 4},
+	{4, 4, 3, 3, 3, 3, 4, 4},
+}, _developmentScale*3)
 
 var NullDevelopmentBitboards = [2][]EvaluationBitboard{
 	{},
@@ -172,7 +182,6 @@ func EvaluateDevelopment(b *Bitboards, player Player) int {
 }
 
 func EvaluatePieces(b *Bitboards, player Player) int {
-	enemy := player.Other()
 	pieceValues :=
 		500*OnesCount(b.Players[player].Pieces[Rook]) +
 			300*OnesCount(b.Players[player].Pieces[Knight]) +
@@ -180,25 +189,31 @@ func EvaluatePieces(b *Bitboards, player Player) int {
 			900*OnesCount(b.Players[player].Pieces[Queen]) +
 			100*OnesCount(b.Players[player].Pieces[Pawn])
 
-	enemyValues :=
-		500*OnesCount(b.Players[enemy].Pieces[Rook]) +
-			300*OnesCount(b.Players[enemy].Pieces[Knight]) +
-			350*OnesCount(b.Players[enemy].Pieces[Bishop]) +
-			900*OnesCount(b.Players[enemy].Pieces[Queen]) +
-			100*OnesCount(b.Players[enemy].Pieces[Pawn])
-
-	return pieceValues - enemyValues
+	return pieceValues
 }
 
-func Evaluate(b *Bitboards, player Player) int {
+func Evaluate(b *Bitboards, player Player, args ...EvaluationOption) int {
 	enemy := player.Other()
 
 	developmentValues := EvaluateDevelopment(b, player)
 	enemyDevelopmentValues := EvaluateDevelopment(b, enemy)
 
 	pieceValues := EvaluatePieces(b, player)
+	enemyPieceValues := EvaluatePieces(b, enemy)
 
-	return pieceValues + developmentValues - enemyDevelopmentValues
+	result := pieceValues - enemyPieceValues + developmentValues - enemyDevelopmentValues
+
+	for _, arg := range args {
+		if arg == EndgamePushEnemyKing {
+			if enemyPieceValues <= 500 {
+				result += evaluateDevelopmentForPiece(
+					b.Players[enemy].Pieces[King],
+					EnemyKingEndgameBitboards[enemy])
+			}
+		}
+	}
+
+	return result
 }
 
 var _pieceScores = []int{
@@ -215,7 +230,14 @@ func pieceScore(g *GameState, index int) int {
 	return _pieceScores[g.Board[index].PieceType()]
 }
 
-func EvaluateMove(m *Move, g *GameState) int {
+type EvaluationOption int
+
+const (
+	Default EvaluationOption = iota
+	EndgamePushEnemyKing
+)
+
+func EvaluateMove(m *Move, g *GameState, args ...EvaluationOption) int {
 	score := 0
 	if m.MoveType == CaptureMove {
 		score += pieceScore(g, m.EndIndex) - pieceScore(g, m.StartIndex)

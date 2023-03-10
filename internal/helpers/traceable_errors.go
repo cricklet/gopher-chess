@@ -26,7 +26,7 @@ var _errorIndents = []string{
 
 func (e Error) Error() string {
 	_errorNumber = (_errorNumber + 1) % len(_errorIndents)
-	return Indent(tracerr.SprintSourceColor(e.err, 3), _errorIndents[_errorNumber])
+	return Indent(tracerr.Sprint(e.err), _errorIndents[_errorNumber])
 }
 
 func (e Error) String() string {

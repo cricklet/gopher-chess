@@ -47,7 +47,7 @@ func (r EloResults) statsString() string {
 
 func (r EloResults) estimateElo() int {
 	if len(r.Matches) == 0 {
-		return 800
+		return 1000 // start a bit higher than 800
 	}
 	sum := 0
 	for _, match := range r.Matches {
@@ -435,6 +435,13 @@ func main() {
 	for _, arg := range args {
 		if arg == "clean" {
 			shouldClean = true
+		} else if strings.HasPrefix(arg, "v=") {
+			version, err := WrapReturn(strconv.Atoi(arg[2:]))
+			if !IsNil(err) {
+				panic(err)
+			}
+			tags = append([]string{fmt.Sprintf("v%v", version)}, tags...)
+
 		} else if arg == "stats" {
 			printStats = true
 		} else {
@@ -443,15 +450,15 @@ func main() {
 		}
 	}
 
+	if len(tags) == 0 {
+		tags = append(tags, "default")
+	}
+
 	fileNameBase := strings.Join(append([]string{time.Now().Format("2006_01_02")}, tags...), "_")
 
 	resultsDir := RootDir() + "/data/elo_results"
 	binaryPath := fmt.Sprintf("%s/%v", resultsDir, fileNameBase)
-	jsonPath := fmt.Sprintf("%s/%v_results.json", resultsDir, fileNameBase)
-
-	logger.Println(resultsDir)
-	logger.Println(binaryPath)
-	logger.Println(jsonPath)
+	jsonPath := fmt.Sprintf("%s/%v.json", resultsDir, fileNameBase)
 
 	if printStats {
 		allEloResults, err := allEloResultsInDir(resultsDir)
@@ -530,11 +537,11 @@ func main() {
 		}
 
 		if result.Won {
-			stockfishElo += []int{0, 50, 100}[rand.Intn(3)]
+			stockfishElo += []int{50, 100, 200, 300}[rand.Intn(4)]
 		} else if result.Draw {
-			stockfishElo += []int{-50, 0, 50}[rand.Intn(3)]
+			stockfishElo += []int{-50, 0, 50, 100}[rand.Intn(4)]
 		} else {
-			stockfishElo += []int{-100, -50, 0}[rand.Intn(3)]
+			stockfishElo += []int{-200, -100, -50}[rand.Intn(3)]
 		}
 	}
 }

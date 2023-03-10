@@ -256,7 +256,7 @@ func (r *ChessGoRunner) Evaluate(player Player) int {
 }
 
 func (r *ChessGoRunner) EvaluateSimple(player Player) int {
-	return evaluation.EvaluatePieces(r.b, player)
+	return evaluation.EvaluatePieces(r.b, player) - evaluation.EvaluatePieces(r.b, player.Other())
 }
 
 func (r *ChessGoRunner) DrawClock() int {

@@ -1,10 +1,7 @@
 package search
 
 import (
-	"sort"
-
 	. "github.com/cricklet/chessgo/internal/bitboards"
-	. "github.com/cricklet/chessgo/internal/evaluation"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
@@ -100,28 +97,6 @@ func GeneratePseudoMovesWithAllPromotions(b *Bitboards, g *GameState, moves *[]M
 func GeneratePseudoMovesSkippingCastling(b *Bitboards, g *GameState, moves *[]Move) {
 	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, true /* allPossiblePromotions */, true /*skipCastling*/)
 }
-func GenerateSortedPseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMoves(b, g, moves)
-
-	for i := range *moves {
-		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], g))
-	}
-
-	sort.Slice(*moves, func(i, j int) bool {
-		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
-	})
-}
-func GenerateSortedPseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoCaptures(b, g, moves)
-
-	for i := range *moves {
-		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], g))
-	}
-
-	sort.Slice(*moves, func(i, j int) bool {
-		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
-	})
-}
 func GeneratePseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
 	GeneratePseudoMovesInternal(b, g, moves, true /* onlyCaptures */, false /* allPossiblePromotions */, true /* skipCastling */)
 }
@@ -165,6 +140,28 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 	playerBoards := b.Players[player]
 	enemyBoards := &b.Players[player.Other()]
 
+	if !onlyCaptures && !skipCastling {
+		// generate king castle
+		for _, castlingSide := range AllCastlingSides {
+			canCastle := true
+			if g.PlayerAndCastlingSideAllowed[player][castlingSide] {
+				requirements := AllCastlingRequirements[player][castlingSide]
+				if b.Occupied&requirements.Empty != 0 {
+					canCastle = false
+				}
+				for _, index := range requirements.Safe {
+					if playerIndexIsAttacked(player, index, b.Occupied, enemyBoards) {
+						canCastle = false
+						break
+					}
+				}
+
+				if canCastle {
+					*moves = append(*moves, requirements.Move)
+				}
+			}
+		}
+	}
 	{
 		pushOffset := PawnPushOffsets[player]
 
@@ -266,29 +263,6 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 
 		// generate king moves
 		*moves = generateJumpMovesByLookup(playerBoards.Pieces[King], b.Occupied, playerBoards.Occupied, KingAttackMasks, onlyCaptures, *moves)
-	}
-
-	if !onlyCaptures && !skipCastling {
-		// generate king castle
-		for _, castlingSide := range AllCastlingSides {
-			canCastle := true
-			if g.PlayerAndCastlingSideAllowed[player][castlingSide] {
-				requirements := AllCastlingRequirements[player][castlingSide]
-				if b.Occupied&requirements.Empty != 0 {
-					canCastle = false
-				}
-				for _, index := range requirements.Safe {
-					if playerIndexIsAttacked(player, index, b.Occupied, enemyBoards) {
-						canCastle = false
-						break
-					}
-				}
-
-				if canCastle {
-					*moves = append(*moves, requirements.Move)
-				}
-			}
-		}
 	}
 }
 

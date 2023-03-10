@@ -29,3 +29,17 @@ func TestEvaluation(t *testing.T) {
 	assert.Equal(t, EvaluateDevelopment(&bitboards, White), 2*_developmentScale)
 	assert.Equal(t, EvaluateDevelopment(&bitboards, Black), 0*_developmentScale)
 }
+
+func EvaluateFen(t *testing.T, s string, args ...EvaluationOption) int {
+	g, err := GamestateFromFenString(s)
+	assert.True(t, IsNil(err))
+
+	bitboards := g.CreateBitboards()
+	return Evaluate(&bitboards, g.Player, args...)
+}
+
+func TestEvaluationEndgame(t *testing.T) {
+	assert.Less(t,
+		EvaluateFen(t, "8/8/4k3/8/8/8/7R/4K3 w - - 10 5", EndgamePushEnemyKing),
+		EvaluateFen(t, "4k3/8/8/8/8/8/7R/4K3 w - - 10 5", EndgamePushEnemyKing))
+}

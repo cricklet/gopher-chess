@@ -85,18 +85,13 @@ func FenStringForGame(g *GameState) string {
 
 func GamestateFromFenString(s string) (GameState, Error) {
 	ss := strings.Fields(s)
-	if len(ss) != 6 && len(ss) != 4 {
+	if len(ss) != 6 && len(ss) != 4 && len(ss) != 2 {
 		return GameState{}, Errorf("wrong num %v of fields in str '%v'", len(ss), s)
 	}
 
 	game := GameState{}
 
-	boardStr, playerString, castlingRightsString, enPassantTargetString := ss[0], ss[1], ss[2], ss[3]
-
-	halfMoveClockString, fullMoveClockString := "0", "1"
-	if len(ss) == 6 {
-		halfMoveClockString, fullMoveClockString = ss[4], ss[5]
-	}
+	boardStr, playerString := ss[0], ss[1]
 
 	var rankIndex Rank = 7
 	var fileIndex File = 0
@@ -122,6 +117,16 @@ func GamestateFromFenString(s string) (GameState, Error) {
 		game.Player = player
 	} else {
 		return GameState{}, Errorf("invalid player '%v' in '%v'", playerString, s)
+	}
+
+	castlingRightsString, enPassantTargetString := "-", "-"
+	if len(ss) >= 4 {
+		castlingRightsString, enPassantTargetString = ss[2], ss[3]
+	}
+
+	halfMoveClockString, fullMoveClockString := "0", "1"
+	if len(ss) == 6 {
+		halfMoveClockString, fullMoveClockString = ss[4], ss[5]
 	}
 
 	for _, c := range castlingRightsString {
