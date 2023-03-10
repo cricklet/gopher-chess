@@ -428,6 +428,7 @@ func allEloResultsInDir(dir string) ([]EloResults, Error) {
 func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPath string) {
 	var err Error
 	if shouldClean {
+		fmt.Printf("cleaning %v\n     and %v\n", binaryPath, jsonPath)
 		err = rmIfExists(binaryPath)
 		if !IsNil(err) {
 			panic(err)
@@ -491,7 +492,7 @@ func main() {
 
 	shouldClean := false
 	printStats := false
-	binaryArgs := []string{}
+	userSpecifiedBinaryArgs := []string{}
 
 	performAllArgPermutations := false
 
@@ -512,8 +513,7 @@ func main() {
 		} else if arg == "permutations" {
 			performAllArgPermutations = true
 		} else {
-			binaryArgs = append(binaryArgs, arg)
-			tags = append(tags, arg)
+			userSpecifiedBinaryArgs = append(userSpecifiedBinaryArgs, arg)
 		}
 	}
 
@@ -521,11 +521,7 @@ func main() {
 		tags = append(tags, "default")
 	}
 
-	fileNameBase := strings.Join(append([]string{time.Now().Format("2006_01_02")}, tags...), "_")
-
 	resultsDir := RootDir() + "/data/elo_results"
-	binaryPath := fmt.Sprintf("%s/%v", resultsDir, fileNameBase)
-	jsonPath := fmt.Sprintf("%s/%v.json", resultsDir, fileNameBase)
 
 	if printStats {
 		allEloResults, err := allEloResultsInDir(resultsDir)
@@ -550,17 +546,17 @@ func main() {
 	}
 
 	allBinaryArgsToTry := [][]string{
-		binaryArgs,
+		userSpecifiedBinaryArgs,
 	}
 
 	if performAllArgPermutations {
-		if len(binaryArgs) != 0 {
+		if len(userSpecifiedBinaryArgs) != 0 {
 			panic("binary args will be automatically populated")
 		}
-		binaryArgs := FilterSlice(AllSearchOptions, func(v string) bool {
-			return !strings.Contains(v, "debug")
-		})
-		allBinaryArgsToTry = combinations.All(binaryArgs)
+		allBinaryArgsToTry = append(combinations.All(FilterSlice(
+			AllSearchOptions, func(v string) bool {
+				return !strings.Contains(v, "debug")
+			})), []string{})
 	}
 
 	fmt.Println(PrettyPrint(allBinaryArgsToTry))
@@ -573,6 +569,11 @@ func main() {
 
 	for i := 0; i < numRuns; i++ {
 		nextBinaryArgs := allBinaryArgsToTry[i%len(allBinaryArgsToTry)]
+		nextTags := append(tags, nextBinaryArgs...)
+
+		fileNameBase := strings.Join(append([]string{time.Now().Format("2006_01_02")}, nextTags...), "_")
+		binaryPath := fmt.Sprintf("%s/%v", resultsDir, fileNameBase)
+		jsonPath := fmt.Sprintf("%s/%v.json", resultsDir, fileNameBase)
 		mainInner(shouldClean, nextBinaryArgs, binaryPath, jsonPath)
 
 		if !shouldClean {
