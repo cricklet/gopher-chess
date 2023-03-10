@@ -10,14 +10,9 @@ import (
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/davecgh/go-spew/spew"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func pp(t any) string {
-	return spew.Sdump(t)
-}
 
 type PerftValues struct {
 	leaves     int
@@ -320,7 +315,7 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 		}
 
 		if len(perftIssueMap) > 0 {
-			t.Error(Errorf(pp(perftIssueMap)))
+			t.Error(Errorf(PrettyPrint(perftIssueMap)))
 			for move, issue := range perftIssueMap {
 				invalidMovesToSearch = append(invalidMovesToSearch, InvalidMovesToSearch{move, issue.comparison, initialState})
 			}
@@ -333,7 +328,7 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 			break
 		}
 		if search.issue == MOVE_IS_INVALID || search.issue == MOVE_IS_MISSING {
-			result = append(result, pp(search))
+			result = append(result, PrettyPrint(search))
 			totalInvalidMoves++
 		} else {
 			move := g.MoveFromString(search.move)
@@ -359,7 +354,7 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 	}
 
 	if len(result) == 0 && len(invalidMovesToSearch) > 0 && totalInvalidMoves < MAX_TOTAL_INVALID_MOVES {
-		t.Error(Errorf("couldn't find '%v' => %v", FenStringForGame(&g), pp(invalidMovesToSearch)))
+		t.Error(Errorf("couldn't find '%v' => %v", FenStringForGame(&g), PrettyPrint(invalidMovesToSearch)))
 	}
 }
 

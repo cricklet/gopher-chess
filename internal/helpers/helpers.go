@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 type Success bool
@@ -215,4 +217,8 @@ const resetColors = "\033[0m"
 
 func HintText(text string) string {
 	return hintColor + text + resetColors
+}
+
+func PrettyPrint(t any) string {
+	return spew.Sdump(t)
 }

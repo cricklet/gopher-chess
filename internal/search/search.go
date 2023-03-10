@@ -136,6 +136,13 @@ var DefaultSearchOptions = SearcherOptions{
 	debugSearchTree:   nil,
 }
 
+var AllSearchOptions = []string{
+	"incDepthForCheck",
+	"endgamePushEnemyKing",
+	"handleLegality",
+	"debugSearchTree",
+}
+
 func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 	options := SearcherOptions{}
 

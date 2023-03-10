@@ -26,6 +26,12 @@ func (l *LiveLogger) FooterString() string {
 	return strings.Join(l.footers, "\n")
 }
 
+func (l *LiveLogger) FlushFooter() {
+	fmt.Println(l.FooterString())
+	fmt.Println()
+	fmt.Println()
+}
+
 func (l *LiveLogger) Println(v ...interface{}) {
 	l.Print(fmt.Sprintln(v...))
 }

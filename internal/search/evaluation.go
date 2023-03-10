@@ -209,9 +209,9 @@ func Evaluate(b *Bitboards, player Player, args ...EvaluationOption) int {
 				result += evaluateDevelopmentForPiece(
 					b.Players[enemy].Pieces[King],
 					EnemyKingEndgameBitboards[enemy])
-			}
-			if KingIsInCheck(b, enemy) {
-				result += 1000
+				if KingIsInCheck(b, enemy) {
+					result += 50
+				}
 			}
 		}
 	}

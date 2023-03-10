@@ -15,6 +15,8 @@ import (
 	"github.com/cricklet/chessgo/internal/binary"
 	. "github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	. "github.com/cricklet/chessgo/internal/search"
+	combinations "github.com/mxschmitt/golang-combinations"
 )
 
 const _footerEval = 1
@@ -31,6 +33,7 @@ type MatchResult struct {
 	Unknown      bool
 	StartFen     string
 	PositionFen  string
+	EndingFen    string
 	PgnMoves     string
 	StockfishElo int
 }
@@ -305,7 +308,7 @@ func playGame(
 	return Unknown, NilError
 }
 
-func mainInner(
+func playGameBinaries(
 	binaryPath string,
 	binaryArgs []string,
 	stockfishElo int,
@@ -368,6 +371,7 @@ func mainInner(
 	newResult := MatchResult{
 		StartFen:     runner.StartFen,
 		PositionFen:  runner.StartFen + " moves " + strings.Join(runner.MoveHistory(), " "),
+		EndingFen:    runner.FenString(),
 		PgnMoves:     runner.PgnFromMoveHistory(),
 		StockfishElo: stockfishElo,
 	}
@@ -421,6 +425,64 @@ func allEloResultsInDir(dir string) ([]EloResults, Error) {
 	return results, NilError
 }
 
+func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPath string) {
+	var err Error
+	if shouldClean {
+		err = rmIfExists(binaryPath)
+		if !IsNil(err) {
+			panic(err)
+		}
+		err = rmIfExists(jsonPath)
+		if !IsNil(err) {
+			panic(err)
+		}
+	}
+
+	err = buildChessGoIfMissing(binaryPath)
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	results := EloResults{
+		Cmd:     binaryPath,
+		Matches: []MatchResult{},
+	}
+
+	err = unmarshalEloResults(jsonPath, &results)
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	stockfishElo := results.estimateElo() + []int{-50, 0, 50, 100}[rand.Intn(4)]
+
+	currentSuffix := HintText(fmt.Sprintf(
+		"stockfish elo: %v, chessgo elo: %v (%v)",
+		stockfishElo,
+		results.estimateElo(),
+		Last(strings.Split(binaryPath, "/"))))
+	historySuffix := HintText(results.matchHistory())
+	logger.SetFooter(currentSuffix, _footerCurrent)
+	logger.SetFooter(historySuffix, _footerHistory)
+
+	result := playGameBinaries(binaryPath, binaryArgs, stockfishElo)
+
+	err = unmarshalEloResults(jsonPath, &results)
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	results.Matches = append(results.Matches, result)
+	results.EloEstimate = results.estimateElo()
+
+	logger.Printf("elo so far: %v\n", results.estimateElo())
+	logger.FlushFooter()
+
+	err = marshalEloResults(jsonPath, &results)
+	if !IsNil(err) {
+		panic(err)
+	}
+}
+
 func main() {
 	var err Error
 
@@ -429,6 +491,8 @@ func main() {
 	shouldClean := false
 	printStats := false
 	binaryArgs := []string{}
+
+	performAllArgPermutations := false
 
 	tags := []string{}
 
@@ -444,6 +508,8 @@ func main() {
 
 		} else if arg == "stats" {
 			printStats = true
+		} else if arg == "permutations" {
+			performAllArgPermutations = true
 		} else {
 			binaryArgs = append(binaryArgs, arg)
 			tags = append(tags, arg)
@@ -473,18 +539,7 @@ func main() {
 		fmt.Println(strings.Join(statsStrings, "\n"))
 	}
 
-	if shouldClean {
-		err = rmIfExists(binaryPath)
-		if !IsNil(err) {
-			panic(err)
-		}
-		err = rmIfExists(jsonPath)
-		if !IsNil(err) {
-			panic(err)
-		}
-	}
-
-	if shouldClean || printStats {
+	if printStats {
 		return
 	}
 
@@ -493,55 +548,26 @@ func main() {
 		panic(err)
 	}
 
-	err = buildChessGoIfMissing(binaryPath)
-	if !IsNil(err) {
-		panic(err)
+	allBinaryArgsToTry := [][]string{
+		binaryArgs,
 	}
 
-	results := EloResults{
-		Cmd:     binaryPath,
-		Matches: []MatchResult{},
+	if performAllArgPermutations {
+		if len(binaryArgs) != 0 {
+			panic("binary args will be automatically populated")
+		}
+		binaryArgs := FilterSlice(AllSearchOptions, func(v string) bool {
+			return !strings.Contains(v, "debug")
+		})
+		allBinaryArgsToTry = combinations.All(binaryArgs)
 	}
 
-	err = unmarshalEloResults(jsonPath, &results)
-	if !IsNil(err) {
-		panic(err)
-	}
+	fmt.Println(PrettyPrint(allBinaryArgsToTry))
+	time.Sleep(time.Second * 2)
 
-	stockfishElo := results.estimateElo()
-
-	for i := 0; i < 10; i++ {
-		currentSuffix := HintText(fmt.Sprintf(
-			"stockfish elo: %v, chessgo elo: %v",
-			stockfishElo,
-			results.estimateElo()))
-		historySuffix := HintText(results.matchHistory())
-		logger.SetFooter(currentSuffix, _footerCurrent)
-		logger.SetFooter(historySuffix, _footerHistory)
-
-		result := mainInner(binaryPath, binaryArgs, stockfishElo)
-
-		err = unmarshalEloResults(jsonPath, &results)
-		if !IsNil(err) {
-			panic(err)
-		}
-
-		results.Matches = append(results.Matches, result)
-		results.EloEstimate = results.estimateElo()
-
-		logger.Printf("elo so far: %v\n", results.estimateElo())
-
-		err = marshalEloResults(jsonPath, &results)
-		if !IsNil(err) {
-			panic(err)
-		}
-
-		if result.Won {
-			stockfishElo += []int{50, 100, 200, 300}[rand.Intn(4)]
-		} else if result.Draw {
-			stockfishElo += []int{-50, 0, 50, 100}[rand.Intn(4)]
-		} else {
-			stockfishElo += []int{-200, -100, -50}[rand.Intn(3)]
-		}
+	for i := 0; i < 200; i++ {
+		nextBinaryArgs := allBinaryArgsToTry[i%len(allBinaryArgsToTry)]
+		mainInner(shouldClean, nextBinaryArgs, binaryPath, jsonPath)
+		time.Sleep(time.Second * 10)
 	}
 }
