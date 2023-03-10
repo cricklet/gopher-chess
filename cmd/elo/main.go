@@ -436,6 +436,7 @@ func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPat
 		if !IsNil(err) {
 			panic(err)
 		}
+		return
 	}
 
 	err = buildChessGoIfMissing(binaryPath)
@@ -565,9 +566,17 @@ func main() {
 	fmt.Println(PrettyPrint(allBinaryArgsToTry))
 	time.Sleep(time.Second * 2)
 
-	for i := 0; i < 200; i++ {
+	numRuns := 200
+	if shouldClean {
+		numRuns = len(allBinaryArgsToTry)
+	}
+
+	for i := 0; i < numRuns; i++ {
 		nextBinaryArgs := allBinaryArgsToTry[i%len(allBinaryArgsToTry)]
 		mainInner(shouldClean, nextBinaryArgs, binaryPath, jsonPath)
-		time.Sleep(time.Second * 10)
+
+		if !shouldClean {
+			time.Sleep(time.Second * 10)
+		}
 	}
 }
