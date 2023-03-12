@@ -503,6 +503,8 @@ func main() {
 
 	args := os.Args[1:]
 
+	dateString := time.Now().Format("2006_01_02")
+
 	shouldClean := false
 	printStats := false
 	userSpecifiedBinaryArgs := []string{}
@@ -580,7 +582,7 @@ func main() {
 	}
 	time.Sleep(time.Second * 1)
 
-	numRuns := 200
+	numRuns := 2000
 	if shouldClean {
 		numRuns = len(allBinaryArgsToTry)
 	}
@@ -594,7 +596,7 @@ func main() {
 				nextBinaryArgs = append(nextBinaryArgs, "profile")
 				shouldProfile = false
 			}
-			fileNameBase := strings.Join(append([]string{time.Now().Format("2006_01_02")}, nextTags...), "_")
+			fileNameBase := strings.Join(append([]string{dateString}, nextTags...), "_")
 			binaryPath := fmt.Sprintf("%s/%v", resultsDir, fileNameBase)
 			jsonPath := fmt.Sprintf("%s/%v.json", resultsDir, fileNameBase)
 			mainInner(shouldClean, nextBinaryArgs, binaryPath, jsonPath)
