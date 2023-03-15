@@ -231,7 +231,7 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 		searcher.OutOfTime = true
 	}()
 
-	move, err = JoinReturn(searcher.Search())
+	move, err = searcher.Search()
 	if !IsNil(err) {
 		return Empty[string](), err
 	}

@@ -23,17 +23,15 @@ func TestOpening(t *testing.T) {
 	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards, SearcherOptions{})
 
 	var result Optional[Move]
-	var errs []Error
 
 	go func() {
 		time.Sleep(time.Millisecond * 200)
 		searcher.OutOfTime = true
 	}()
 
-	result, errs = searcher.Search()
+	result, err = searcher.Search()
 
 	assert.True(t, IsNil(err), err)
-	assert.Empty(t, errs)
 
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
 	assert.True(t, expectedOpenings[result.Value().String()])
@@ -48,16 +46,14 @@ func TestPointlessSacrifice(t *testing.T) {
 	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards, SearcherOptions{})
 
 	var result Optional[Move]
-	var errs []Error
 
 	go func() {
 		time.Sleep(time.Millisecond * 2000)
 		searcher.OutOfTime = true
 	}()
 
-	result, errs = searcher.Search()
+	result, err = searcher.Search()
 
-	assert.Empty(t, errs)
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(result.Value().String())
@@ -75,16 +71,14 @@ func TestNoLegalMoves(t *testing.T) {
 	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards, SearcherOptions{})
 
 	var result Optional[Move]
-	var errs []Error
 
 	go func() {
 		time.Sleep(time.Millisecond * 10000)
 		searcher.OutOfTime = true
 	}()
 
-	result, errs = searcher.Search()
+	result, err = searcher.Search()
 
-	assert.Empty(t, errs)
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(result.Value().String())
@@ -104,16 +98,14 @@ func TestCheckMateSearch(t *testing.T) {
 	})
 
 	var result Optional[Move]
-	var errs []Error
 
 	go func() {
 		time.Sleep(time.Millisecond * 100)
 		searcher.OutOfTime = true
 	}()
 
-	result, errs = searcher.Search()
+	result, err = searcher.Search()
 
-	assert.Empty(t, errs)
 	assert.False(t, result.HasValue(), result)
 
 	debugString := searcher.options.debugSearchTree.DebugString(2)
@@ -151,16 +143,14 @@ func TestCheckMateInOne(t *testing.T) {
 		})
 
 	var result Optional[Move]
-	var errs []Error
 
 	go func() {
 		time.Sleep(time.Millisecond * 50)
 		searcher.OutOfTime = true
 	}()
 
-	result, errs = searcher.Search()
+	result, err = searcher.Search()
 
-	assert.Empty(t, errs)
 	assert.True(t, result.HasValue())
 
 	debugString := searcher.options.debugSearchTree.DebugString(3)
@@ -185,16 +175,14 @@ func TestCheckMateInOne2(t *testing.T) {
 		})
 
 	var result Optional[Move]
-	var errs []Error
 
 	go func() {
 		time.Sleep(time.Millisecond * 100)
 		searcher.OutOfTime = true
 	}()
 
-	result, errs = searcher.Search()
+	result, err = searcher.Search()
 
-	assert.Empty(t, errs)
 	assert.True(t, result.HasValue())
 
 	debugString := searcher.options.debugSearchTree.DebugString(2)
@@ -248,13 +236,13 @@ func TestShouldMateInsteadOfDraw(t *testing.T) {
 		})
 
 	{
-		drawScore, legality, errs := searcher.evaluateMoveForTests(player, MoveFromString("e2e7", QuietMove), 5)
-		assert.Empty(t, errs)
+		drawScore, legality, err := searcher.evaluateMoveForTests(player, MoveFromString("e2e7", QuietMove), 5)
+		assert.True(t, IsNil(err))
 		assert.True(t, legality)
 
 		var winScore int
-		winScore, legality, errs = searcher.evaluateMoveForTests(player, MoveFromString("e2a2", QuietMove), 5)
-		assert.Empty(t, errs)
+		winScore, legality, err = searcher.evaluateMoveForTests(player, MoveFromString("e2a2", QuietMove), 5)
+		assert.True(t, IsNil(err))
 		assert.True(t, legality)
 
 		assert.Less(t, drawScore, winScore)
@@ -263,15 +251,15 @@ func TestShouldMateInsteadOfDraw(t *testing.T) {
 	}
 
 	{
-		drawScore, legality, errs := searcher.evaluateMoveForTests(player, MoveFromString("e2e7", QuietMove), 2)
-		assert.Empty(t, errs)
+		drawScore, legality, err := searcher.evaluateMoveForTests(player, MoveFromString("e2e7", QuietMove), 2)
+		assert.True(t, IsNil(err))
 		assert.True(t, legality)
 
 		searcher.options.debugSearchTree = &debugSearchTree{}
 
 		var winScore int
-		winScore, legality, errs = searcher.evaluateMoveForTests(player, MoveFromString("e2a2", QuietMove), 2)
-		assert.Empty(t, errs)
+		winScore, legality, err = searcher.evaluateMoveForTests(player, MoveFromString("e2a2", QuietMove), 2)
+		assert.True(t, IsNil(err))
 		assert.True(t, legality)
 
 		fmt.Println(searcher.options.debugSearchTree.DebugString(5))
@@ -331,8 +319,7 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 	// 		searcher.OutOfTime = true
 	// 	}()
 
-	// 	_, errs := searcher.Search()
-	// 	assert.Empty(t, errs)
+	// 	_, err := searcher.SearchTrue(t, IsNil(err)).Empty(t, err)
 
 	// 	// debugString := searcher.options.debugSearchTree.DebugString(10)
 	// 	// err = Wrap(os.WriteFile(RootDir()+"/data/TestPreventPin.tree", []byte(debugString), 0600))
@@ -341,20 +328,20 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 
 	{
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("c8e6", QuietMove), &BoardUpdate{})
-		score1, errs := searcher.evaluatePositionForTests(player, 2)
-		assert.Empty(t, errs)
+		score1, err := searcher.evaluatePositionForTests(player, 2)
+		assert.True(t, IsNil(err))
 
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("d4d5", QuietMove), &BoardUpdate{})
-		score2, errs := searcher.evaluatePositionForTests(player, 2)
-		assert.Empty(t, errs)
+		score2, err := searcher.evaluatePositionForTests(player, 2)
+		assert.True(t, IsNil(err))
 
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("e8g8", QuietMove), &BoardUpdate{})
-		score3, errs := searcher.evaluatePositionForTests(player, 2)
-		assert.Empty(t, errs)
+		score3, err := searcher.evaluatePositionForTests(player, 2)
+		assert.True(t, IsNil(err))
 
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("d5c6", QuietMove), &BoardUpdate{})
-		score4, errs := searcher.evaluatePositionForTests(player, 2)
-		assert.Empty(t, errs)
+		score4, err := searcher.evaluatePositionForTests(player, 2)
+		assert.True(t, IsNil(err))
 
 		fmt.Println(score1, score2, score3, score4)
 
@@ -366,20 +353,20 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 
 	{
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("c8e6", QuietMove), &BoardUpdate{})
-		score1, errs := searcher.evaluatePositionForTests(player, 3)
-		assert.Empty(t, errs)
+		score1, err := searcher.evaluatePositionForTests(player, 3)
+		assert.True(t, IsNil(err))
 
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("d4d5", QuietMove), &BoardUpdate{})
-		score2, errs := searcher.evaluatePositionForTests(player, 3)
-		assert.Empty(t, errs)
+		score2, err := searcher.evaluatePositionForTests(player, 3)
+		assert.True(t, IsNil(err))
 
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("e8g8", QuietMove), &BoardUpdate{})
-		score3, errs := searcher.evaluatePositionForTests(player, 3)
-		assert.Empty(t, errs)
+		score3, err := searcher.evaluatePositionForTests(player, 3)
+		assert.True(t, IsNil(err))
 
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("d5c6", QuietMove), &BoardUpdate{})
-		score4, errs := searcher.evaluatePositionForTests(player, 3)
-		assert.Empty(t, errs)
+		score4, err := searcher.evaluatePositionForTests(player, 3)
+		assert.True(t, IsNil(err))
 
 		fmt.Println(score1, score2, score3, score4)
 

@@ -303,26 +303,26 @@ func (s *searcherV2) EvaluatePosition(player Player) int {
 	return Evaluate(s.Bitboards, player, s.options.evaluationOptions...)
 }
 
-func (s *searcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta int) (int, []Error) {
+func (s *searcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta int) (int, Error) {
 	var returnScore int
-	var returnErrors []Error
+	var returnError Error
 
 	if player != s.Game.Player {
 		panic("player != s.Game.Player")
 	}
 
-	if s.options.transpositionTable != nil {
-		if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), 0); entry.HasValue() {
-			returnScore := entry.Value().Score
-			return returnScore, returnErrors
-		}
-	}
+	// if s.options.transpositionTable != nil {
+	// 	if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), 0); entry.HasValue() {
+	// 		returnScore := entry.Value().Score
+	// 		return returnScore, returnErrors
+	// 	}
+	// }
 
 	standPat := s.EvaluatePosition(player)
 
 	if standPat >= beta {
 		returnScore := beta
-		return returnScore, returnErrors
+		return returnScore, returnError
 	} else if standPat > alpha {
 		alpha = standPat
 	}
@@ -336,7 +336,7 @@ func (s *searcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta in
 	if len(*moves) == 0 {
 		returnScore = s.EvaluatePosition(player)
 		s.DebugTotalEvaluations++
-		return returnScore, returnErrors
+		return returnScore, returnError
 	}
 
 	for i := range *moves {
@@ -347,11 +347,11 @@ func (s *searcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta in
 
 		s.DebugCapturesSearched++
 
-		score, legality, childErrors := s.evaluateCaptureForPlayer(player, (*moves)[i], alpha, beta)
+		score, legality, childError := s.evaluateCaptureForPlayer(player, (*moves)[i], alpha, beta)
 
-		if len(childErrors) > 0 {
-			returnErrors = append(returnErrors, childErrors...)
-			return returnScore, returnErrors
+		if !IsNil(childError) {
+			returnError = Join(returnError, childError)
+			return returnScore, returnError
 		}
 
 		if !legality {
@@ -369,17 +369,17 @@ func (s *searcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta in
 		}
 	}
 
-	if s.options.transpositionTable != nil {
-		hash := s.Game.ZobristHash()
-		s.options.transpositionTable.Put(hash, 0, returnScore)
-	}
-	return returnScore, returnErrors
+	// if s.options.transpositionTable != nil {
+	// 	hash := s.Game.ZobristHash()
+	// 	s.options.transpositionTable.Put(hash, 0, returnScore)
+	// }
+	return returnScore, returnError
 }
 
-func (s *searcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha int, beta int) (int, bool, []Error) {
+func (s *searcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha int, beta int) (int, bool, Error) {
 	var returnScore int
 	var returnLegality bool
-	var returnErrors []Error
+	var returnError Error
 
 	if player != s.Game.Player {
 		panic("player != s.Game.Player")
@@ -404,26 +404,26 @@ func (s *searcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha in
 	defer func() {
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
 		if !IsNil(err) {
-			returnErrors = append(returnErrors, err)
+			returnError = Join(returnError, err)
 		}
 	}()
 	if !IsNil(err) {
-		returnErrors = append(returnErrors, err)
-		return returnScore, returnLegality, returnErrors
+		returnError = Join(returnError, err)
+		return returnScore, returnLegality, returnError
 	}
 	if !returnLegality {
-		return returnScore, returnLegality, returnErrors
+		return returnScore, returnLegality, returnError
 	}
 
 	var enemyScore int
-	enemyScore, returnErrors = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
+	enemyScore, returnError = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
 	returnScore = -enemyScore
-	return returnScore, returnLegality, returnErrors
+	return returnScore, returnLegality, returnError
 }
 
-func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta int, depth int) (int, []Error) {
+func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta int, depth int) (int, Error) {
 	var returnScore int
-	var returnErrors []Error
+	var returnError Error
 
 	if player != s.Game.Player {
 		panic("player != s.Game.Player")
@@ -432,7 +432,7 @@ func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 	if s.options.transpositionTable != nil {
 		if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), depth); entry.HasValue() {
 			returnScore := entry.Value().Score
-			return returnScore, returnErrors
+			return returnScore, returnError
 		}
 	}
 
@@ -446,11 +446,11 @@ func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 	hasLegalMove := false
 
 	for i := range *moves {
-		score, legality, childErrors := s.evaluateMoveForPlayer(player, (*moves)[i], alpha, beta, depth)
+		score, legality, childError := s.evaluateMoveForPlayer(player, (*moves)[i], alpha, beta, depth)
 
-		if len(childErrors) > 0 {
-			returnErrors = append(returnErrors, childErrors...)
-			return returnScore, returnErrors
+		if !IsNil(childError) {
+			returnError = Join(returnError, childError)
+			return returnScore, returnError
 		}
 
 		if !legality {
@@ -486,31 +486,31 @@ func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 		hash := s.Game.ZobristHash()
 		s.options.transpositionTable.Put(hash, depth, returnScore)
 	}
-	return returnScore, returnErrors
+	return returnScore, returnError
 }
 
-func (s *searcherV2) evaluateMoveForTests(player Player, move Move, depth int) (int, bool, []Error) {
+func (s *searcherV2) evaluateMoveForTests(player Player, move Move, depth int) (int, bool, Error) {
 	if player == s.Game.Player {
 		return s.evaluateMoveForPlayer(player, move, -Inf, Inf, depth)
 	} else {
-		score, legal, errs := s.evaluateMoveForPlayer(player.Other(), move, -Inf, Inf, depth)
-		return -score, legal, errs
+		score, legal, err := s.evaluateMoveForPlayer(player.Other(), move, -Inf, Inf, depth)
+		return -score, legal, err
 	}
 }
 
-func (s *searcherV2) evaluatePositionForTests(player Player, depth int) (int, []Error) {
+func (s *searcherV2) evaluatePositionForTests(player Player, depth int) (int, Error) {
 	if player == s.Game.Player {
 		return s.evaluatePositionForPlayer(player, -Inf, Inf, depth)
 	} else {
-		score, errs := s.evaluatePositionForPlayer(player.Other(), -Inf, Inf, depth)
-		return -score, errs
+		score, err := s.evaluatePositionForPlayer(player.Other(), -Inf, Inf, depth)
+		return -score, err
 	}
 }
 
-func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, beta int, depth int) (int, bool, []Error) {
+func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, beta int, depth int) (int, bool, Error) {
 	var returnScore int
 	var returnLegality bool
-	var returnErrors []Error
+	var returnError Error
 
 	if player != s.Game.Player {
 		panic("player != s.Game.Player")
@@ -535,16 +535,16 @@ func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 	defer func() {
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
 		if !IsNil(err) {
-			returnErrors = append(returnErrors, err)
+			returnError = Join(returnError, err)
 		}
 	}()
 
 	if !IsNil(err) {
-		returnErrors = append(returnErrors, err)
-		return returnScore, returnLegality, returnErrors
+		returnError = Join(returnError, err)
+		return returnScore, returnLegality, returnError
 	}
 	if !returnLegality {
-		return returnScore, returnLegality, returnErrors
+		return returnScore, returnLegality, returnError
 	}
 	if depth <= 1 {
 		if !s.OutOfTime && s.options.incDepthForCheck.currentDepth < s.options.incDepthForCheck.depthLimit {
@@ -560,15 +560,15 @@ func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 
 	if depth == 0 {
 		var enemyScore int
-		enemyScore, returnErrors = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
+		enemyScore, returnError = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
 		returnScore = -enemyScore
 	} else {
 		var enemyScore int
-		enemyScore, returnErrors = s.evaluatePositionForPlayer(enemy, -beta, -alpha, depth-1)
+		enemyScore, returnError = s.evaluatePositionForPlayer(enemy, -beta, -alpha, depth-1)
 		returnScore = -enemyScore
 	}
 
-	return returnScore, returnLegality, returnErrors
+	return returnScore, returnLegality, returnError
 }
 
 func (s *searcherV2) DebugStats() string {
@@ -586,7 +586,7 @@ func (s *searcherV2) DebugStats() string {
 	return result
 }
 
-func (s *searcherV2) Search() (Optional[Move], []Error) {
+func (s *searcherV2) Search() (Optional[Move], Error) {
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
@@ -601,7 +601,7 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 		s.DebugDepthIteration = depth
 		s.DebugMovesToConsider = len(*moves)
 		s.DebugMovesConsidered = 0
-		errs := func() []Error {
+		err := func() Error {
 			if s.options.debugSearchTree != nil {
 				s.options.debugSearchTree.DepthPush(fmt.Sprintf("depth %d", depth))
 				defer func() {
@@ -610,9 +610,9 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 			}
 
 			for i := range *moves {
-				score, legality, errs := s.evaluateMoveForPlayer(s.Game.Player, (*moves)[i], -Inf, Inf, depth)
-				if len(errs) > 0 {
-					return errs
+				score, legality, err := s.evaluateMoveForPlayer(s.Game.Player, (*moves)[i], -Inf, Inf, depth)
+				if !IsNil(err) {
+					return err
 				}
 
 				s.DebugMovesConsidered++
@@ -644,11 +644,11 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 
 			s.Logger.Println(s.DebugStats())
 
-			return nil
+			return NilError
 		}()
 
-		if len(errs) > 0 {
-			return Empty[Move](), errs
+		if !IsNil(err) {
+			return Empty[Move](), err
 		}
 
 		if s.OutOfTime {
@@ -657,14 +657,14 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 	}
 
 	if len(*moves) == 0 {
-		return Empty[Move](), nil // forfeit / stalemate
+		return Empty[Move](), NilError // forfeit / stalemate
 	}
 
 	bestMove := (*moves)[0]
 	if !bestMove.Evaluation.HasValue() || bestMove.Evaluation.Value() == -Inf {
-		return Empty[Move](), nil // forfeit / stalemate
+		return Empty[Move](), NilError // forfeit / stalemate
 	}
 
 	// fmt.Println(s.DebugTree.Sprint(2))
-	return Some((*moves)[0]), nil
+	return Some((*moves)[0]), NilError
 }
