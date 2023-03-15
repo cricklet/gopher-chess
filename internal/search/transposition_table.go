@@ -1,4 +1,4 @@
-package zobrist
+package search
 
 import (
 	"fmt"
@@ -7,9 +7,19 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
+type ScoreType int
+
+const (
+	AlphaFail ScoreType = iota
+	BetaCut
+	Exact
+	Unknown
+)
+
 type CachedEvaluation struct {
 	Depth       int
 	Score       int
+	ScoreType   ScoreType
 	ZobristHash uint64
 }
 

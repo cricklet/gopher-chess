@@ -10,7 +10,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/zobrist"
 )
 
 type debugSearchLine struct {
@@ -136,7 +135,7 @@ type SearcherOptions struct {
 	evaluationOptions  []EvaluationOption
 	handleLegality     bool
 	sortPartial        Optional[int]
-	transpositionTable *zobrist.TranspositionTable
+	transpositionTable *TranspositionTable
 
 	debugSearchTree *debugSearchTree
 	maxDepth        Optional[int]
@@ -230,7 +229,7 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 		} else if strings.HasPrefix(arg, "debugSearchTree") {
 			options.debugSearchTree = &debugSearchTree{}
 		} else if strings.HasPrefix(arg, "transpositionTable") {
-			options.transpositionTable = zobrist.NewTranspositionTable(zobrist.DefaultTranspositionTableSize)
+			options.transpositionTable = NewTranspositionTable(DefaultTranspositionTableSize)
 		} else {
 			return options, Errorf("unknown option: %s", arg)
 		}
@@ -423,27 +422,22 @@ func (s *searcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha in
 	return returnScore, returnLegality, returnError
 }
 
-type EvaluationType int
-
-const (
-	UpperBoundWorseThanAlpha EvaluationType = iota
-	LowerBoundTooGoodForBeta
-	Exact
-	Illegal
-)
-
-func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta int, depth int) (int, EvaluationType, Error) {
+func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta int, depth int) (int, ScoreType, Error) {
 	if player != s.Game.Player {
-		return 0, Illegal, Errorf("player != s.Game.Player")
+		return 0, Unknown, Errorf("player != s.Game.Player")
 	}
 
 	if s.options.transpositionTable != nil {
 		if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), depth); entry.HasValue() {
 			return entry.Value().Score, Exact, NilError
+
+			// if value is an alpha failure... and it's <= alpha, this is also an alpha failure
+			// if value is a beta cutoff... and it's > beta, this is also a beta cutoff
 		}
 	}
 
-	bestScore := alpha
+	returnScore := alpha
+	returnEvaluationType := AlphaFail
 
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
@@ -453,26 +447,28 @@ func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 	hasLegalMove := false
 
 	for i := range *moves {
-		score, evaluationType, err := s.evaluateMoveForPlayer(player, (*moves)[i], alpha, beta, depth)
+		moveScore, moveLegality, err := s.evaluateMoveForPlayer(player, (*moves)[i], alpha, beta, depth)
 
 		if !IsNil(err) {
-			return score, Illegal, err
+			return moveScore, Unknown, err
 		}
 
-		if evaluationType == Illegal {
+		if !moveLegality {
 			continue
 		} else {
 			hasLegalMove = true
 		}
 
-		if score >= beta {
+		if moveScore >= beta {
 			// The enemy will avoid this line
-			bestScore = beta
+			returnScore = beta
+			returnEvaluationType = BetaCut
 			break
-		} else if score > alpha {
+		} else if moveScore > alpha {
 			// This is our best choice of move
-			alpha = score
-			bestScore = score
+			alpha = moveScore
+			returnScore = moveScore
+			returnEvaluationType = Exact
 		}
 
 		if s.OutOfTime {
@@ -482,26 +478,28 @@ func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 
 	if !hasLegalMove && s.options.handleLegality {
 		if KingIsInCheck(s.Bitboards, s.Game.Player) {
-			bestScore = -Inf
+			returnScore = -Inf
+			returnEvaluationType = Exact
 		} else {
-			bestScore = 0
+			returnScore = 0
+			returnEvaluationType = Exact
 		}
 	}
 
 	if s.options.transpositionTable != nil {
 		hash := s.Game.ZobristHash()
-		s.options.transpositionTable.Put(hash, depth, bestScore)
+		s.options.transpositionTable.Put(hash, depth, returnScore)
 	}
-	return bestScore, Exact, NilError
+	return returnScore, returnEvaluationType, NilError
 }
 
 func (s *searcherV2) evaluateMoveForTests(player Player, move Move, depth int) (int, bool, Error) {
 	if player == s.Game.Player {
-		score, evaluationType, err := s.evaluateMoveForPlayer(player, move, -Inf, Inf, depth)
-		return score, evaluationType != Illegal, err
+		score, legality, err := s.evaluateMoveForPlayer(player, move, -Inf, Inf, depth)
+		return score, legality, err
 	} else {
-		score, evaluationType, err := s.evaluateMoveForPlayer(player.Other(), move, -Inf, Inf, depth)
-		return -score, evaluationType != Illegal, err
+		score, legality, err := s.evaluateMoveForPlayer(player.Other(), move, -Inf, Inf, depth)
+		return -score, legality, err
 	}
 }
 
@@ -515,14 +513,14 @@ func (s *searcherV2) evaluatePositionForTests(player Player, depth int) (int, Er
 	}
 }
 
-func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, beta int, depth int) (int, EvaluationType, Error) {
+func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, beta int, depth int) (int, bool, Error) {
 	var returnScore int
-	var returnType EvaluationType
+	var returnLegality bool
 	var returnError Error
 
 	if player != s.Game.Player {
 		returnError = Errorf("player != s.Game.Player")
-		return returnScore, returnType, returnError
+		return returnScore, returnLegality, returnError
 	}
 	enemy := player.Other()
 
@@ -533,14 +531,13 @@ func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 		defer func() {
 			s.options.debugSearchTree.MovePop(
 				move, player,
-				alpha, beta, returnScore, returnType != Illegal)
+				alpha, beta, returnScore, returnLegality)
 		}()
 	}
 
 	var update BoardUpdate
-	var legal bool
 	var err Error
-	legal, err = s.PerformMoveAndReturnLegality(move, &update)
+	returnLegality, err = s.PerformMoveAndReturnLegality(move, &update)
 
 	defer func() {
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
@@ -551,10 +548,10 @@ func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 
 	if !IsNil(err) {
 		returnError = err
-		return returnScore, Illegal, returnError
+		return returnScore, returnLegality, returnError
 	}
-	if !legal {
-		return returnScore, Illegal, returnError
+	if !returnLegality {
+		return returnScore, returnLegality, returnError
 	}
 	if depth <= 1 {
 		if !s.OutOfTime && s.options.incDepthForCheck.currentDepth < s.options.incDepthForCheck.depthLimit {
@@ -572,14 +569,13 @@ func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 		var enemyScore int
 		enemyScore, returnError = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
 		returnScore = -enemyScore
-		returnType = Exact
 	} else {
 		var enemyScore int
-		enemyScore, returnType, returnError = s.evaluatePositionForPlayer(enemy, -beta, -alpha, depth-1)
+		enemyScore, _, returnError = s.evaluatePositionForPlayer(enemy, -beta, -alpha, depth-1)
 		returnScore = -enemyScore
 	}
 
-	return returnScore, returnType, returnError
+	return returnScore, returnLegality, returnError
 }
 
 func (s *searcherV2) DebugStats() string {
@@ -621,14 +617,14 @@ func (s *searcherV2) Search() (Optional[Move], Error) {
 			}
 
 			for i := range *moves {
-				score, evaluationType, err := s.evaluateMoveForPlayer(s.Game.Player, (*moves)[i], -Inf, Inf, depth)
+				score, legality, err := s.evaluateMoveForPlayer(s.Game.Player, (*moves)[i], -Inf, Inf, depth)
 				if !IsNil(err) {
 					return err
 				}
 
 				s.DebugMovesConsidered++
 
-				if evaluationType == Illegal {
+				if !legality {
 					(*moves)[i].Evaluation = Empty[int]()
 					continue
 				} else {

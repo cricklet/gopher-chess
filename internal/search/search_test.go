@@ -9,7 +9,6 @@ import (
 	"github.com/bluele/psort"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/zobrist"
 	"github.com/pkg/profile"
 	"github.com/stretchr/testify/assert"
 )
@@ -304,7 +303,7 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 			// debugSearchStack:   &[]string{},
 			sortPartial:        Some(3),
 			handleLegality:     true,
-			transpositionTable: zobrist.NewTranspositionTable(zobrist.DefaultTranspositionTableSize),
+			transpositionTable: NewTranspositionTable(DefaultTranspositionTableSize),
 		})
 
 	// {
