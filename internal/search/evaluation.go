@@ -249,7 +249,7 @@ func EvaluateMove(m *Move, g *GameState, args ...EvaluationOption) int {
 		score += 100
 	}
 	if m.MoveType == CastlingMove {
-		score += 500
+		score += 200
 	}
 
 	startDevelopment := evaluateDevelopmentForPiece(

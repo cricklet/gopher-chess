@@ -12,7 +12,7 @@ var ZobristCastlingRights [4]uint64
 var ZobristEnPassant [8]uint64
 
 func init() {
-	r := rand.New(rand.NewSource(0))
+	r := rand.New(rand.NewSource(32879419))
 	ZobristSideToMove = r.Uint64()
 	for i := 0; i < 4; i++ {
 		ZobristCastlingRights[i] = r.Uint64()

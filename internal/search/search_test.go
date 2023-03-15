@@ -9,6 +9,8 @@ import (
 	"github.com/bluele/psort"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/zobrist"
+	"github.com/pkg/profile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -272,7 +274,7 @@ func TestShouldMateInsteadOfDraw(t *testing.T) {
 	}
 }
 
-func TestDeeperSearchesAvoidPins(t *testing.T) {
+func TestQuiescence(t *testing.T) {
 	fen := "r1bqk2r/p1p2ppp/1pnp1n2/4p3/1bPPP3/2N3P1/PP2NPBP/R1BQK2R b KQkq d3 0 7"
 
 	game, err := GamestateFromFenString(fen)
@@ -281,51 +283,99 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 
 	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
 		SearcherOptions{
-			debugSearchTree:  &debugSearchTree{},
-			debugSearchStack: &[]string{},
-			handleLegality:   true,
+			maxDepth:       Some(3),
+			handleLegality: true,
+		})
+
+	searcher.Search()
+	fmt.Println(searcher.DebugStats())
+}
+
+func TestDeeperSearchesAvoidPins(t *testing.T) {
+	defer profile.Start(profile.ProfilePath(RootDir() + "/data/TestDeeperSearchesAvoidPins")).Stop()
+
+	fen := "r1bqk2r/p1p2ppp/1pnp1n2/4p3/1bPPP3/2N3P1/PP2NPBP/R1BQK2R b KQkq d3 0 7"
+
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err), err)
+	bitboards := game.CreateBitboards()
+
+	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
+		SearcherOptions{
+			// debugSearchTree:    &debugSearchTree{},
+			// debugSearchStack:   &[]string{},
+			sortPartial:        Some(3),
+			handleLegality:     true,
+			transpositionTable: zobrist.NewTranspositionTable(zobrist.DefaultTranspositionTableSize),
 		})
 
 	// {
 	// 	go func() {
-	// 		time.Sleep(time.Millisecond * 200)
+	// 		for searcher.OutOfTime == false {
+	// 			time.Sleep(time.Millisecond * 200)
+	// 			fmt.Println(searcher.DebugStats())
+	// 		}
+	// 	}()
+	// 	go func() {
+	// 		time.Sleep(time.Millisecond * 5000)
 	// 		searcher.OutOfTime = true
 	// 	}()
 
 	// 	_, errs := searcher.Search()
 	// 	assert.Empty(t, errs)
 
-	// 	debugString := searcher.options.debugSearchTree.DebugString(10)
-	// 	err = Wrap(os.WriteFile(RootDir()+"/data/TestPreventPin.tree", []byte(debugString), 0600))
-	// 	assert.True(t, IsNil(err), err)
+	// 	// debugString := searcher.options.debugSearchTree.DebugString(10)
+	// 	// err = Wrap(os.WriteFile(RootDir()+"/data/TestPreventPin.tree", []byte(debugString), 0600))
+	// 	// assert.True(t, IsNil(err), err)
 	// }
 
 	{
-		// perform the forking moves
-		score0, errs := searcher.evaluateSubtree(-Inf, Inf, 2)
-		assert.Empty(t, errs)
-
-		searcher.PerformMoveAndReturnLegality(MoveFromString("c8e6", QuietMove), &BoardUpdate{})
+		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("c8e6", QuietMove), &BoardUpdate{})
 		score1, errs := searcher.evaluateSubtree(-Inf, Inf, 2)
 		assert.Empty(t, errs)
 
-		searcher.PerformMoveAndReturnLegality(MoveFromString("d4d5", QuietMove), &BoardUpdate{})
+		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("d4d5", QuietMove), &BoardUpdate{})
 		score2, errs := searcher.evaluateSubtree(-Inf, Inf, 2)
 		assert.Empty(t, errs)
 
-		searcher.PerformMoveAndReturnLegality(MoveFromString("e8g8", QuietMove), &BoardUpdate{})
+		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("e8g8", QuietMove), &BoardUpdate{})
 		score3, errs := searcher.evaluateSubtree(-Inf, Inf, 2)
 		assert.Empty(t, errs)
 
-		searcher.PerformMoveAndReturnLegality(MoveFromString("d5c6", QuietMove), &BoardUpdate{})
+		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("d5c6", QuietMove), &BoardUpdate{})
 		score4, errs := searcher.evaluateSubtree(-Inf, Inf, 2)
 		assert.Empty(t, errs)
 
-		fmt.Println(score0, score1, score2, score3, score4)
+		fmt.Println(score1, score2, score3, score4)
 
-		assert.Greater(t, score0, score1)
-		assert.Greater(t, score1, score2)
-		assert.Greater(t, score2, score3)
-		assert.Greater(t, score2, score4)
+		assert.Greater(t, score1, -100)
+		assert.Greater(t, score2, -100)
+		assert.Less(t, score3, -100)
+		assert.Less(t, score4, -100)
+	}
+
+	{
+		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("c8e6", QuietMove), &BoardUpdate{})
+		score1, errs := searcher.evaluateSubtree(-Inf, Inf, 3)
+		assert.Empty(t, errs)
+
+		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("d4d5", QuietMove), &BoardUpdate{})
+		score2, errs := searcher.evaluateSubtree(-Inf, Inf, 3)
+		assert.Empty(t, errs)
+
+		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("e8g8", QuietMove), &BoardUpdate{})
+		score3, errs := searcher.evaluateSubtree(-Inf, Inf, 3)
+		assert.Empty(t, errs)
+
+		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("d5c6", QuietMove), &BoardUpdate{})
+		score4, errs := searcher.evaluateSubtree(-Inf, Inf, 3)
+		assert.Empty(t, errs)
+
+		fmt.Println(score1, score2, score3, score4)
+
+		assert.Less(t, score1, -100)
+		assert.Less(t, score2, -100)
+		assert.Less(t, score3, -100)
+		assert.Less(t, score4, -100)
 	}
 }

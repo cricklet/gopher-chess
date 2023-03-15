@@ -10,6 +10,7 @@ import (
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/zobrist"
 )
 
 type debugSearchLine struct {
@@ -153,7 +154,13 @@ type searcherV2 struct {
 
 	options SearcherOptions
 
-	DebugTotalEvaluations int
+	DebugTotalEvaluations    int
+	DebugTotalMovesPerformed int
+	DebugDepthIteration      int
+	DebugMovesToConsider     int
+	DebugMovesConsidered     int
+	DebugCapturesSearched    int
+	DebugCapturesSkipped     int
 }
 
 type incDepthForCheck struct {
@@ -162,22 +169,25 @@ type incDepthForCheck struct {
 }
 
 type SearcherOptions struct {
-	incDepthForCheck  incDepthForCheck
-	evaluationOptions []EvaluationOption
-	handleLegality    bool
-	debugSearchTree   *debugSearchTree
-	debugSearchStack  *[]string
-	sortPartial       Optional[int]
-	maxDepth          Optional[int]
+	incDepthForCheck   incDepthForCheck
+	evaluationOptions  []EvaluationOption
+	handleLegality     bool
+	sortPartial        Optional[int]
+	transpositionTable *zobrist.TranspositionTable
+
+	debugSearchTree  *debugSearchTree
+	debugSearchStack *[]string
+	maxDepth         Optional[int]
 }
 
 var DefaultSearchOptions = SearcherOptions{
-	incDepthForCheck:  incDepthForCheck{},
-	evaluationOptions: []EvaluationOption{},
-	handleLegality:    false,
-	debugSearchTree:   nil,
-	debugSearchStack:  nil,
-	maxDepth:          Empty[int](),
+	incDepthForCheck:   incDepthForCheck{},
+	evaluationOptions:  []EvaluationOption{},
+	handleLegality:     false,
+	transpositionTable: nil,
+	debugSearchTree:    nil,
+	debugSearchStack:   nil,
+	maxDepth:           Empty[int](),
 }
 
 var AllSearchOptions = []string{
@@ -257,8 +267,10 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 			options.handleLegality = true
 		} else if strings.HasPrefix(arg, "debugSearchTree") {
 			options.debugSearchTree = &debugSearchTree{}
+		} else if strings.HasPrefix(arg, "transpositionTable") {
+			options.transpositionTable = zobrist.NewTranspositionTable(zobrist.DefaultTranspositionTableSize)
 		} else {
-			return options, Errorf("unknwon option: %s", arg)
+			return options, Errorf("unknown option: %s", arg)
 		}
 	}
 
@@ -313,6 +325,7 @@ func (s *searcherV2) GenerateSortedPseudoCaptures(moves *[]Move) {
 }
 
 func (s *searcherV2) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, Error) {
+	s.DebugTotalMovesPerformed++
 	err := s.Game.PerformMove(move, update, s.Bitboards)
 	if !IsNil(err) {
 		return false, err
@@ -340,6 +353,13 @@ func (s *searcherV2) EvaluatePosition() int {
 func (s *searcherV2) evaluateCaptures(alpha int, beta int) (int, []Error) {
 	var returnScore int
 	var returnErrors []Error
+
+	if s.options.transpositionTable != nil {
+		if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), 0); entry.HasValue() {
+			returnScore := entry.Value().Score
+			return returnScore, returnErrors
+		}
+	}
 
 	standPat := s.EvaluatePosition()
 	player := s.Game.Player
@@ -377,6 +397,13 @@ func (s *searcherV2) evaluateCaptures(alpha int, beta int) (int, []Error) {
 	}
 
 	for i := range *moves {
+		if (*moves)[i].Evaluation.Value() <= 0 {
+			s.DebugCapturesSkipped++
+			break
+		}
+
+		s.DebugCapturesSearched++
+
 		score, legality, childErrors := s.evaluateCapture((*moves)[i], alpha, beta)
 
 		if len(childErrors) > 0 {
@@ -409,6 +436,10 @@ func (s *searcherV2) evaluateCaptures(alpha int, beta int) (int, []Error) {
 		}
 	}
 
+	if s.options.transpositionTable != nil {
+		hash := s.Game.ZobristHash()
+		s.options.transpositionTable.Put(hash, 0, returnScore)
+	}
 	return returnScore, returnErrors
 }
 
@@ -462,6 +493,13 @@ func (s *searcherV2) evaluateCapture(move Move, alpha int, beta int) (int, bool,
 func (s *searcherV2) evaluateSubtree(alpha int, beta int, depth int) (int, []Error) {
 	var returnScore int
 	var returnErrors []Error
+
+	if s.options.transpositionTable != nil {
+		if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), depth); entry.HasValue() {
+			returnScore := entry.Value().Score
+			return returnScore, returnErrors
+		}
+	}
 
 	player := s.Game.Player
 
@@ -525,6 +563,10 @@ func (s *searcherV2) evaluateSubtree(alpha int, beta int, depth int) (int, []Err
 		}
 	}
 
+	if s.options.transpositionTable != nil {
+		hash := s.Game.ZobristHash()
+		s.options.transpositionTable.Put(hash, depth, returnScore)
+	}
 	return returnScore, returnErrors
 }
 
@@ -603,6 +645,21 @@ func (s *searcherV2) evaluateMove(move Move, alpha int, beta int, depth int) (in
 	return returnScore, returnLegality, returnErrors
 }
 
+func (s *searcherV2) DebugStats() string {
+	result := fmt.Sprintf("depth: %v, %v / %v, evals %v, moves %v, quiescence %v, skipped %v",
+		s.DebugDepthIteration,
+		s.DebugMovesConsidered, s.DebugMovesToConsider,
+		s.DebugTotalEvaluations, s.DebugTotalMovesPerformed,
+		s.DebugCapturesSearched, s.DebugCapturesSkipped)
+	if s.options.transpositionTable != nil {
+		result += fmt.Sprintf(", %v", s.options.transpositionTable.Stats())
+	}
+	if s.options.debugSearchStack != nil {
+		result += fmt.Sprintf(", stack: %v", strings.Join(*s.options.debugSearchStack, ","))
+	}
+	return result
+}
+
 func (s *searcherV2) Search() (Optional[Move], []Error) {
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
@@ -614,7 +671,10 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 		maxDepth = s.options.maxDepth.Value()
 	}
 
-	for depth := 2; depth <= maxDepth; depth += 2 {
+	for depth := 2; depth <= maxDepth; depth += 1 {
+		s.DebugDepthIteration = depth
+		s.DebugMovesToConsider = len(*moves)
+		s.DebugMovesConsidered = 0
 		errs := func() []Error {
 			if s.options.debugSearchTree != nil {
 				s.options.debugSearchTree.DepthPush(fmt.Sprintf("depth %d", depth))
@@ -628,6 +688,8 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 				if len(errs) > 0 {
 					return errs
 				}
+
+				s.DebugMovesConsidered++
 
 				if !legality {
 					(*moves)[i].Evaluation = Empty[int]()
