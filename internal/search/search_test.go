@@ -227,3 +227,112 @@ func TestDisallowedOptions(t *testing.T) {
 	assert.Equal(t, 1, len(options))
 	assert.Equal(t, []string{"sortPartial", "incDepthForCheck"}, options[0])
 }
+
+func TestShouldMateInsteadOfDraw(t *testing.T) {
+	fen := "2K5/6k1/1q6/3p4/8/5p2/4r3/8 b"
+
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err), err)
+	bitboards := game.CreateBitboards()
+
+	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
+		SearcherOptions{
+			// debugSearchTree: &debugSearchTree{},
+			handleLegality: true,
+		})
+
+	{
+		drawScore, legality, errs := searcher.evaluateMove(MoveFromString("e2e7", QuietMove), -Inf, Inf, 5)
+		assert.Empty(t, errs)
+		assert.True(t, legality)
+
+		var winScore int
+		winScore, legality, errs = searcher.evaluateMove(MoveFromString("e2a2", QuietMove), -Inf, Inf, 5)
+		assert.Empty(t, errs)
+		assert.True(t, legality)
+
+		assert.Less(t, drawScore, winScore)
+		assert.Equal(t, drawScore, 0)
+		assert.Equal(t, winScore, Inf)
+	}
+
+	{
+		drawScore, legality, errs := searcher.evaluateMove(MoveFromString("e2e7", QuietMove), -Inf, Inf, 2)
+		assert.Empty(t, errs)
+		assert.True(t, legality)
+
+		var winScore int
+		winScore, legality, errs = searcher.evaluateMove(MoveFromString("e2a2", QuietMove), -Inf, Inf, 2)
+		assert.Empty(t, errs)
+		assert.True(t, legality)
+
+		assert.Less(t, drawScore, winScore)
+		assert.Equal(t, drawScore, 0)
+		assert.Less(t, winScore, Inf) // We aren't able to see the check-mate yet
+	}
+}
+
+func TestPreventPin(t *testing.T) {
+	fen := "r1bqk2r/p1p2ppp/1pnp1n2/4p3/1bPPP3/2N3P1/PP2NPBP/R1BQK2R b KQkq d3 0 7"
+
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err), err)
+	bitboards := game.CreateBitboards()
+
+	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
+		SearcherOptions{
+			debugSearchTree: &debugSearchTree{},
+			handleLegality:  true,
+		})
+
+	{
+		// get forked
+		badScore, legality, errs := searcher.evaluateMove(MoveFromString("c8e6", QuietMove), -Inf, Inf, 4)
+		assert.Empty(t, errs)
+		assert.True(t, legality)
+
+		debugString := searcher.options.debugSearchTree.DebugString(4)
+		// fmt.Println(debugString)
+		fmt.Println(badScore)
+
+		err = Wrap(os.WriteFile(RootDir()+"/data/TestPreventPin.tree", []byte(debugString), 0600))
+		// assert.True(t, IsNil(err), err)
+
+		// var goodScore int // pin the night
+		// goodScore, legality, errs = searcher.evaluateMove(MoveFromString("c8g4", QuietMove), -Inf, Inf, 4)
+		// assert.Empty(t, errs)
+		// assert.True(t, legality)
+
+		// var alsoGoodScore int // trade
+		// alsoGoodScore, legality, errs = searcher.evaluateMove(MoveFromString("e4d4", CaptureMove), -Inf, Inf, 4)
+		// assert.Empty(t, errs)
+		// assert.True(t, legality)
+
+		// assert.Less(t, badScore, goodScore)
+		// assert.Less(t, badScore, alsoGoodScore)
+		// fmt.Println(badScore, goodScore, alsoGoodScore)
+	}
+
+	{
+		// perform the forking moves
+		startScore := searcher.EvaluatePosition()
+		badScore, legality, errs := searcher.evaluateMove(MoveFromString("c8e6", QuietMove), -Inf, Inf, 4)
+		assert.True(t, legality)
+		assert.Empty(t, errs)
+		fmt.Println(startScore, badScore)
+		searcher.PerformMoveAndReturnLegality(MoveFromString("c8e6", QuietMove), &BoardUpdate{})
+
+		searcher.PerformMoveAndReturnLegality(MoveFromString("d4d5", QuietMove), &BoardUpdate{})
+
+		badScore, legality, errs = searcher.evaluateMove(MoveFromString("e6d6", QuietMove), -Inf, Inf, 2)
+		assert.True(t, legality)
+		assert.Empty(t, errs)
+		fmt.Println(startScore, badScore)
+		searcher.PerformMoveAndReturnLegality(MoveFromString("e6d5", QuietMove), &BoardUpdate{})
+
+		searcher.PerformMoveAndReturnLegality(MoveFromString("c4d5", QuietMove), &BoardUpdate{})
+		endScore := searcher.EvaluatePosition()
+
+		fmt.Println(startScore, endScore)
+	}
+}

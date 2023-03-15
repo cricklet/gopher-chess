@@ -487,6 +487,7 @@ func (s *searcherV2) evaluateMove(move Move, alpha int, beta int, depth int) (in
 	var update BoardUpdate
 	var err Error
 	returnLegality, err = s.PerformMoveAndReturnLegality(move, &update)
+
 	defer func() {
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
 		if !IsNil(err) {
