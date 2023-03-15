@@ -25,6 +25,7 @@ type debugSearchLine struct {
 
 type debugSearchTree struct {
 	CurrentDepth int
+	CurrentPath  []string
 	Result       []debugSearchLine
 }
 
@@ -53,11 +54,11 @@ func (s *debugSearchTree) DebugString(depth int) string {
 				line.Beta,
 				scoreString)
 		} else {
-			result += fmt.Sprintf("%v%v (%v %v)\n",
-				strings.Repeat(" ", line.Depth),
-				line.DebugString,
-				line.Alpha,
-				line.Beta)
+			// result += fmt.Sprintf("%v%v (%v %v)\n",
+			// 	strings.Repeat(" ", line.Depth),
+			// 	line.DebugString,
+			// 	line.Alpha,
+			// 	line.Beta)
 		}
 	}
 	return result
@@ -80,66 +81,30 @@ func (s *debugSearchTree) DepthPop(label string, result int) {
 	})
 }
 
-func (s *debugSearchTree) MovePop(move string, isMaximizing bool, alpha int, beta int, result int, legal bool) {
+func (s *debugSearchTree) MovePop(move Move, player Player, alpha int, beta int, result int, legal bool) {
 	s.CurrentDepth -= 1
-	playerString := "min"
-	if isMaximizing {
-		playerString = "max"
-	}
 	s.Result = append(s.Result, debugSearchLine{
-		DebugString: fmt.Sprintf("$ %v (%v)", playerString, move),
+		DebugString: fmt.Sprintf("$ %v (%v)", strings.Join(s.CurrentPath, " "), player),
 		Depth:       s.CurrentDepth,
 		Alpha:       alpha,
 		Beta:        beta,
 		Score:       Some(result),
 		Legal:       Some(legal),
+		IsCapture:   move.MoveType == CaptureMove || move.MoveType == EnPassantMove,
 	})
+	s.CurrentPath = s.CurrentPath[:len(s.CurrentPath)-1]
 }
 
-func (s *debugSearchTree) MovePush(move string, isMaximizing bool, alpha int, beta int) {
-	playerString := "min"
-	if isMaximizing {
-		playerString = "max"
-	}
+func (s *debugSearchTree) MovePush(move Move, player Player, alpha int, beta int) {
+	s.CurrentPath = append(s.CurrentPath, move.String())
 	s.Result = append(s.Result, debugSearchLine{
-		DebugString: fmt.Sprintf("> %v (%v)", playerString, move),
+		DebugString: fmt.Sprintf("> %v (%v)", strings.Join(s.CurrentPath, " "), player),
 		Depth:       s.CurrentDepth,
 		Alpha:       alpha,
 		Beta:        beta,
+		IsCapture:   move.MoveType == CaptureMove || move.MoveType == EnPassantMove,
 	})
 	s.CurrentDepth += 1
-}
-
-func (s *debugSearchTree) CapturePush(move string, isMaximizing bool, alpha int, beta int) {
-	playerString := "min"
-	if isMaximizing {
-		playerString = "max"
-	}
-	s.Result = append(s.Result, debugSearchLine{
-		DebugString: fmt.Sprintf("> %v (%v)", playerString, move),
-		Depth:       s.CurrentDepth,
-		Alpha:       alpha,
-		Beta:        beta,
-		IsCapture:   true,
-	})
-	s.CurrentDepth += 1
-}
-
-func (s *debugSearchTree) CapturePop(move string, isMaximizing bool, alpha int, beta int, result int, legal bool) {
-	s.CurrentDepth -= 1
-	playerString := "min"
-	if isMaximizing {
-		playerString = "max"
-	}
-	s.Result = append(s.Result, debugSearchLine{
-		DebugString: fmt.Sprintf("$ %v (%v)", playerString, move),
-		Depth:       s.CurrentDepth,
-		Alpha:       alpha,
-		Beta:        beta,
-		Score:       Some(result),
-		Legal:       Some(legal),
-		IsCapture:   true,
-	})
 }
 
 type searcherV2 struct {
@@ -149,8 +114,6 @@ type searcherV2 struct {
 
 	Game      *GameState
 	Bitboards *Bitboards
-
-	MaximizingPlayer Player
 
 	options SearcherOptions
 
@@ -175,9 +138,8 @@ type SearcherOptions struct {
 	sortPartial        Optional[int]
 	transpositionTable *zobrist.TranspositionTable
 
-	debugSearchTree  *debugSearchTree
-	debugSearchStack *[]string
-	maxDepth         Optional[int]
+	debugSearchTree *debugSearchTree
+	maxDepth        Optional[int]
 }
 
 var DefaultSearchOptions = SearcherOptions{
@@ -186,7 +148,6 @@ var DefaultSearchOptions = SearcherOptions{
 	handleLegality:     false,
 	transpositionTable: nil,
 	debugSearchTree:    nil,
-	debugSearchStack:   nil,
 	maxDepth:           Empty[int](),
 }
 
@@ -194,6 +155,7 @@ var AllSearchOptions = []string{
 	"incDepthForCheck",
 	"endgamePushEnemyKing",
 	"handleLegality",
+	"transpositionTable",
 	"sortPartial",
 	"sortPartial=0",
 	"sortPartial=10",
@@ -279,12 +241,11 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 
 func NewSearcherV2(logger Logger, game *GameState, bitboards *Bitboards, options SearcherOptions) searcherV2 {
 	s := searcherV2{
-		Logger:           logger,
-		OutOfTime:        false,
-		Game:             game,
-		Bitboards:        bitboards,
-		MaximizingPlayer: game.Player,
-		options:          options,
+		Logger:    logger,
+		OutOfTime: false,
+		Game:      game,
+		Bitboards: bitboards,
+		options:   options,
 	}
 	return s
 }
@@ -338,21 +299,17 @@ func (s *searcherV2) PerformMoveAndReturnLegality(move Move, update *BoardUpdate
 	return true, NilError
 }
 
-func (s *searcherV2) scoreDirectionForPlayer(player Player) int {
-	if player == s.MaximizingPlayer {
-		return 1
-	} else {
-		return -1
-	}
+func (s *searcherV2) EvaluatePosition(player Player) int {
+	return Evaluate(s.Bitboards, player, s.options.evaluationOptions...)
 }
 
-func (s *searcherV2) EvaluatePosition() int {
-	return Evaluate(s.Bitboards, s.MaximizingPlayer, s.options.evaluationOptions...)
-}
-
-func (s *searcherV2) evaluateCaptures(alpha int, beta int) (int, []Error) {
+func (s *searcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta int) (int, []Error) {
 	var returnScore int
 	var returnErrors []Error
+
+	if player != s.Game.Player {
+		panic("player != s.Game.Player")
+	}
 
 	if s.options.transpositionTable != nil {
 		if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), 0); entry.HasValue() {
@@ -361,37 +318,23 @@ func (s *searcherV2) evaluateCaptures(alpha int, beta int) (int, []Error) {
 		}
 	}
 
-	standPat := s.EvaluatePosition()
-	player := s.Game.Player
+	standPat := s.EvaluatePosition(player)
 
-	if player == s.MaximizingPlayer {
-		if standPat >= beta {
-			returnScore := beta
-			return returnScore, returnErrors
-		} else if standPat > alpha {
-			alpha = standPat
-		}
-	} else {
-		if standPat <= alpha {
-			returnScore := alpha
-			return returnScore, returnErrors
-		} else if standPat < beta {
-			beta = standPat
-		}
+	if standPat >= beta {
+		returnScore := beta
+		return returnScore, returnErrors
+	} else if standPat > alpha {
+		alpha = standPat
 	}
 
-	if s.MaximizingPlayer == player {
-		returnScore = alpha
-	} else {
-		returnScore = beta
-	}
+	returnScore = alpha
 
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
 	s.GenerateSortedPseudoCaptures(moves)
 	if len(*moves) == 0 {
-		returnScore = s.EvaluatePosition()
+		returnScore = s.EvaluatePosition(player)
 		s.DebugTotalEvaluations++
 		return returnScore, returnErrors
 	}
@@ -404,7 +347,7 @@ func (s *searcherV2) evaluateCaptures(alpha int, beta int) (int, []Error) {
 
 		s.DebugCapturesSearched++
 
-		score, legality, childErrors := s.evaluateCapture((*moves)[i], alpha, beta)
+		score, legality, childErrors := s.evaluateCaptureForPlayer(player, (*moves)[i], alpha, beta)
 
 		if len(childErrors) > 0 {
 			returnErrors = append(returnErrors, childErrors...)
@@ -415,24 +358,14 @@ func (s *searcherV2) evaluateCaptures(alpha int, beta int) (int, []Error) {
 			continue
 		}
 
-		if s.MaximizingPlayer == player {
-			if score >= beta {
-				// The enemy will avoid this line
-				returnScore = beta
-				break
-			} else if score > alpha {
-				// This is our best choice of move
-				alpha = score
-				returnScore = score
-			}
-		} else {
-			if score <= alpha {
-				returnScore = alpha
-				break
-			} else if score < beta {
-				beta = score
-				returnScore = score
-			}
+		if score >= beta {
+			// The enemy will avoid this line
+			returnScore = beta
+			break
+		} else if score > alpha {
+			// This is our best choice of move
+			alpha = score
+			returnScore = score
 		}
 	}
 
@@ -443,28 +376,25 @@ func (s *searcherV2) evaluateCaptures(alpha int, beta int) (int, []Error) {
 	return returnScore, returnErrors
 }
 
-func (s *searcherV2) evaluateCapture(move Move, alpha int, beta int) (int, bool, []Error) {
+func (s *searcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha int, beta int) (int, bool, []Error) {
 	var returnScore int
 	var returnLegality bool
 	var returnErrors []Error
 
-	player := s.Game.Player
-
-	if s.options.debugSearchTree != nil {
-		s.options.debugSearchTree.CapturePush(
-			move.String(),
-			player == s.MaximizingPlayer, alpha, beta)
-		defer func() {
-			s.options.debugSearchTree.CapturePop(
-				move.String(), player == s.MaximizingPlayer,
-				alpha, beta, returnScore, returnLegality)
-		}()
+	if player != s.Game.Player {
+		panic("player != s.Game.Player")
 	}
 
-	if s.options.debugSearchStack != nil {
-		*s.options.debugSearchStack = append(*s.options.debugSearchStack, move.String())
+	enemy := player.Other()
+
+	if s.options.debugSearchTree != nil {
+		s.options.debugSearchTree.MovePush(
+			move,
+			player, alpha, beta)
 		defer func() {
-			*s.options.debugSearchStack = (*s.options.debugSearchStack)[:len(*s.options.debugSearchStack)-1]
+			s.options.debugSearchTree.MovePop(
+				move, player,
+				alpha, beta, returnScore, returnLegality)
 		}()
 	}
 
@@ -485,14 +415,19 @@ func (s *searcherV2) evaluateCapture(move Move, alpha int, beta int) (int, bool,
 		return returnScore, returnLegality, returnErrors
 	}
 
-	returnScore, returnErrors = s.evaluateCaptures(alpha, beta)
-
+	var enemyScore int
+	enemyScore, returnErrors = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
+	returnScore = -enemyScore
 	return returnScore, returnLegality, returnErrors
 }
 
-func (s *searcherV2) evaluateSubtree(alpha int, beta int, depth int) (int, []Error) {
+func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta int, depth int) (int, []Error) {
 	var returnScore int
 	var returnErrors []Error
+
+	if player != s.Game.Player {
+		panic("player != s.Game.Player")
+	}
 
 	if s.options.transpositionTable != nil {
 		if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), depth); entry.HasValue() {
@@ -501,13 +436,7 @@ func (s *searcherV2) evaluateSubtree(alpha int, beta int, depth int) (int, []Err
 		}
 	}
 
-	player := s.Game.Player
-
-	if s.MaximizingPlayer == player {
-		returnScore = alpha
-	} else {
-		returnScore = beta
-	}
+	returnScore = alpha
 
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
@@ -517,7 +446,7 @@ func (s *searcherV2) evaluateSubtree(alpha int, beta int, depth int) (int, []Err
 	hasLegalMove := false
 
 	for i := range *moves {
-		score, legality, childErrors := s.evaluateMove((*moves)[i], alpha, beta, depth)
+		score, legality, childErrors := s.evaluateMoveForPlayer(player, (*moves)[i], alpha, beta, depth)
 
 		if len(childErrors) > 0 {
 			returnErrors = append(returnErrors, childErrors...)
@@ -530,24 +459,14 @@ func (s *searcherV2) evaluateSubtree(alpha int, beta int, depth int) (int, []Err
 			hasLegalMove = true
 		}
 
-		if s.MaximizingPlayer == player {
-			if score >= beta {
-				// The enemy will avoid this line
-				returnScore = beta
-				break
-			} else if score > alpha {
-				// This is our best choice of move
-				alpha = score
-				returnScore = score
-			}
-		} else {
-			if score <= alpha {
-				returnScore = alpha
-				break
-			} else if score < beta {
-				beta = score
-				returnScore = score
-			}
+		if score >= beta {
+			// The enemy will avoid this line
+			returnScore = beta
+			break
+		} else if score > alpha {
+			// This is our best choice of move
+			alpha = score
+			returnScore = score
 		}
 
 		if s.OutOfTime {
@@ -557,7 +476,7 @@ func (s *searcherV2) evaluateSubtree(alpha int, beta int, depth int) (int, []Err
 
 	if !hasLegalMove && s.options.handleLegality {
 		if KingIsInCheck(s.Bitboards, s.Game.Player) {
-			returnScore = -Inf * s.scoreDirectionForPlayer(player)
+			returnScore = -Inf
 		} else {
 			returnScore = 0
 		}
@@ -570,46 +489,49 @@ func (s *searcherV2) evaluateSubtree(alpha int, beta int, depth int) (int, []Err
 	return returnScore, returnErrors
 }
 
-func (s *searcherV2) evaluateMove(move Move, alpha int, beta int, depth int) (int, bool, []Error) {
+func (s *searcherV2) evaluateMoveForTests(player Player, move Move, depth int) (int, bool, []Error) {
+	if player == s.Game.Player {
+		return s.evaluateMoveForPlayer(player, move, -Inf, Inf, depth)
+	} else {
+		score, legal, errs := s.evaluateMoveForPlayer(player.Other(), move, -Inf, Inf, depth)
+		return -score, legal, errs
+	}
+}
+
+func (s *searcherV2) evaluatePositionForTests(player Player, depth int) (int, []Error) {
+	if player == s.Game.Player {
+		return s.evaluatePositionForPlayer(player, -Inf, Inf, depth)
+	} else {
+		score, errs := s.evaluatePositionForPlayer(player.Other(), -Inf, Inf, depth)
+		return -score, errs
+	}
+}
+
+func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, beta int, depth int) (int, bool, []Error) {
 	var returnScore int
 	var returnLegality bool
 	var returnErrors []Error
 
-	player := s.Game.Player
+	if player != s.Game.Player {
+		panic("player != s.Game.Player")
+	}
+	enemy := player.Other()
 
 	if s.options.debugSearchTree != nil {
 		s.options.debugSearchTree.MovePush(
-			move.String(),
-			player == s.MaximizingPlayer, alpha, beta)
+			move,
+			player, alpha, beta)
 		defer func() {
 			s.options.debugSearchTree.MovePop(
-				move.String(), player == s.MaximizingPlayer,
+				move, player,
 				alpha, beta, returnScore, returnLegality)
 		}()
-	}
-
-	if s.options.debugSearchStack != nil {
-		*s.options.debugSearchStack = append(*s.options.debugSearchStack, move.String())
-		defer func() {
-			*s.options.debugSearchStack = (*s.options.debugSearchStack)[:len(*s.options.debugSearchStack)-1]
-		}()
-
-		movesStackString := strings.Join(*s.options.debugSearchStack, ",")
-		if movesStackString == "c8e6,d4d5,b4c3,b2c3,g7g6" {
-			fmt.Println(s.Game.Board.Unicode())
-		}
 	}
 
 	var update BoardUpdate
 	var err Error
 	returnLegality, err = s.PerformMoveAndReturnLegality(move, &update)
 
-	if s.options.debugSearchStack != nil {
-		movesStackString := strings.Join(*s.options.debugSearchStack, ",")
-		if movesStackString == "c8e6,d4d5,b4c3,b2c3,g7g6" {
-			fmt.Println(s.Game.Board.Unicode())
-		}
-	}
 	defer func() {
 		err = s.Game.UndoUpdate(&update, s.Bitboards)
 		if !IsNil(err) {
@@ -624,22 +546,26 @@ func (s *searcherV2) evaluateMove(move Move, alpha int, beta int, depth int) (in
 	if !returnLegality {
 		return returnScore, returnLegality, returnErrors
 	}
-
-	if depth <= 1 && !s.OutOfTime &&
-		s.options.incDepthForCheck.currentDepth < s.options.incDepthForCheck.depthLimit {
-		if KingIsInCheck(s.Bitboards, player.Other()) {
-			depth += 1
-			s.options.incDepthForCheck.currentDepth += 1
-			defer func() {
-				s.options.incDepthForCheck.currentDepth -= 1
-			}()
+	if depth <= 1 {
+		if !s.OutOfTime && s.options.incDepthForCheck.currentDepth < s.options.incDepthForCheck.depthLimit {
+			if KingIsInCheck(s.Bitboards, enemy) {
+				depth += 1
+				s.options.incDepthForCheck.currentDepth += 1
+				defer func() {
+					s.options.incDepthForCheck.currentDepth -= 1
+				}()
+			}
 		}
 	}
 
 	if depth == 0 {
-		returnScore, returnErrors = s.evaluateCaptures(alpha, beta)
+		var enemyScore int
+		enemyScore, returnErrors = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
+		returnScore = -enemyScore
 	} else {
-		returnScore, returnErrors = s.evaluateSubtree(alpha, beta, depth-1)
+		var enemyScore int
+		enemyScore, returnErrors = s.evaluatePositionForPlayer(enemy, -beta, -alpha, depth-1)
+		returnScore = -enemyScore
 	}
 
 	return returnScore, returnLegality, returnErrors
@@ -654,8 +580,8 @@ func (s *searcherV2) DebugStats() string {
 	if s.options.transpositionTable != nil {
 		result += fmt.Sprintf(", %v", s.options.transpositionTable.Stats())
 	}
-	if s.options.debugSearchStack != nil {
-		result += fmt.Sprintf(", stack: %v", strings.Join(*s.options.debugSearchStack, ","))
+	if s.options.debugSearchTree != nil {
+		result += fmt.Sprintf(", stack: %v", strings.Join(s.options.debugSearchTree.CurrentPath, ","))
 	}
 	return result
 }
@@ -684,7 +610,7 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 			}
 
 			for i := range *moves {
-				score, legality, errs := s.evaluateMove((*moves)[i], -Inf, Inf, depth)
+				score, legality, errs := s.evaluateMoveForPlayer(s.Game.Player, (*moves)[i], -Inf, Inf, depth)
 				if len(errs) > 0 {
 					return errs
 				}
@@ -712,15 +638,11 @@ func (s *searcherV2) Search() (Optional[Move], []Error) {
 			})
 
 			s.Logger.Println(
-				strings.Join(MapSlice(*moves, func(m Move) string {
+				Indent("search results\n"+strings.Join(MapSlice((*moves)[:6], func(m Move) string {
 					return m.String() + " " + strconv.Itoa(m.Evaluation.Value())
-				}), " "))
+				}), "\n"), ". "))
 
-			s.Logger.Println("evaluated",
-				"to depth", depth,
-				"- total evals", s.DebugTotalEvaluations,
-				"- best move", (*moves)[0].String(),
-				"- score", (*moves)[0].Evaluation.Value())
+			s.Logger.Println(s.DebugStats())
 
 			return nil
 		}()
