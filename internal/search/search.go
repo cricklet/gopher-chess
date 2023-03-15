@@ -308,7 +308,8 @@ func (s *searcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta in
 	var returnError Error
 
 	if player != s.Game.Player {
-		panic("player != s.Game.Player")
+		returnError = Errorf("player != s.Game.Player")
+		return returnScore, returnError
 	}
 
 	// if s.options.transpositionTable != nil {
@@ -382,7 +383,8 @@ func (s *searcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha in
 	var returnError Error
 
 	if player != s.Game.Player {
-		panic("player != s.Game.Player")
+		returnError = Errorf("player != s.Game.Player")
+		return returnScore, returnLegality, returnError
 	}
 
 	enemy := player.Other()
@@ -426,7 +428,8 @@ func (s *searcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 	var returnError Error
 
 	if player != s.Game.Player {
-		panic("player != s.Game.Player")
+		returnError = Errorf("player != s.Game.Player")
+		return returnScore, returnError
 	}
 
 	if s.options.transpositionTable != nil {
@@ -513,7 +516,8 @@ func (s *searcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 	var returnError Error
 
 	if player != s.Game.Player {
-		panic("player != s.Game.Player")
+		returnError = Errorf("player != s.Game.Player")
+		return returnScore, returnLegality, returnError
 	}
 	enemy := player.Other()
 
