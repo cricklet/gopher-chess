@@ -164,5 +164,7 @@ func GamestateFromFenString(s string) (GameState, Error) {
 		return GameState{}, Errorf("invalid full move clock '%v' in '%v'", fullMoveClockString, s)
 	}
 
+	game.ZobristHash()
+
 	return game, NilError
 }

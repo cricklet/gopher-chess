@@ -491,12 +491,12 @@ type BoardUpdate struct {
 	Pieces  [4]Piece
 	Num     int
 
-	PrevPieces                       [4]Piece
-	PrevPlayer                       Player
-	PrevPlayerAndCastlingSideAllowed [2][2]bool
-	PrevEnPassantTarget              Optional[FileRank]
-	PrevHalfMoveClock                int
-	PrevFullMoveClock                int
+	PrevPieces             [4]Piece
+	PrevPlayer             Player
+	PreviousCastlingRights [2][2]bool
+	PrevEnPassantTarget    Optional[FileRank]
+	PrevHalfMoveClock      int
+	PrevFullMoveClock      int
 }
 
 func (u *BoardUpdate) Add(prevPiece Piece, index int, piece Piece) {

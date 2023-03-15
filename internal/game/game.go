@@ -6,6 +6,7 @@ import (
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/zobrist"
 )
 
 type GameState struct {
@@ -15,6 +16,15 @@ type GameState struct {
 	EnPassantTarget              Optional[FileRank]
 	HalfMoveClock                int
 	FullMoveClock                int
+	zobristHash                  Optional[uint64]
+}
+
+func (g *GameState) ZobristHash() uint64 {
+	if g.zobristHash.HasValue() {
+		return g.zobristHash.Value()
+	}
+	g.zobristHash = Some(zobrist.HashForBoardPosition(&g.Board, g.Player, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget))
+	return g.zobristHash.Value()
 }
 
 func isPawnCapture(startPieceType PieceType, startIndex int, endIndex int) bool {
@@ -120,7 +130,7 @@ func setupBoardUpdate(g *GameState, move Move, output *BoardUpdate) Error {
 	}
 
 	output.PrevPlayer = g.Player
-	output.PrevPlayerAndCastlingSideAllowed = g.PlayerAndCastlingSideAllowed
+	output.PreviousCastlingRights = g.PlayerAndCastlingSideAllowed
 	output.PrevEnPassantTarget = g.EnPassantTarget
 	output.PrevFullMoveClock = g.FullMoveClock
 	output.PrevHalfMoveClock = g.HalfMoveClock
@@ -135,6 +145,7 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 }
 
 func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) Error {
+	prevZobristHash := g.ZobristHash()
 	err := setupBoardUpdate(g, move, update)
 	if !IsNil(err) {
 		return err
@@ -181,6 +192,8 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) Er
 
 	g.Player = g.Player.Other()
 
+	g.zobristHash = Some(zobrist.UpdateHash(prevZobristHash, update, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget))
+
 	return NilError
 }
 
@@ -214,13 +227,18 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) Erro
 }
 
 func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) Error {
+	if g.zobristHash.IsEmpty() {
+		return Errorf("zobrist hash should have been setup during original move")
+	}
+	g.zobristHash = Some(zobrist.UpdateHash(g.zobristHash.Value(), update, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget))
+
 	err := g.applyUndoToBitboards(update, b)
 	if !IsNil(err) {
 		return err
 	}
 
 	g.Player = update.PrevPlayer
-	g.PlayerAndCastlingSideAllowed = update.PrevPlayerAndCastlingSideAllowed
+	g.PlayerAndCastlingSideAllowed = update.PreviousCastlingRights
 	g.EnPassantTarget = update.PrevEnPassantTarget
 	g.FullMoveClock = update.PrevFullMoveClock
 	g.HalfMoveClock = update.PrevHalfMoveClock
