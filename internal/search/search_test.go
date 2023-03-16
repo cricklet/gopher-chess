@@ -306,24 +306,25 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 			transpositionTable: NewTranspositionTable(DefaultTranspositionTableSize),
 		})
 
-	// {
-	// 	go func() {
-	// 		for searcher.OutOfTime == false {
-	// 			time.Sleep(time.Millisecond * 200)
-	// 			fmt.Println(searcher.DebugStats())
-	// 		}
-	// 	}()
-	// 	go func() {
-	// 		time.Sleep(time.Millisecond * 5000)
-	// 		searcher.OutOfTime = true
-	// 	}()
+	{
+		go func() {
+			for searcher.OutOfTime == false {
+				time.Sleep(time.Millisecond * 100)
+				fmt.Println(searcher.DebugStats())
+			}
+		}()
+		go func() {
+			time.Sleep(time.Millisecond * 2000)
+			searcher.OutOfTime = true
+		}()
 
-	// 	_, err := searcher.SearchTrue(t, IsNil(err)).Empty(t, err)
+		_, err := searcher.Search()
+		assert.True(t, IsNil(err))
 
-	// 	// debugString := searcher.options.debugSearchTree.DebugString(10)
-	// 	// err = Wrap(os.WriteFile(RootDir()+"/data/TestPreventPin.tree", []byte(debugString), 0600))
-	// 	// assert.True(t, IsNil(err), err)
-	// }
+		// debugString := searcher.options.debugSearchTree.DebugString(10)
+		// err = Wrap(os.WriteFile(RootDir()+"/data/TestPreventPin.tree", []byte(debugString), 0600))
+		// assert.True(t, IsNil(err), err)
+	}
 
 	{
 		_, _ = searcher.PerformMoveAndReturnLegality(MoveFromString("c8e6", QuietMove), &BoardUpdate{})

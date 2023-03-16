@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -225,4 +226,18 @@ func HintText(text string) string {
 
 func PrettyPrint(t any) string {
 	return spew.Sdump(t)
+}
+
+func bToKb(b uint64) uint64 {
+	return b / 1024
+}
+
+func PrintMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	log.Printf("Alloc = %v KB\n", bToKb(m.Alloc))
+	log.Printf("\tTotalAlloc = %v KB\n", bToKb(m.TotalAlloc))
+	log.Printf("\tSys = %v KB\n", bToKb(m.Sys))
+	log.Printf("\tNumGC = %v\n", m.NumGC)
 }

@@ -3,11 +3,9 @@ package bitboards
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/bits"
 	"math/rand"
 	"os"
-	"runtime"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
@@ -248,20 +246,6 @@ func generateMoveBoards(
 		result[seed] = MoveBoardForBlockerBoard{moves, blockerBoard}
 	}
 	return result
-}
-
-func PrintMemUsage() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	log.Printf("Alloc = %v KB\n", bToKb(m.Alloc))
-	log.Printf("\tTotalAlloc = %v KB\n", bToKb(m.TotalAlloc))
-	log.Printf("\tSys = %v KB\n", bToKb(m.Sys))
-	log.Printf("\tNumGC = %v\n", m.NumGC)
-}
-
-func bToKb(b uint64) uint64 {
-	return b / 1024
 }
 
 func bitsRequiredForMagicIndex(magic uint64, moves []MoveBoardForBlockerBoard) (int, Success) {

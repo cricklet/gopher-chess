@@ -17,6 +17,7 @@ type ChessGoRunner struct {
 
 	g *GameState
 	b *Bitboards
+	s *search.SearcherV2
 
 	StartFen string
 	history  []HistoryValue
@@ -25,6 +26,15 @@ type ChessGoRunner struct {
 var _ Runner = (*ChessGoRunner)(nil)
 
 type ChessGoOption func(*ChessGoRunner)
+
+func (r *ChessGoRunner) Searcher() *search.SearcherV2 {
+	if r.s == nil {
+		r.s = search.NewSearcherV2(r.Logger, r.g, r.b, r.SearchOptions)
+	}
+
+	PrintMemUsage()
+	return r.s
+}
 
 func WithLogger(l Logger) ChessGoOption {
 	return func(r *ChessGoRunner) {
@@ -224,14 +234,12 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	var move Optional[Move] = Empty[Move]()
 	var err Error
 
-	searcher := NewSearcherV2(r.Logger, r.g, r.b, r.SearchOptions)
-
 	go func() {
 		time.Sleep(2 * time.Second)
-		searcher.OutOfTime = true
+		r.Searcher().OutOfTime = true
 	}()
 
-	move, err = searcher.Search()
+	move, err = r.Searcher().Search()
 	if !IsNil(err) {
 		return Empty[string](), err
 	}
