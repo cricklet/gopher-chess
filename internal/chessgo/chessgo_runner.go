@@ -30,9 +30,9 @@ type ChessGoOption func(*ChessGoRunner)
 func (r *ChessGoRunner) Searcher() *search.SearcherV2 {
 	if r.s == nil {
 		r.s = search.NewSearcherV2(r.Logger, r.g, r.b, r.SearchOptions)
+		PrintMemUsage()
 	}
 
-	PrintMemUsage()
 	return r.s
 }
 
