@@ -53,13 +53,14 @@ func (s *debugSearchTree) DebugString(depth int) string {
 				line.Alpha,
 				line.Beta,
 				scoreString)
-		} else {
-			// result += fmt.Sprintf("%v%v (%v %v)\n",
-			// 	strings.Repeat(" ", line.Depth),
-			// 	line.DebugString,
-			// 	line.Alpha,
-			// 	line.Beta)
 		}
+		// else {
+		// result += fmt.Sprintf("%v%v (%v %v)\n",
+		// 	strings.Repeat(" ", line.Depth),
+		// 	line.DebugString,
+		// 	line.Alpha,
+		// 	line.Beta)
+		// }
 	}
 	return result
 }
@@ -132,11 +133,11 @@ type incDepthForCheck struct {
 }
 
 type SearcherOptions struct {
-	incDepthForCheck   incDepthForCheck
-	evaluationOptions  []EvaluationOption
-	handleLegality     bool
-	sortPartial        Optional[int]
-	transpositionTable *TranspositionTable
+	incDepthForCheck      incDepthForCheck
+	evaluationOptions     []EvaluationOption
+	handleLegality        bool
+	sortPartial           Optional[int]
+	useTranspositionTable bool
 
 	debugSearchTree *debugSearchTree
 	maxDepth        Optional[int]
@@ -230,7 +231,7 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 		} else if strings.HasPrefix(arg, "debugSearchTree") {
 			options.debugSearchTree = &debugSearchTree{}
 		} else if strings.HasPrefix(arg, "transpositionTable") {
-			options.transpositionTable = NewTranspositionTable(DefaultTranspositionTableSize)
+			options.useTranspositionTable = true
 		} else {
 			return options, Errorf("unknown option: %s", arg)
 		}
@@ -427,8 +428,8 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 		return 0, Errorf("player != s.Game.Player")
 	}
 
-	if s.options.transpositionTable != nil {
-		if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), depth); entry.HasValue() {
+	if s.options.useTranspositionTable {
+		if entry := DefaultTranspositionTable().Get(s.Game.ZobristHash(), depth); entry.HasValue() {
 			score := entry.Value().Score
 			scoreType := entry.Value().ScoreType
 			if scoreType == Exact {
@@ -504,11 +505,11 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 		}
 	}
 
-	if s.options.transpositionTable != nil {
+	if s.options.useTranspositionTable {
 		// This always clobbers the existing value in the transposition table. TODO: should we be smarter?
 		// eg only clobber if we have an exact score or if the depth increased?
 		hash := s.Game.ZobristHash()
-		s.options.transpositionTable.Put(hash, depth, returnScore, returnScoreType)
+		DefaultTranspositionTable().Put(hash, depth, returnScore, returnScoreType)
 	}
 	return returnScore, NilError
 }
@@ -604,8 +605,8 @@ func (s *SearcherV2) DebugStats() string {
 		humanize.Comma(int64(s.DebugMovesConsidered)), humanize.Comma(int64(s.DebugMovesToConsider)),
 		humanize.Comma(int64(s.DebugTotalEvaluations)), humanize.Comma(int64(s.DebugTotalMovesPerformed)),
 		humanize.Comma(int64(s.DebugCapturesSearched)), humanize.Comma(int64(s.DebugCapturesSkipped)))
-	if s.options.transpositionTable != nil {
-		result += fmt.Sprintf(", %v", s.options.transpositionTable.Stats())
+	if s.options.useTranspositionTable {
+		result += fmt.Sprintf(", %v", DefaultTranspositionTable().Stats())
 	}
 	if s.options.debugSearchTree != nil {
 		result += fmt.Sprintf(", stack: %v", strings.Join(s.options.debugSearchTree.CurrentPath, ","))

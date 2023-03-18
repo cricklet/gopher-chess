@@ -62,7 +62,8 @@ func (r EloResults) statsString() string {
 			losses++
 		}
 	}
-	return fmt.Sprintf("%v: %v (%v) wins %v, draws %v, losses %v", cmdName, r.computeElo(), len(r.Matches), wins, draws, losses)
+	return fmt.Sprintf(" %4v %-60v (%2v %2v %2v) %2v ",
+		r.computeElo(), cmdName[:MinInt(60, len(cmdName))], wins, draws, losses, len(r.Matches))
 }
 
 func (r EloResults) computeElo() int {
@@ -581,12 +582,27 @@ func main() {
 		if !IsNil(err) {
 			panic(err)
 		}
-		statsStrings := []string{}
-		for _, results := range allEloResults {
-			statsStrings = append(statsStrings, results.statsString())
+		reset := "\x1b[0m"
+		foreground := "\033[38;5;255m"
+		background1 := "\033[48;5;232m"
+		background2 := "\033[48;5;235m"
+		currentPrefix := ""
+		for i, result := range allEloResults {
+			line := result.statsString()
+
+			cmdParts := strings.Split(Last(strings.Split(result.Cmd, "/")), "_")
+			prefix := strings.Join(cmdParts[:MinInt(4, len(cmdParts))], "_")
+			if prefix != currentPrefix {
+				fmt.Println()
+				currentPrefix = prefix
+			}
+			if i%2 == 0 {
+				fmt.Printf("%v%v%v%v\n", background1, foreground, line, reset)
+			} else {
+				fmt.Printf("%v%v%v%v\n", background2, foreground, line, reset)
+			}
 		}
 
-		logger.Println(strings.Join(statsStrings, "\n"))
 	}
 
 	if printStats {

@@ -231,7 +231,7 @@ func (r *ChessGoRunner) Board() BoardArray {
 }
 
 func (r *ChessGoRunner) Search() (Optional[string], Error) {
-	var move Optional[Move] = Empty[Move]()
+	var move Optional[Move]
 	var err Error
 
 	go func() {

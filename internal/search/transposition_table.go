@@ -41,6 +41,24 @@ func NewTranspositionTable(size int) *TranspositionTable {
 		Cache: make([]CachedEvaluation, size),
 	}
 }
+
+var _defaultTranspositionTable *TranspositionTable
+
+func DefaultTranspositionTable() *TranspositionTable {
+	if _defaultTranspositionTable == nil {
+		_defaultTranspositionTable = NewTranspositionTable(DefaultTranspositionTableSize)
+	}
+	return _defaultTranspositionTable
+}
+
+func (t *TranspositionTable) Clear() {
+	t.Cache = make([]CachedEvaluation, t.Size)
+	t.Hits = 0
+	t.Collisions = 0
+	t.DepthTooLow = 0
+	t.Misses = 0
+}
+
 func (t *TranspositionTable) Stats() string {
 	return fmt.Sprintf("hits: %v, collisions: %v, depth too low: %v, misses: %v",
 		humanize.Comma(int64(t.Hits)), humanize.Comma(int64(t.Collisions)), humanize.Comma(int64(t.DepthTooLow)), humanize.Comma(int64(t.Misses)))

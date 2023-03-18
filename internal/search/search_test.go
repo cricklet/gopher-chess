@@ -104,6 +104,7 @@ func TestCheckMateSearch(t *testing.T) {
 	}()
 
 	result, err = searcher.Search()
+	assert.True(t, IsNil(err), err)
 
 	assert.False(t, result.HasValue(), result)
 
@@ -149,6 +150,7 @@ func TestCheckMateInOne(t *testing.T) {
 	}()
 
 	result, err = searcher.Search()
+	assert.True(t, IsNil(err), err)
 
 	assert.True(t, result.HasValue())
 
@@ -181,6 +183,7 @@ func TestCheckMateInOne2(t *testing.T) {
 	}()
 
 	result, err = searcher.Search()
+	assert.True(t, IsNil(err), err)
 
 	assert.True(t, result.HasValue())
 
@@ -282,7 +285,9 @@ func TestQuiescence(t *testing.T) {
 			handleLegality: true,
 		})
 
-	searcher.Search()
+	_, err = searcher.Search()
+	assert.True(t, IsNil(err), err)
+
 	fmt.Println(searcher.DebugStats())
 }
 
@@ -301,9 +306,9 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 		SearcherOptions{
 			// debugSearchTree:    &debugSearchTree{},
 			// debugSearchStack:   &[]string{},
-			sortPartial:        Some(3),
-			handleLegality:     true,
-			transpositionTable: NewTranspositionTable(DefaultTranspositionTableSize),
+			sortPartial:           Some(3),
+			handleLegality:        true,
+			useTranspositionTable: true,
 		})
 
 	{
