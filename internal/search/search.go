@@ -142,27 +142,27 @@ type SearcherOptions struct {
 	maxDepth        Optional[int]
 }
 
-var DefaultSearchOptions = SearcherOptions{
-	incDepthForCheck:   incDepthForCheck{},
-	evaluationOptions:  []EvaluationOption{},
-	handleLegality:     false,
-	transpositionTable: nil,
-	debugSearchTree:    nil,
-	maxDepth:           Empty[int](),
-}
+var DefaultSearchOptions = SearcherOptions{}
 
 var AllSearchOptions = []string{
 	"incDepthForCheck",
 	"endgamePushEnemyKing",
 	"handleLegality",
 	"transpositionTable",
-	"sortPartial",
 	"sortPartial=0",
-	"sortPartial=10",
+	"sortPartial=1",
+	"sortPartial=2",
+	"sortPartial=4",
+	"sortPartial=8",
+	"incDepthForCheck=1",
+	"incDepthForCheck=2",
+	"incDepthForCheck=4",
+	"incDepthForCheck=8",
 }
 
 var DisallowedSearchOptionCombinations = [][]string{
 	{"sortPartial", "sortPartial"},
+	{"incDepthForCheck", "incDepthForCheck"},
 }
 
 func RemoveFirstPrefixMatch(slice []string, prefix string) ([]string, bool) {
@@ -624,7 +624,7 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 		maxDepth = s.options.maxDepth.Value()
 	}
 
-	for depth := 2; depth <= maxDepth; depth += 1 {
+	for depth := 2; depth <= maxDepth; depth += 2 {
 		s.DebugDepthIteration = depth
 		s.DebugMovesToConsider = len(*moves)
 		s.DebugMovesConsidered = 0

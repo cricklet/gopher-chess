@@ -19,6 +19,7 @@ require (
 	github.com/deckarep/golang-set/v2 v2.2.0 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
+	github.com/kortemy/elo-go v0.0.0-20190919090953-f9d3a99fd7b7 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
 	github.com/mxschmitt/golang-combinations v1.2.0 // indirect

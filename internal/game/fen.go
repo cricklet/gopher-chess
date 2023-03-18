@@ -43,7 +43,7 @@ func fenStringForEnPassant(enPassant Optional[FileRank]) string {
 	return enPassant.Value().String()
 }
 
-func fenStringForBoard(b *BoardArray) string {
+func FenStringForBoard(b BoardArray) string {
 	s := ""
 	for rank := 7; rank >= 0; rank-- {
 		numSpaces := 0
@@ -73,7 +73,7 @@ func fenStringForBoard(b *BoardArray) string {
 func FenStringForGame(g *GameState) string {
 	s := ""
 	s += fmt.Sprintf("%v %v %v %v %v %v",
-		fenStringForBoard(&g.Board),
+		FenStringForBoard(g.Board),
 		FenStringForPlayer(g.Player),
 		fenStringForCastlingAllowed(g.PlayerAndCastlingSideAllowed),
 		fenStringForEnPassant(g.EnPassantTarget),

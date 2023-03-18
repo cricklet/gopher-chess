@@ -14,8 +14,10 @@ import (
 
 	"github.com/cricklet/chessgo/internal/binary"
 	. "github.com/cricklet/chessgo/internal/chessgo"
+	"github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/search"
+	elo "github.com/kortemy/elo-go"
 	combinations "github.com/mxschmitt/golang-combinations"
 )
 
@@ -45,28 +47,43 @@ type EloResults struct {
 
 func (r EloResults) statsString() string {
 	cmdName := Last(strings.Split(r.Cmd, "/"))
-	return fmt.Sprintf("%v: %v (%v)", cmdName, r.EloEstimate, len(r.Matches))
-}
+	wins := 0
+	losses := 0
+	draws := 0
 
-func (r EloResults) estimateElo() int {
-	if len(r.Matches) == 0 {
-		return 1000 // start a bit higher than 800
-	}
-	sum := 0
 	for _, match := range r.Matches {
 		if match.Won {
-			sum += match.StockfishElo + 400
+			wins++
 		} else if match.Draw {
-			sum += match.StockfishElo
+			draws++
 		} else if match.Unknown {
-			// This is actually a draw, but we don't detect it yet
-			sum += match.StockfishElo
+			draws++
 		} else {
-			sum += match.StockfishElo - 400
+			losses++
 		}
 	}
+	return fmt.Sprintf("%v: %v (%v) wins %v, draws %v, losses %v", cmdName, r.computeElo(), len(r.Matches), wins, draws, losses)
+}
 
-	return sum / len(r.Matches)
+func (r EloResults) computeElo() int {
+	rating := 800
+	e := elo.NewElo()
+	for _, match := range r.Matches {
+		var result float64
+		if match.Won {
+			result = 1
+		} else if match.Draw {
+			result = 0.5
+		} else if match.Unknown {
+			result = 0.5
+		} else {
+			result = 0
+		}
+		outcome, _ := e.Outcome(rating, match.StockfishElo, result)
+		rating = outcome.Rating
+	}
+
+	return rating
 }
 
 func (r EloResults) numMatches() int {
@@ -92,9 +109,9 @@ func (r EloResults) matchHistory() string {
 		}
 	}
 
-	wins = sort.IntSlice(wins)
-	losses = sort.IntSlice(losses)
-	draws = sort.IntSlice(draws)
+	sort.Ints(wins)
+	sort.Ints(losses)
+	sort.Ints(draws)
 	return fmt.Sprintf("wins: %v\ndraws: %v\nlosses: %v", wins, draws, losses)
 }
 
@@ -264,7 +281,9 @@ func playGame(
 
 	nextBinary := stockfish
 
-	for i := 0; i < 200; i++ {
+	history := map[string]int{}
+
+	for i := 0; i < 400; i++ {
 		currentBinary := nextBinary
 		if nextBinary == stockfish {
 			nextBinary = opponent
@@ -284,7 +303,16 @@ func playGame(
 		if !IsNil(err) {
 			return Unknown, err
 		}
-		// logger.Println(fen + " moves " + strings.Join(moveHistory, " "))
+
+		boardString := game.FenStringForBoard(runner.Board())
+		if _, contains := history[boardString]; !contains {
+			history[boardString] = 0
+		}
+		history[boardString]++
+
+		if history[boardString] >= 3 {
+			return Draw, NilError
+		}
 
 		pgnString := fmt.Sprintf("%v\n%v", runner.PgnFromMoveHistory(), runner.FenString())
 		logger.SetFooter(HintText(pgnString), _footerPgn)
@@ -292,6 +320,10 @@ func playGame(
 
 		var noValidMoves bool
 		noValidMoves, err = runner.NoValidMoves()
+		if !IsNil(err) {
+			return Unknown, err
+		}
+
 		if noValidMoves {
 			if runner.PlayerIsInCheck() {
 				if currentBinary == stockfish {
@@ -466,14 +498,14 @@ func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPat
 
 	randomOffset := []int{-100, -50, 0, 50, 100}[rand.Intn(5)]
 	if len(results.Matches) < 5 {
-		randomOffset = []int{-50, 0, 100, 200}[rand.Intn(4)]
+		randomOffset = []int{-50, 0, 50}[rand.Intn(3)]
 	}
-	stockfishElo := results.estimateElo() + randomOffset
+	stockfishElo := results.computeElo() + randomOffset
 
 	currentSuffix := HintText(fmt.Sprintf(
 		"stockfish elo: %v, chessgo elo: %v (%v)",
 		stockfishElo,
-		results.estimateElo(),
+		results.computeElo(),
 		Last(strings.Split(binaryPath, "/"))))
 	historySuffix := HintText(results.matchHistory())
 	logger.SetFooter(currentSuffix, _footerCurrent)
@@ -487,9 +519,9 @@ func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPat
 	}
 
 	results.Matches = append(results.Matches, result)
-	results.EloEstimate = results.estimateElo()
+	results.EloEstimate = results.computeElo()
 
-	logger.Printf("elo so far: %v\n", results.estimateElo())
+	logger.Printf("elo so far: %v\n", results.computeElo())
 	logger.FlushFooter()
 
 	err = marshalEloResults(jsonPath, &results)
@@ -510,6 +542,7 @@ func main() {
 	userSpecifiedBinaryArgs := []string{}
 
 	performArgPermutations := false
+	eachArg := false
 	shouldProfile := false
 
 	tags := []string{}
@@ -528,6 +561,8 @@ func main() {
 			printStats = true
 		} else if arg == "permutations" {
 			performArgPermutations = true
+		} else if arg == "each" {
+			eachArg = true
 		} else if arg == "profile" {
 			shouldProfile = true
 		} else {
@@ -573,6 +608,16 @@ func main() {
 		} else {
 			allBinaryArgsToTry = append(combinations.All(AllSearchOptions), []string{})
 		}
+	} else if eachArg {
+		if len(userSpecifiedBinaryArgs) > 0 {
+			allBinaryArgsToTry = append(MapSlice(userSpecifiedBinaryArgs, func(arg string) []string {
+				return []string{arg}
+			}), []string{})
+		} else {
+			allBinaryArgsToTry = append(MapSlice(AllSearchOptions, func(arg string) []string {
+				return []string{arg}
+			}), []string{})
+		}
 	}
 	allBinaryArgsToTry = FilterDisallowedSearchOptions(allBinaryArgsToTry)
 
@@ -582,7 +627,7 @@ func main() {
 	}
 	time.Sleep(time.Second * 1)
 
-	numRuns := 2000
+	numRuns := 1000
 	if shouldClean {
 		numRuns = len(allBinaryArgsToTry)
 	}
