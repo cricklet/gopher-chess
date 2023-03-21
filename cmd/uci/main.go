@@ -31,6 +31,13 @@ func main() {
 		return arg != "profile"
 	})
 
+	if args[0] == "options" {
+		for _, option := range search.AllSearchOptions {
+			fmt.Println(option)
+		}
+		return
+	}
+
 	searchOptions, err := search.SearcherOptionsFromArgs(args...)
 	if !IsNil(err) {
 		panic(err)

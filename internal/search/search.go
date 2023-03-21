@@ -153,10 +153,8 @@ var AllSearchOptions = []string{
 	"sortPartial=0",
 	"sortPartial=1",
 	"sortPartial=4",
-	"sortPartial=8",
 	"incDepthForCheck=1",
-	"incDepthForCheck=4",
-	"incDepthForCheck=8",
+	"incDepthForCheck=2",
 }
 
 var DisallowedSearchOptionCombinations = [][]string{
