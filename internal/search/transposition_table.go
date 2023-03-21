@@ -33,7 +33,7 @@ type TranspositionTable struct {
 	Misses      int
 }
 
-var DefaultTranspositionTableSize = int(math.Pow(2, 28))
+var DefaultTranspositionTableSize = int(math.Pow(2, 26))
 
 func NewTranspositionTable(size int) *TranspositionTable {
 	return &TranspositionTable{
@@ -42,26 +42,22 @@ func NewTranspositionTable(size int) *TranspositionTable {
 	}
 }
 
+var _numTranspositionTables int
 var _defaultTranspositionTable *TranspositionTable
 
 func DefaultTranspositionTable() *TranspositionTable {
 	if _defaultTranspositionTable == nil {
 		_defaultTranspositionTable = NewTranspositionTable(DefaultTranspositionTableSize)
+		_numTranspositionTables++
 	}
 	return _defaultTranspositionTable
 }
 
-func (t *TranspositionTable) Clear() {
-	t.Cache = make([]CachedEvaluation, t.Size)
-	t.Hits = 0
-	t.Collisions = 0
-	t.DepthTooLow = 0
-	t.Misses = 0
-}
-
 func (t *TranspositionTable) Stats() string {
-	return fmt.Sprintf("hits: %v, collisions: %v, depth too low: %v, misses: %v",
-		humanize.Comma(int64(t.Hits)), humanize.Comma(int64(t.Collisions)), humanize.Comma(int64(t.DepthTooLow)), humanize.Comma(int64(t.Misses)))
+	return fmt.Sprintf("hits: %v, collisions: %v, depth too low: %v, misses: %v (%v))",
+		humanize.Comma(int64(t.Hits)), humanize.Comma(int64(t.Collisions)), humanize.Comma(int64(t.DepthTooLow)), humanize.Comma(int64(t.Misses)),
+		_numTranspositionTables,
+	)
 }
 
 func (t *TranspositionTable) Get(hash uint64, depth int) Optional[CachedEvaluation] {

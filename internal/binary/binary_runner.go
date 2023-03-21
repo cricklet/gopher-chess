@@ -57,9 +57,10 @@ func wrapError(u *BinaryRunner, err error) Error {
 	return NilError
 }
 
-func SetupBinaryRunner(cmdPath string, args []string, delay time.Duration, options ...BinaryRunnerOption) (*BinaryRunner, Error) {
+func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time.Duration, options ...BinaryRunnerOption) (*BinaryRunner, Error) {
 	u := &BinaryRunner{
 		cmdPath: cmdPath,
+		cmdName: cmdName,
 		timeout: delay,
 	}
 

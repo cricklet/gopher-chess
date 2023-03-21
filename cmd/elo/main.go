@@ -214,7 +214,7 @@ func search(player Player, binary *binary.BinaryRunner, fen string, moveHistory 
 	fenInput := fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " "))
 	runAsync(binary, fenInput)
 
-	if strings.Contains(binary.CmdName(), "chessgo") {
+	if binary.CmdName() == "chessgo" {
 		binaryFenOpt := FindInSlice(run(binary, "fen", Some("position fen ")), func(v string) bool {
 			return strings.HasPrefix(v, "position fen ")
 		})
@@ -230,7 +230,9 @@ func search(player Player, binary *binary.BinaryRunner, fen string, moveHistory 
 	}
 
 	runAsync(binary, "go")
-	time.Sleep(time.Millisecond * 100)
+	if binary.CmdName() == "stockfish" {
+		time.Sleep(time.Millisecond * 10)
+	}
 	move := findMoveInOutput(run(binary, "stop", Some("bestmove")))
 	moveHistory = append(moveHistory, move)
 
@@ -385,7 +387,7 @@ func playGameBinaries(
 		}
 		logger.Println("stockfish > " + Indent(s, "$ "))
 	})
-	stockfish, err = binary.SetupBinaryRunner("stockfish", []string{}, time.Millisecond*1000, binary.WithLogger(stockfishLogger))
+	stockfish, err = binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, time.Millisecond*1000, binary.WithLogger(stockfishLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -393,7 +395,7 @@ func playGameBinaries(
 
 	var opponent *binary.BinaryRunner
 	chessgoLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
-	opponent, err = binary.SetupBinaryRunner(binaryPath, binaryArgs, time.Millisecond*10000, binary.WithLogger(chessgoLogger))
+	opponent, err = binary.SetupBinaryRunner(binaryPath, "chessgo", binaryArgs, time.Millisecond*10000, binary.WithLogger(chessgoLogger))
 	if !IsNil(err) {
 		panic(err)
 	}

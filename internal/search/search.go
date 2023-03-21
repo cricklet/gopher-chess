@@ -152,11 +152,9 @@ var AllSearchOptions = []string{
 	"transpositionTable",
 	"sortPartial=0",
 	"sortPartial=1",
-	"sortPartial=2",
 	"sortPartial=4",
 	"sortPartial=8",
 	"incDepthForCheck=1",
-	"incDepthForCheck=2",
 	"incDepthForCheck=4",
 	"incDepthForCheck=8",
 }
