@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -15,6 +16,21 @@ import (
 type Success bool
 
 func Ignore(t ...any) {
+}
+
+func GetWithDefault[K comparable, T any](m map[K]T, key K, d T) T {
+	if v, ok := m[key]; ok {
+		return v
+	}
+	return d
+}
+
+func GetHostName() (string, Error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "", Wrap(err)
+	}
+	return hostname, NilError
 }
 
 func Indent(s string, x string) string {

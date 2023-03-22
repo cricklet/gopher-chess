@@ -13,7 +13,6 @@ import (
 
 	"github.com/cricklet/chessgo/internal/binary"
 	. "github.com/cricklet/chessgo/internal/chessgo"
-	"github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/search"
 	elo "github.com/kortemy/elo-go"
@@ -28,7 +27,7 @@ const _footerHistory = 8
 
 var logger = NewLiveLogger()
 
-type MatchResult struct {
+type stockfishMatchResult struct {
 	Won          bool
 	Draw         bool
 	Unknown      bool
@@ -38,13 +37,13 @@ type MatchResult struct {
 	PgnMoves     string
 	StockfishElo int
 }
-type EloResults struct {
+type stockfishEloResults struct {
 	Cmd         string
-	Matches     []MatchResult
+	Matches     []stockfishMatchResult
 	EloEstimate int
 }
 
-func (r EloResults) statsString() string {
+func (r stockfishEloResults) statsString() string {
 	cmdName := Last(strings.Split(r.Cmd, "/"))
 	wins := 0
 	losses := 0
@@ -65,7 +64,7 @@ func (r EloResults) statsString() string {
 		r.computeElo(), cmdName[:MinInt(60, len(cmdName))], wins, draws, losses, len(r.Matches))
 }
 
-func (r EloResults) computeElo() int {
+func (r stockfishEloResults) computeElo() int {
 	rating := 800
 	e := elo.NewElo()
 	for _, match := range r.Matches {
@@ -86,11 +85,11 @@ func (r EloResults) computeElo() int {
 	return rating
 }
 
-func (r EloResults) numMatches() int {
+func (r stockfishEloResults) numMatches() int {
 	return len(r.Matches)
 }
 
-func (r EloResults) matchHistory() string {
+func (r stockfishEloResults) matchHistory() string {
 	if len(r.Matches) == 0 {
 		return "<new>"
 	}
@@ -115,7 +114,7 @@ func (r EloResults) matchHistory() string {
 	return fmt.Sprintf("wins: %v\ndraws: %v\nlosses: %v", wins, draws, losses)
 }
 
-func unmarshalEloResults(path string, results *EloResults) Error {
+func unmarshalEloResults(path string, results *stockfishEloResults) Error {
 	_, err := os.Stat(path)
 	if !IsNil(err) {
 		// It's fine if it doesn't exist
@@ -133,30 +132,13 @@ func unmarshalEloResults(path string, results *EloResults) Error {
 	return NilError
 }
 
-func marshalEloResults(path string, results *EloResults) Error {
+func marshalEloResults(path string, results *stockfishEloResults) Error {
 	output, err := json.MarshalIndent(results, "", "  ")
 	if !IsNil(err) {
 		return Wrap(err)
 	}
 	err = os.WriteFile(path, output, 0600)
 	return Wrap(err)
-}
-func runAsync(binary *binary.BinaryRunner, cmd string) {
-	binary.Logger.Print("in=>", cmd)
-	err := binary.RunAsync(cmd)
-	if !IsNil(err) {
-		panic(err)
-	}
-}
-
-func run(binary *binary.BinaryRunner, cmd string, waitFor Optional[string]) []string {
-	var result []string
-	binary.Logger.Print("in=>", cmd)
-	result, err := binary.Run(cmd, waitFor)
-	if !IsNil(err) {
-		panic(err)
-	}
-	return result
 }
 
 func findMoveInOutput(output []string) string {
@@ -172,41 +154,10 @@ func findMoveInOutput(output []string) string {
 	panic(Errorf("couldn't find bestmove in output %v", output))
 }
 
-func search(player Player, binary *binary.BinaryRunner, fen string, moveHistory []string, expectedFen string) []string {
-	fenInput := fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " "))
-	runAsync(binary, fenInput)
-
-	if binary.CmdName() == "chessgo" {
-		binaryFenOpt := FindInSlice(run(binary, "fen", Some("position fen ")), func(v string) bool {
-			return strings.HasPrefix(v, "position fen ")
-		})
-		if binaryFenOpt.HasValue() {
-			binaryFen, _ := strings.CutPrefix(binaryFenOpt.Value(), "position fen ")
-			if binaryFen != expectedFen {
-				logger.Println(binary.Flush())
-				panic(Errorf("wat\nprocessing %v\n%v (%v) != \n%v (expected)", fenInput, binaryFen, binary.CmdName(), expectedFen))
-			}
-		} else {
-			panic(Errorf("failed to get fen from %v", binary.CmdPath()))
-		}
-	}
-
-	runAsync(binary, "go")
-	if binary.CmdName() == "stockfish" {
-		time.Sleep(time.Millisecond * 10)
-	}
-	move := findMoveInOutput(run(binary, "stop", Some("bestmove")))
-	moveHistory = append(moveHistory, move)
-
-	logger.Printf("%v (%v) > %v\n", binary.CmdName(), player.String(), move)
-
-	return moveHistory
-}
-
-type Result int
+type stockfishResult int
 
 const (
-	StockfishWin Result = iota
+	StockfishWin stockfishResult = iota
 	OpponentWin
 	Draw
 	Unknown
@@ -216,104 +167,41 @@ func playGame(
 	stockfish *binary.BinaryRunner,
 	stockfishElo int,
 	opponent *binary.BinaryRunner,
-	opponentPlays Player,
 	runner *ChessGoRunner,
-) (Result, Error) {
-	var err Error
+) (stockfishResult, Error) {
+	Run(stockfish, "isready", Some("readyok"))
+	Run(stockfish, "uci", Some("uciok"))
+	RunAsync(stockfish, "ucinewgame")
+	RunAsync(stockfish, "setoption name UCI_LimitStrength value true")
+	RunAsync(stockfish, fmt.Sprintf("setoption name UCI_Elo value %v", stockfishElo))
+	RunAsync(stockfish, "position startpos")
 
-	run(stockfish, "isready", Some("readyok"))
-	run(stockfish, "uci", Some("uciok"))
-	runAsync(stockfish, "ucinewgame")
-	runAsync(stockfish, "setoption name UCI_LimitStrength value true")
-	runAsync(stockfish, fmt.Sprintf("setoption name UCI_Elo value %v", stockfishElo))
-	runAsync(stockfish, "position startpos")
+	Run(opponent, "isready", Some("readyok"))
+	Run(opponent, "uci", Some("uciok"))
+	RunAsync(opponent, "ucinewgame")
+	RunAsync(opponent, "position startpos")
 
-	run(opponent, "isready", Some("readyok"))
-	run(opponent, "uci", Some("uciok"))
-	runAsync(opponent, "ucinewgame")
-	runAsync(opponent, "position startpos")
-
-	moveHistory := []string{}
-
+	result, err := PlayBinaries(stockfish, opponent, runner)
 	if !IsNil(err) {
-		return Unknown, err
+		return Unknown, Wrap(err)
 	}
 
-	binaryToPlayer := map[*binary.BinaryRunner]Player{
-		stockfish: opponentPlays.Other(),
-		opponent:  opponentPlays,
+	if result == 0 {
+		return StockfishWin, NilError
+	} else if result == 1 {
+		return OpponentWin, NilError
+	} else if result == 0.5 {
+		return Draw, NilError
+	} else {
+		return Unknown, Errorf("unexpected result %v", result)
 	}
-
-	nextBinary := stockfish
-
-	history := map[string]int{}
-
-	for i := 0; i < 400; i++ {
-		currentBinary := nextBinary
-		if nextBinary == stockfish {
-			nextBinary = opponent
-		} else {
-			nextBinary = stockfish
-		}
-
-		moveHistory = search(binaryToPlayer[currentBinary], currentBinary, runner.StartFen, moveHistory, runner.FenString())
-		if Last(moveHistory) == "forfeit" {
-			if currentBinary == stockfish {
-				return OpponentWin, NilError
-			} else {
-				return StockfishWin, NilError
-			}
-		}
-		err = runner.PerformMoveFromString(Last(moveHistory))
-		if !IsNil(err) {
-			return Unknown, err
-		}
-
-		boardString := game.FenStringForBoard(runner.Board())
-		if _, contains := history[boardString]; !contains {
-			history[boardString] = 0
-		}
-		history[boardString]++
-
-		if history[boardString] >= 3 {
-			return Draw, NilError
-		}
-
-		pgnString := fmt.Sprintf("%v\n%v", runner.PgnFromMoveHistory(), runner.FenString())
-		logger.SetFooter(HintText(pgnString), _footerPgn)
-		logger.SetFooter(runner.Board().Unicode(), _footerBoard)
-
-		var noValidMoves bool
-		noValidMoves, err = runner.NoValidMoves()
-		if !IsNil(err) {
-			return Unknown, err
-		}
-
-		if noValidMoves {
-			if runner.PlayerIsInCheck() {
-				if currentBinary == stockfish {
-					return StockfishWin, NilError
-				} else {
-					return OpponentWin, NilError
-				}
-			} else {
-				return Draw, NilError
-			}
-		}
-
-		if runner.DrawClock() >= 50 {
-			return Draw, NilError
-		}
-	}
-
-	return Unknown, NilError
 }
 
 func playGameBinaries(
 	binaryPath string,
 	binaryArgs []string,
 	stockfishElo int,
-) MatchResult {
+) stockfishMatchResult {
 	var err Error
 
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -363,13 +251,13 @@ func playGameBinaries(
 	}
 	defer opponent.Close()
 
-	var result Result
-	result, err = playGame(stockfish, stockfishElo, opponent, opponentPlays, &runner)
+	var result stockfishResult
+	result, err = playGame(stockfish, stockfishElo, opponent, &runner)
 	if !IsNil(err) {
 		panic(err)
 	}
 
-	newResult := MatchResult{
+	newResult := stockfishMatchResult{
 		StartFen:     runner.StartFen,
 		PositionFen:  runner.StartFen + " moves " + strings.Join(runner.MoveHistory(), " "),
 		EndingFen:    runner.FenString(),
@@ -392,8 +280,8 @@ func playGameBinaries(
 		logger.Println("wat")
 	}
 
-	runAsync(stockfish, "quit")
-	runAsync(opponent, "quit")
+	RunAsync(stockfish, "quit")
+	RunAsync(opponent, "quit")
 	opponent.Wait()
 	stockfish.Wait()
 
@@ -416,15 +304,15 @@ func allJsonFilesInDir(dir string) ([]string, Error) {
 	return filePaths, NilError
 }
 
-func allEloResultsInDir(dir string) ([]EloResults, Error) {
+func allEloResultsInDir(dir string) ([]stockfishEloResults, Error) {
 	filePaths, err := allJsonFilesInDir(dir)
 	if !IsNil(err) {
 		return nil, err
 	}
 
-	results := []EloResults{}
+	results := []stockfishEloResults{}
 	for _, filePath := range filePaths {
-		result := EloResults{}
+		result := stockfishEloResults{}
 		unmarshalEloResults(filePath, &result)
 		results = append(results, result)
 	}
@@ -451,9 +339,9 @@ func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPat
 		panic(err)
 	}
 
-	results := EloResults{
+	results := stockfishEloResults{
 		Cmd:     binaryPath,
-		Matches: []MatchResult{},
+		Matches: []stockfishMatchResult{},
 	}
 
 	err = unmarshalEloResults(jsonPath, &results)

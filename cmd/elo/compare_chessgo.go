@@ -8,7 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cricklet/chessgo/internal/binary"
+	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	elo "github.com/kortemy/elo-go"
 )
 
 func runCommand(cmdName string, args []string) (string, Error) {
@@ -77,14 +80,181 @@ func unmarshalBinaryInfo(jsonPath string, info *BinaryInfo) (bool, Error) {
 	return true, NilError
 }
 
-func runTournament(binaryPath string) {
-	options, err := getBinaryOptions(binaryPath)
+func setupChessGoRunner(binaryPath string, options string, fen string) (*binary.BinaryRunner, Error) {
+	var err Error
 
-	for i := 0; i < 10; i++ {
+	var player *binary.BinaryRunner
+	name := fmt.Sprintf("chessgo (%v)", options)
+	logger := FuncLogger(func(s string) { logger.Println(name, ">", Indent(s, "$ ")) })
+	player, err = binary.SetupBinaryRunner(binaryPath, "chessgo", strings.Split(options, " "),
+		time.Millisecond*10000, binary.WithLogger(logger))
+	if !IsNil(err) {
+		return nil, err
 	}
+
+	Run(player, "isready", Some("readyok"))
+	Run(player, "uci", Some("uciok"))
+	RunAsync(player, "ucinewgame")
+	RunAsync(player, "position fen "+fen)
+
+	return player, err
 }
 
-var _dateFormat = "2006-01-02"
+func runGame(binaryPath string, opt1 string, opt2 string) (float32, Error) {
+	var err Error
+
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	var player1 *binary.BinaryRunner
+	player1, err = setupChessGoRunner(binaryPath, opt1, fen)
+	if !IsNil(err) {
+		return 0.5, err
+	}
+	defer player1.Close()
+
+	var player2 *binary.BinaryRunner
+	player2, err = setupChessGoRunner(binaryPath, opt2, fen)
+	if !IsNil(err) {
+		return 0.5, err
+	}
+	defer player2.Close()
+
+	runner := chessgo.NewChessGoRunner()
+	err = runner.SetupPosition(Position{
+		Fen:   fen,
+		Moves: []string{},
+	})
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	result, err := PlayBinaries(player1, player2, &runner)
+	if !IsNil(err) {
+		return 0.5, err
+	}
+
+	return result, err
+}
+
+type matchResult struct {
+	WhiteBinary string
+	WhiteOpts   string
+	BlackBinary string
+	BlackOpts   string
+	Result      float32
+}
+
+type binaryDefinition struct {
+	binaryPath string
+	options    string
+}
+
+type estimatedElo struct {
+	cmdPath string
+	options string
+	elo     int
+}
+
+type tournamentResults struct {
+	matches      []matchResult
+	participants []estimatedElo
+}
+
+type updateTournamentResults interface {
+	Update(result matchResult) Error
+}
+
+type JsonTournamentResults struct {
+	jsonPath string
+}
+
+func unmarshalTournamentResults(jsonPath string, results *tournamentResults) (bool, Error) {
+	_, err := os.Stat(jsonPath)
+	if !IsNil(err) {
+		return false, NilError
+	}
+	input, err := os.ReadFile(jsonPath)
+	if !IsNil(err) {
+		return false, Wrap(err)
+	}
+	err = json.Unmarshal(input, results)
+	if !IsNil(err) {
+		return false, Wrap(err)
+	}
+
+	return true, NilError
+}
+
+func marshalTournamentResults(jsonPath string, results *tournamentResults) Error {
+	output, err := json.MarshalIndent(results, "", "  ")
+	if !IsNil(err) {
+		return Wrap(err)
+	}
+	err = os.WriteFile(jsonPath, output, 0644)
+	return Wrap(err)
+}
+
+func (j *JsonTournamentResults) Update(result matchResult) Error {
+	results := tournamentResults{}
+	_, err := unmarshalTournamentResults(j.jsonPath, &results)
+	if !IsNil(err) {
+		return err
+	}
+
+	results.matches = append(results.matches, result)
+	results.participants = []estimatedElo{}
+
+	elos := map[binaryDefinition]int{}
+	e := elo.NewElo()
+	for _, match := range results.matches {
+		white := binaryDefinition{match.WhiteBinary, match.WhiteOpts}
+		black := binaryDefinition{match.BlackBinary, match.BlackOpts}
+		elo1 := GetWithDefault(elos, white, 800)
+		elo2 := GetWithDefault(elos, black, 800)
+		outcome1, outcome2 := e.Outcome(elo1, elo2, float64(match.Result))
+
+		elos[white] = outcome1.Rating
+		elos[black] = outcome2.Rating
+	}
+
+	for binary, elo := range elos {
+		results.participants = append(results.participants, estimatedElo{
+			cmdPath: binary.binaryPath,
+			options: binary.options,
+			elo:     elo,
+		})
+	}
+
+	return marshalTournamentResults(j.jsonPath, &results)
+}
+
+func runTournament(binaryPath string, updater updateTournamentResults) Error {
+	options, err := getBinaryOptions(binaryPath)
+	if !IsNil(err) {
+		return err
+	}
+
+	for i := 0; i < 100; i++ {
+		opt1 := PickRandom(options)
+		opt2 := PickRandom(options)
+
+		result, err := runGame(binaryPath, opt1, opt2)
+		if !IsNil(err) {
+			return err
+		}
+
+		updater.Update(matchResult{
+			WhiteBinary: binaryPath,
+			WhiteOpts:   opt1,
+			BlackBinary: binaryPath,
+			BlackOpts:   opt2,
+			Result:      result,
+		})
+	}
+
+	return NilError
+}
+
+var _dateFormat = "2006-01-02 15:04:05"
 
 func CompareChessGo(args []string) {
 	if len(args) == 0 {
@@ -115,7 +285,7 @@ func CompareChessGo(args []string) {
 			if !exists {
 				panic(fmt.Errorf("info.json doesn't exist for %s", subdir))
 			}
-			date, err := WrapReturn(time.Parse(info.Date, _dateFormat))
+			date, err := WrapReturn(time.Parse(_dateFormat, info.Date))
 			if !IsNil(err) {
 				panic(err)
 			}
@@ -124,10 +294,15 @@ func CompareChessGo(args []string) {
 
 		binaryDir := buildsDir + "/" + subdirs[i]
 		binaryPath := fmt.Sprintf("%s/main", binaryDir)
-		jsonPath := fmt.Sprintf("%s/info.json", binaryDir)
 		fmt.Println("binaryPath", binaryPath)
-		fmt.Println("jsonPath", jsonPath)
 
+		hostName, err := GetHostName()
+		if !IsNil(err) {
+			panic(err)
+		}
+		jsonPath := fmt.Sprintf("%s/tournament_%s.json", binaryDir, hostName)
+
+		runTournament(binaryPath, &JsonTournamentResults{jsonPath: jsonPath})
 	}
 
 	if args[0] == "build" || args[0] == "clean" {
