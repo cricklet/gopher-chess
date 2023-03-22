@@ -20,7 +20,7 @@ func runCommand(cmdName string, args []string) (string, Error) {
 		return "", err
 	}
 
-	fmt.Println(string(result))
+	logger.Println(string(result))
 	return string(result), err
 }
 
@@ -101,7 +101,10 @@ func setupChessGoRunner(binaryPath string, options string, fen string) (*binary.
 }
 
 func runGame(binaryPath string, opt1 string, opt2 string) (float32, Error) {
-	var err Error
+	evaluator, err := NewEvaluator()
+	if !IsNil(err) {
+		return 0.5, err
+	}
 
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 	var player1 *binary.BinaryRunner
@@ -127,7 +130,27 @@ func runGame(binaryPath string, opt1 string, opt2 string) (float32, Error) {
 		panic(err)
 	}
 
-	result, err := PlayBinaries(player1, player2, &runner)
+	result, err := PlayBinaries(player1, player2, &runner, func() {
+		player := runner.Player()
+
+		pgnString := fmt.Sprintf("%v\n%v", runner.PgnFromMoveHistory(), runner.FenString())
+		logger.SetFooter(HintText(pgnString), _footerPgn)
+		logger.SetFooter(runner.Board().Unicode(), _footerBoard)
+
+		score, err := evaluator.Evaluate(runner.FenString())
+		if !IsNil(err) {
+			panic(err)
+		}
+
+		if player == Black {
+			score = -score
+		}
+
+		logger.SetFooter(HintText(fmt.Sprintf("eval: %v, piece: %v",
+			score,
+			runner.EvaluateSimple(White))),
+			_footerEval)
+	})
 	if !IsNil(err) {
 		return 0.5, err
 	}
@@ -262,7 +285,7 @@ func CompareChessGo(args []string) {
 	}
 
 	buildsDir := RootDir() + "/data/builds"
-	fmt.Println("buildsDir", buildsDir)
+	logger.Println("buildsDir", buildsDir)
 
 	err := MakeDirIfMissing(buildsDir)
 	if !IsNil(err) {
@@ -294,7 +317,7 @@ func CompareChessGo(args []string) {
 
 		binaryDir := buildsDir + "/" + subdirs[i]
 		binaryPath := fmt.Sprintf("%s/main", binaryDir)
-		fmt.Println("binaryPath", binaryPath)
+		logger.Println("binaryPath", binaryPath)
 
 		hostName, err := GetHostName()
 		if !IsNil(err) {
@@ -313,15 +336,15 @@ func CompareChessGo(args []string) {
 		gitHash = strings.TrimSpace(gitHash)
 
 		binaryDir := buildsDir + "/" + gitHash
-		fmt.Println("binaryDir", binaryDir)
+		logger.Println("binaryDir", binaryDir)
 		err = MakeDirIfMissing(binaryDir)
 		if !IsNil(err) {
 			panic(err)
 		}
 		binaryPath := fmt.Sprintf("%s/main", binaryDir)
 		jsonPath := fmt.Sprintf("%s/info.json", binaryDir)
-		fmt.Println("binaryPath", binaryPath)
-		fmt.Println("jsonPath", jsonPath)
+		logger.Println("binaryPath", binaryPath)
+		logger.Println("jsonPath", jsonPath)
 
 		if args[0] == "clean" {
 			err = RmIfExists(jsonPath)
@@ -352,22 +375,22 @@ func CompareChessGo(args []string) {
 			} else if !exists {
 				panic("info.json exists but binary doesn't")
 			} else {
-				fmt.Println("already built")
-				fmt.Println("date:", info.Date)
-				fmt.Println("options:", info.Options)
+				logger.Println("already built")
+				logger.Println("date:", info.Date)
+				logger.Println("options:", info.Options)
 			}
 			return
 		} else {
 			BuildChessGoIfMissing(binaryPath)
-			fmt.Println("built")
+			logger.Println("built")
 
 			info.Date = time.Now().Format(_dateFormat)
 			info.Options, err = getBinaryOptions(binaryPath)
 			if !IsNil(err) {
 				panic(err)
 			}
-			fmt.Println("date:", info.Date)
-			fmt.Println("options:", info.Options)
+			logger.Println("date:", info.Date)
+			logger.Println("options:", info.Options)
 
 			err := marshalBinaryInfo(jsonPath, info)
 			if !IsNil(err) {

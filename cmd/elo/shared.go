@@ -13,6 +13,14 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
+const _footerEval = 1
+const _footerCurrent = 2
+const _footerBoard = 4
+const _footerPgn = 6
+const _footerHistory = 8
+
+var logger = NewLiveLogger()
+
 func MakeDirIfMissing(dir string) Error {
 	_, err := os.Stat(dir)
 	if IsNil(err) {
@@ -92,7 +100,52 @@ func Search(player Player, binary *binary.BinaryRunner, fen string, moveHistory 
 	return moveHistory
 }
 
-func PlayBinaries(player0 *binary.BinaryRunner, player1 *binary.BinaryRunner, runner *chessgo.ChessGoRunner) (float32, Error) {
+type Evaluator struct {
+	stockfish *binary.BinaryRunner
+}
+
+func NewEvaluator() (*Evaluator, Error) {
+	evaluator, err := binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, time.Millisecond*1000, binary.WithLogger(&SilentLogger))
+	if !IsNil(err) {
+		return nil, err
+	}
+	return &Evaluator{evaluator}, NilError
+}
+
+func (e *Evaluator) Close() {
+	defer e.stockfish.Close()
+}
+
+func (e *Evaluator) Evaluate(fen string) (int, Error) {
+	fenInput := fmt.Sprintf("position fen %v", fen)
+	RunAsync(e.stockfish, fenInput)
+	results, err := RunThenStop(e.stockfish, "go", time.Millisecond*10, "stop")
+	if !IsNil(err) {
+		return 0, err
+	}
+
+	scoreStrs := FilterSlice(results, func(v string) bool {
+		return strings.Contains(v, "score cp ")
+	})
+	if len(scoreStrs) == 0 {
+		return 0, Errorf("failed to find score in %v", Indent(strings.Join(results, "\n"), " > "))
+	}
+
+	scoreStr := Last(scoreStrs)
+	scoreStr = strings.Split(
+		strings.Split(scoreStr, "score cp ")[1], " ")[0]
+	score, err := ParseInt(scoreStr)
+	if !IsNil(err) {
+		return 0, err
+	}
+
+	return score, NilError
+}
+
+func PlayBinaries(player0 *binary.BinaryRunner, player1 *binary.BinaryRunner,
+	runner *chessgo.ChessGoRunner,
+	callback func(),
+) (float32, Error) {
 	var err Error
 
 	moveHistory := []string{}
@@ -141,9 +194,7 @@ func PlayBinaries(player0 *binary.BinaryRunner, player1 *binary.BinaryRunner, ru
 			return 0.5, NilError
 		}
 
-		pgnString := fmt.Sprintf("%v\n%v", runner.PgnFromMoveHistory(), runner.FenString())
-		logger.SetFooter(HintText(pgnString), _footerPgn)
-		logger.SetFooter(runner.Board().Unicode(), _footerBoard)
+		callback()
 
 		var noValidMoves bool
 		noValidMoves, err = runner.NoValidMoves()
@@ -187,4 +238,21 @@ func Run(binary *binary.BinaryRunner, cmd string, waitFor Optional[string]) []st
 		panic(err)
 	}
 	return result
+}
+
+func RunThenStop(binary *binary.BinaryRunner, cmd string, wait time.Duration, stopCmd string) ([]string, Error) {
+	var result []string
+	binary.Logger.Print("in=>", cmd)
+
+	defer func() {
+		binary.Logger.Print("in=>", stopCmd)
+		time.Sleep(wait)
+		binary.RunAsync(stopCmd)
+	}()
+
+	result, err := binary.Run(cmd, Empty[string]())
+	if !IsNil(err) {
+		panic(err)
+	}
+	return result, NilError
 }

@@ -19,14 +19,6 @@ import (
 	combinations "github.com/mxschmitt/golang-combinations"
 )
 
-const _footerEval = 1
-const _footerCurrent = 2
-const _footerBoard = 4
-const _footerPgn = 6
-const _footerHistory = 8
-
-var logger = NewLiveLogger()
-
 type stockfishMatchResult struct {
 	Won          bool
 	Draw         bool
@@ -181,7 +173,11 @@ func playGame(
 	RunAsync(opponent, "ucinewgame")
 	RunAsync(opponent, "position startpos")
 
-	result, err := PlayBinaries(stockfish, opponent, runner)
+	result, err := PlayBinaries(stockfish, opponent, runner, func() {
+		pgnString := fmt.Sprintf("%v\n%v", runner.PgnFromMoveHistory(), runner.FenString())
+		logger.SetFooter(HintText(pgnString), _footerPgn)
+		logger.SetFooter(runner.Board().Unicode(), _footerBoard)
+	})
 	if !IsNil(err) {
 		return Unknown, Wrap(err)
 	}

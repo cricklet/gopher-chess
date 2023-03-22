@@ -31,7 +31,7 @@ func main() {
 		return arg != "profile"
 	})
 
-	if args[0] == "options" {
+	if len(args) > 0 && args[0] == "options" {
 		for _, option := range search.AllSearchOptions {
 			fmt.Println(option)
 		}

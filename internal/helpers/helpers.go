@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
@@ -46,6 +47,14 @@ func IndentMany(indent string, xs ...any) string {
 
 func Last[T any](ts []T) T {
 	return ts[len(ts)-1]
+}
+
+func ParseInt(s string) (int, Error) {
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, Wrap(err)
+	}
+	return v, NilError
 }
 
 func Clone[T any](ts []T) []T {
