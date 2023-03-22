@@ -16,7 +16,24 @@ func runCommand(cmdName string, args []string) (string, Error) {
 	if !IsNil(err) {
 		return "", err
 	}
+
+	fmt.Println(string(result))
 	return string(result), err
+}
+
+func allSubDirectories(dirPath string) ([]string, Error) {
+	files, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, Wrap(err)
+	}
+
+	result := []string{}
+	for _, file := range files {
+		if file.IsDir() {
+			result = append(result, file.Name())
+		}
+	}
+	return result, NilError
 }
 
 func getBinaryOptions(binaryPath string) ([]string, Error) {
@@ -60,29 +77,76 @@ func unmarshalBinaryInfo(jsonPath string, info *BinaryInfo) (bool, Error) {
 	return true, NilError
 }
 
+func runTournament(binaryPath string) {
+	options, err := getBinaryOptions(binaryPath)
+
+	for i := 0; i < 10; i++ {
+	}
+}
+
+var _dateFormat = "2006-01-02"
+
 func CompareChessGo(args []string) {
 	if len(args) == 0 {
 		panic("missing arg")
 	}
 
-	if args[0] == "build" || args[0] == "clean" {
-		gitHash, err := runCommand("git", []string{"rev-parse", "HEAD"})
+	buildsDir := RootDir() + "/data/builds"
+	fmt.Println("buildsDir", buildsDir)
+
+	err := MakeDirIfMissing(buildsDir)
+	if !IsNil(err) {
+		panic(err)
+	}
+
+	if args[0] == "runLatest" {
+		subdirs, err := allSubDirectories(buildsDir)
 		if !IsNil(err) {
 			panic(err)
 		}
 
-		buildsDir := RootDir() + "/data/builds"
-		binaryDir := buildsDir + "/" + gitHash
-		err = MakeDirIfMissing(buildsDir)
+		i := IndexOfMax(subdirs, func(subdir string) int {
+			infoPath := fmt.Sprintf("%s/%s/info.json", buildsDir, subdir)
+			info := BinaryInfo{}
+			exists, err := unmarshalBinaryInfo(infoPath, &info)
+			if !IsNil(err) {
+				panic(err)
+			}
+			if !exists {
+				panic(fmt.Errorf("info.json doesn't exist for %s", subdir))
+			}
+			date, err := WrapReturn(time.Parse(info.Date, _dateFormat))
+			if !IsNil(err) {
+				panic(err)
+			}
+			return int(date.Unix())
+		})
+
+		binaryDir := buildsDir + "/" + subdirs[i]
+		binaryPath := fmt.Sprintf("%s/main", binaryDir)
+		jsonPath := fmt.Sprintf("%s/info.json", binaryDir)
+		fmt.Println("binaryPath", binaryPath)
+		fmt.Println("jsonPath", jsonPath)
+
+	}
+
+	if args[0] == "build" || args[0] == "clean" {
+		gitHash, err := runCommand("git", []string{"rev-parse", "--short", "HEAD"})
 		if !IsNil(err) {
 			panic(err)
 		}
+		gitHash = strings.TrimSpace(gitHash)
+
+		binaryDir := buildsDir + "/" + gitHash
+		fmt.Println("binaryDir", binaryDir)
 		err = MakeDirIfMissing(binaryDir)
 		if !IsNil(err) {
 			panic(err)
 		}
 		binaryPath := fmt.Sprintf("%s/main", binaryDir)
 		jsonPath := fmt.Sprintf("%s/info.json", binaryDir)
+		fmt.Println("binaryPath", binaryPath)
+		fmt.Println("jsonPath", jsonPath)
 
 		if args[0] == "clean" {
 			err = RmIfExists(jsonPath)
@@ -122,7 +186,7 @@ func CompareChessGo(args []string) {
 			BuildChessGoIfMissing(binaryPath)
 			fmt.Println("built")
 
-			info.Date = time.Now().Format("2006-01-02")
+			info.Date = time.Now().Format(_dateFormat)
 			info.Options, err = getBinaryOptions(binaryPath)
 			if !IsNil(err) {
 				panic(err)

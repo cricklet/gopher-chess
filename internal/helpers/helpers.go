@@ -3,6 +3,7 @@ package helpers
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -96,6 +97,14 @@ func IndexOfMax[T any](ts []T, f func(T) int) int {
 		}
 	}
 	return bestIndex
+}
+
+func RandomInt(min int, max int) int {
+	return min + rand.Intn(max-min+1)
+}
+
+func PickRandom[T any](ts []T) T {
+	return ts[RandomInt(0, len(ts)-1)]
 }
 
 func IndexOfMin[T any](ts []T, f func(T) int) int {
