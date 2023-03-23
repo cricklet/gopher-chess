@@ -203,16 +203,12 @@ func Evaluate(b *Bitboards, player Player, args ...EvaluationOption) int {
 
 	result := pieceValues - enemyPieceValues + developmentValues - enemyDevelopmentValues
 
-	for _, arg := range args {
-		if arg == EndgamePushEnemyKing {
-			if enemyPieceValues <= 500 {
-				result += evaluateDevelopmentForPiece(
-					b.Players[enemy].Pieces[King],
-					EnemyKingEndgameBitboards[enemy])
-				if KingIsInCheck(b, enemy) {
-					result += 10
-				}
-			}
+	if enemyPieceValues <= 500 {
+		result += evaluateDevelopmentForPiece(
+			b.Players[enemy].Pieces[King],
+			EnemyKingEndgameBitboards[enemy])
+		if KingIsInCheck(b, enemy) {
+			result += 10
 		}
 	}
 
@@ -237,7 +233,6 @@ type EvaluationOption int
 
 const (
 	Default EvaluationOption = iota
-	EndgamePushEnemyKing
 )
 
 func EvaluateMove(m *Move, g *GameState, args ...EvaluationOption) int {

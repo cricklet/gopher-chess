@@ -40,6 +40,6 @@ func EvaluateFen(t *testing.T, s string, args ...EvaluationOption) int {
 
 func TestEvaluationEndgame(t *testing.T) {
 	assert.Less(t,
-		EvaluateFen(t, "8/8/4k3/8/8/8/7R/4K3 w - - 10 5", EndgamePushEnemyKing),
-		EvaluateFen(t, "4k3/8/8/8/8/8/7R/4K3 w - - 10 5", EndgamePushEnemyKing))
+		EvaluateFen(t, "8/8/4k3/8/8/8/7R/4K3 w - - 10 5"),
+		EvaluateFen(t, "4k3/8/8/8/8/8/7R/4K3 w - - 10 5"))
 }

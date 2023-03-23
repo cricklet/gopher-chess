@@ -145,14 +145,13 @@ type SearcherOptions struct {
 var DefaultSearchOptions = SearcherOptions{}
 
 var AllSearchOptions = []string{
-	// "incDepthForCheck",
-	// "endgamePushEnemyKing",
+	"endgamePushEnemyKing",
 	"transpositionTable",
-	// "sortPartial=0",
-	// "sortPartial=1",
-	// "sortPartial=4",
+	"sortPartial=0",
+	"sortPartial=1",
+	"sortPartial=4",
 	"incDepthForCheck=1",
-	// "incDepthForCheck=2",
+	"incDepthForCheck=2",
 }
 
 var DisallowedSearchOptionCombinations = [][]string{
@@ -218,8 +217,6 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 			} else {
 				options.sortPartial = Some(3)
 			}
-		} else if strings.HasPrefix(arg, "endgamePushEnemyKing") {
-			options.evaluationOptions = append(options.evaluationOptions, EndgamePushEnemyKing)
 		} else if strings.HasPrefix(arg, "debugSearchTree") {
 			options.debugSearchTree = &debugSearchTree{}
 		} else if strings.HasPrefix(arg, "transpositionTable") {

@@ -137,8 +137,7 @@ func TestCheckMateInOne(t *testing.T) {
 
 	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
 		SearcherOptions{
-			debugSearchTree:   &debugSearchTree{},
-			evaluationOptions: []EvaluationOption{EndgamePushEnemyKing},
+			debugSearchTree: &debugSearchTree{},
 		})
 
 	var result Optional[Move]
@@ -228,11 +227,7 @@ func TestShouldMateInsteadOfDraw(t *testing.T) {
 	player := Black
 
 	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
-		SearcherOptions{
-			evaluationOptions: []EvaluationOption{
-				EndgamePushEnemyKing,
-			},
-		})
+		SearcherOptions{})
 
 	{
 		drawScore, legality, err := searcher.evaluateMoveForTests(player, MoveFromString("e2e7", QuietMove), 5)
