@@ -44,9 +44,9 @@ func getBinaryOptions(binaryPath string) ([]string, Error) {
 	if !IsNil(err) {
 		return nil, err
 	}
-	return FilterSlice(
+	return append(FilterSlice(
 		strings.Split(output, "\n"),
-		func(s string) bool { return s != "" }), NilError
+		func(s string) bool { return s != "" }), ""), NilError
 }
 
 type BinaryInfo struct {
@@ -159,22 +159,22 @@ func runGame(binaryPath string, opt1 string, opt2 string) (float32, Error) {
 }
 
 type matchResult struct {
-	WhiteBinary string
-	WhiteOpts   string
-	BlackBinary string
-	BlackOpts   string
-	Result      float32
+	WhiteBinary string  `json:"whiteBinary"`
+	WhiteOpts   string  `json:"whiteOpts"`
+	BlackBinary string  `json:"blackBinary"`
+	BlackOpts   string  `json:"blackOpts"`
+	Result      float32 `json:"result"`
 }
 
 type binaryDefinition struct {
-	binaryPath string
-	options    string
+	BinaryPath string `json:"binaryPath"`
+	Options    string `json:"options"`
 }
 
 type estimatedElo struct {
-	cmdPath string
-	options string
-	elo     int
+	CmdPath string `json:"cmdPath"`
+	Options string `json:"options"`
+	Elo     int    `json:"elo"`
 }
 
 type tournamentResults struct {
@@ -241,9 +241,9 @@ func (j *JsonTournamentResults) Update(result matchResult) Error {
 
 	for binary, elo := range elos {
 		results.Participants = append(results.Participants, estimatedElo{
-			cmdPath: binary.binaryPath,
-			options: binary.options,
-			elo:     elo,
+			CmdPath: binary.BinaryPath,
+			Options: binary.Options,
+			Elo:     elo,
 		})
 	}
 
