@@ -125,20 +125,33 @@ func (e *Evaluator) Evaluate(fen string) (int, Error) {
 	}
 
 	scoreStrs := FilterSlice(results, func(v string) bool {
-		return strings.Contains(v, "score cp ")
+		return strings.Contains(v, "score cp ") || strings.Contains(v, "score mate")
 	})
 	if len(scoreStrs) == 0 {
 		return 0, Errorf("failed to find score in %v", Indent(strings.Join(results, "\n"), " > "))
 	}
 
 	scoreStr := Last(scoreStrs)
+	if strings.Contains(scoreStr, "mate") {
+		scoreStr = strings.Split(
+			strings.Split(scoreStr, "score mate ")[1], " ")[0]
+		score, err := ParseInt(scoreStr)
+		if !IsNil(err) {
+			return 0, err
+		}
+		if score > 0 {
+			return 99999, NilError
+		} else {
+			return -99999, NilError
+		}
+	}
+
 	scoreStr = strings.Split(
 		strings.Split(scoreStr, "score cp ")[1], " ")[0]
 	score, err := ParseInt(scoreStr)
 	if !IsNil(err) {
 		return 0, err
 	}
-
 	return score, NilError
 }
 
@@ -241,18 +254,23 @@ func Run(binary *binary.BinaryRunner, cmd string, waitFor Optional[string]) []st
 }
 
 func RunThenStop(binary *binary.BinaryRunner, cmd string, wait time.Duration, stopCmd string) ([]string, Error) {
+	returnErr := NilError
+
 	var result []string
 	binary.Logger.Print("in=>", cmd)
 
 	defer func() {
 		binary.Logger.Print("in=>", stopCmd)
 		time.Sleep(wait)
-		binary.RunAsync(stopCmd)
+		err := binary.RunAsync(stopCmd)
+		if !IsNil(err) {
+			returnErr = Join(returnErr, err)
+		}
 	}()
 
 	result, err := binary.Run(cmd, Empty[string]())
 	if !IsNil(err) {
 		panic(err)
 	}
-	return result, NilError
+	return result, returnErr
 }

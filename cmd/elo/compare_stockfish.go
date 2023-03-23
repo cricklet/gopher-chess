@@ -30,9 +30,9 @@ type stockfishMatchResult struct {
 	StockfishElo int
 }
 type stockfishEloResults struct {
-	Cmd         string
-	Matches     []stockfishMatchResult
-	EloEstimate int
+	Cmd         string                 `json:"cmd"`
+	Matches     []stockfishMatchResult `json:"matches"`
+	EloEstimate int                    `json:"elo_estimate"`
 }
 
 func (r stockfishEloResults) statsString() string {
@@ -75,10 +75,6 @@ func (r stockfishEloResults) computeElo() int {
 	}
 
 	return rating
-}
-
-func (r stockfishEloResults) numMatches() int {
-	return len(r.Matches)
 }
 
 func (r stockfishEloResults) matchHistory() string {
@@ -309,7 +305,10 @@ func allEloResultsInDir(dir string) ([]stockfishEloResults, Error) {
 	results := []stockfishEloResults{}
 	for _, filePath := range filePaths {
 		result := stockfishEloResults{}
-		unmarshalEloResults(filePath, &result)
+		err = unmarshalEloResults(filePath, &result)
+		if !IsNil(err) {
+			return nil, err
+		}
 		results = append(results, result)
 	}
 	return results, NilError

@@ -50,8 +50,8 @@ func getBinaryOptions(binaryPath string) ([]string, Error) {
 }
 
 type BinaryInfo struct {
-	Date    string
-	Options []string
+	Date    string   `json:"date"`
+	Options []string `json:"options"`
 }
 
 func marshalBinaryInfo(jsonPath string, info BinaryInfo) Error {
@@ -178,8 +178,8 @@ type estimatedElo struct {
 }
 
 type tournamentResults struct {
-	matches      []matchResult
-	participants []estimatedElo
+	Matches      []matchResult  `json:"matches"`
+	Participants []estimatedElo `json:"participants"`
 }
 
 type updateTournamentResults interface {
@@ -223,12 +223,12 @@ func (j *JsonTournamentResults) Update(result matchResult) Error {
 		return err
 	}
 
-	results.matches = append(results.matches, result)
-	results.participants = []estimatedElo{}
+	results.Matches = append(results.Matches, result)
+	results.Participants = []estimatedElo{}
 
 	elos := map[binaryDefinition]int{}
 	e := elo.NewElo()
-	for _, match := range results.matches {
+	for _, match := range results.Matches {
 		white := binaryDefinition{match.WhiteBinary, match.WhiteOpts}
 		black := binaryDefinition{match.BlackBinary, match.BlackOpts}
 		elo1 := GetWithDefault(elos, white, 800)
@@ -240,7 +240,7 @@ func (j *JsonTournamentResults) Update(result matchResult) Error {
 	}
 
 	for binary, elo := range elos {
-		results.participants = append(results.participants, estimatedElo{
+		results.Participants = append(results.Participants, estimatedElo{
 			cmdPath: binary.binaryPath,
 			options: binary.options,
 			elo:     elo,
@@ -265,13 +265,16 @@ func runTournament(binaryPath string, updater updateTournamentResults) Error {
 			return err
 		}
 
-		updater.Update(matchResult{
+		err = updater.Update(matchResult{
 			WhiteBinary: binaryPath,
 			WhiteOpts:   opt1,
 			BlackBinary: binaryPath,
 			BlackOpts:   opt2,
 			Result:      result,
 		})
+		if !IsNil(err) {
+			return err
+		}
 	}
 
 	return NilError
@@ -325,7 +328,10 @@ func CompareChessGo(args []string) {
 		}
 		jsonPath := fmt.Sprintf("%s/tournament_%s.json", binaryDir, hostName)
 
-		runTournament(binaryPath, &JsonTournamentResults{jsonPath: jsonPath})
+		err = runTournament(binaryPath, &JsonTournamentResults{jsonPath: jsonPath})
+		if !IsNil(err) {
+			panic(err)
+		}
 	}
 
 	if args[0] == "build" || args[0] == "clean" {
@@ -381,7 +387,10 @@ func CompareChessGo(args []string) {
 			}
 			return
 		} else {
-			BuildChessGoIfMissing(binaryPath)
+			err := BuildChessGoIfMissing(binaryPath)
+			if !IsNil(err) {
+				panic(err)
+			}
 			logger.Println("built")
 
 			info.Date = time.Now().Format(_dateFormat)
@@ -392,7 +401,7 @@ func CompareChessGo(args []string) {
 			logger.Println("date:", info.Date)
 			logger.Println("options:", info.Options)
 
-			err := marshalBinaryInfo(jsonPath, info)
+			err = marshalBinaryInfo(jsonPath, info)
 			if !IsNil(err) {
 				panic(err)
 			}
