@@ -145,7 +145,6 @@ type SearcherOptions struct {
 var DefaultSearchOptions = SearcherOptions{}
 
 var AllSearchOptions = []string{
-	"endgamePushEnemyKing",
 	"transpositionTable",
 	"sortPartial=0",
 	"sortPartial=1",
