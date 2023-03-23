@@ -147,6 +147,29 @@ func (u *BinaryRunner) RunAsync(input string) Error {
 	return NilError
 }
 
+func (u *BinaryRunner) RunUntilChan(input string, doneChan chan bool) ([]string, Error) {
+	result := []string{}
+
+	err := u.RunAsync(input)
+	if !IsNil(err) {
+		return result, err
+	}
+
+	done := false
+	for !done {
+		select {
+		case <-doneChan:
+			u.Logger.Printf("%v", "done channel fired")
+			done = true
+		case output := <-u.stdoutChan:
+			u.Logger.Printf("%v", output)
+			result = append(result, output)
+		}
+	}
+
+	return result, NilError
+}
+
 func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Error) {
 	result := []string{}
 

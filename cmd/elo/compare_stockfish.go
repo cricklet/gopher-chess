@@ -188,7 +188,7 @@ func playGameBinaries(
 ) stockfishMatchResult {
 	var err Error
 
-	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPP1PP/RNBQKBNR w KQkq - 0 1"
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPP1P/RNBQKBNR w KQkq - 0 1"
 	runner := NewChessGoRunner()
 	err = runner.SetupPosition(Position{
 		Fen:   fen,
@@ -202,6 +202,7 @@ func playGameBinaries(
 
 	var stockfish *binary.BinaryRunner
 	stockfishLogger := FuncLogger(func(s string) {
+		logger.Println("stockfish > " + Indent(s, "$ "))
 		if strings.Contains(s, "score cp ") {
 			evalStr := strings.Split(
 				strings.Split(s, "score cp ")[1], " ")[0]
@@ -215,13 +216,8 @@ func playGameBinaries(
 				runner.EvaluateSimple(opponentPlays))),
 				_footerEval)
 		}
-
-		if strings.Contains(s, "info") {
-			return
-		}
-		logger.Println("stockfish > " + Indent(s, "$ "))
 	})
-	stockfish, err = binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, time.Millisecond*1000, binary.WithLogger(stockfishLogger))
+	stockfish, err = binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, time.Millisecond*10000, binary.WithLogger(stockfishLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -336,9 +332,9 @@ func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPat
 		panic(err)
 	}
 
-	randomOffset := []int{-100, -50, 0, 50, 100}[rand.Intn(5)]
+	randomOffset := []int{-200, -100, 0, 100, 200}[rand.Intn(5)]
 	if len(results.Matches) < 5 {
-		randomOffset = []int{-50, 0, 50}[rand.Intn(3)]
+		randomOffset = []int{-100, 0, 100}[rand.Intn(3)]
 	}
 	stockfishElo := results.computeElo() + randomOffset
 

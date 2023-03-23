@@ -654,9 +654,9 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 			})
 
 			s.Logger.Println(
-				Indent("search results\n"+strings.Join(MapSlice((*moves)[:6], func(m Move) string {
+				"search results "+strings.Join(MapSlice((*moves)[:3], func(m Move) string {
 					return m.String() + " " + strconv.Itoa(m.Evaluation.Value())
-				}), "\n"), ". "))
+				}), " "), ". ")
 
 			s.Logger.Println(s.DebugStats())
 

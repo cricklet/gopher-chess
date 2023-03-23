@@ -239,7 +239,7 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	var err Error
 
 	go func() {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 		r.Searcher().OutOfTime = true
 	}()
 

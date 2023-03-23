@@ -101,11 +101,11 @@ func Search(player Player, binary *binary.BinaryRunner, fen string, moveHistory 
 		}
 	}
 
-	RunAsync(binary, "go")
-	if binary.CmdName() == "stockfish" {
-		time.Sleep(time.Millisecond * 500)
+	results, err := RunThenStop(binary, "go", time.Millisecond*1000, "stop", Some("bestmove"))
+	if !IsNil(err) {
+		panic(err)
 	}
-	move, err := findMoveInOutput(Run(binary, "stop", Some("bestmove")))
+	move, err := findMoveInOutput(results)
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -135,7 +135,7 @@ func (e *Evaluator) Close() {
 func (e *Evaluator) Evaluate(fen string) (int, Error) {
 	fenInput := fmt.Sprintf("position fen %v", fen)
 	RunAsync(e.stockfish, fenInput)
-	results, err := RunThenStop(e.stockfish, "go", time.Millisecond*10, "stop")
+	results, err := RunThenStop(e.stockfish, "go", time.Millisecond*10, "stop", Some("bestmove"))
 	if !IsNil(err) {
 		return 0, err
 	}
@@ -269,22 +269,22 @@ func Run(binary *binary.BinaryRunner, cmd string, waitFor Optional[string]) []st
 	return result
 }
 
-func RunThenStop(binary *binary.BinaryRunner, cmd string, wait time.Duration, stopCmd string) ([]string, Error) {
+func RunThenStop(binary *binary.BinaryRunner, cmd string, wait time.Duration, stopCmd string, waitFor Optional[string]) ([]string, Error) {
 	returnErr := NilError
 
 	var result []string
 	binary.Logger.Print("in=>", cmd)
 
-	defer func() {
-		binary.Logger.Print("in=>", stopCmd)
+	go func() {
 		time.Sleep(wait)
+		binary.Logger.Print("in=>", stopCmd)
 		err := binary.RunAsync(stopCmd)
 		if !IsNil(err) {
 			returnErr = Join(returnErr, err)
 		}
 	}()
 
-	result, err := binary.Run(cmd, Empty[string]())
+	result, err := binary.Run(cmd, waitFor)
 	if !IsNil(err) {
 		panic(err)
 	}
