@@ -44,9 +44,9 @@ func getBinaryOptions(binaryPath string) ([]string, Error) {
 	if !IsNil(err) {
 		return nil, err
 	}
-	return append(FilterSlice(
+	return append([]string{""}, FilterSlice(
 		strings.Split(output, "\n"),
-		func(s string) bool { return s != "" }), ""), NilError
+		func(s string) bool { return s != "" })...), NilError
 }
 
 type BinaryInfo struct {
@@ -257,23 +257,27 @@ func runTournament(binaryPath string, updater updateTournamentResults) Error {
 	}
 
 	for i := 0; i < 100; i++ {
-		opt1 := PickRandom(options)
-		opt2 := PickRandom(options)
+		for _, opt1 := range options {
+			for _, opt2 := range options {
+				if opt1 == opt2 {
+					continue
+				}
+				result, err := runGame(binaryPath, opt1, opt2)
+				if !IsNil(err) {
+					return err
+				}
 
-		result, err := runGame(binaryPath, opt1, opt2)
-		if !IsNil(err) {
-			return err
-		}
-
-		err = updater.Update(matchResult{
-			WhiteBinary: binaryPath,
-			WhiteOpts:   opt1,
-			BlackBinary: binaryPath,
-			BlackOpts:   opt2,
-			Result:      result,
-		})
-		if !IsNil(err) {
-			return err
+				err = updater.Update(matchResult{
+					WhiteBinary: binaryPath,
+					WhiteOpts:   opt1,
+					BlackBinary: binaryPath,
+					BlackOpts:   opt2,
+					Result:      result,
+				})
+				if !IsNil(err) {
+					return err
+				}
+			}
 		}
 	}
 
@@ -361,10 +365,21 @@ func CompareChessGo(args []string) {
 			if !IsNil(err) {
 				panic(err)
 			}
+			hostName, err := GetHostName()
+			if !IsNil(err) {
+				panic(err)
+			}
+			resultsPath := fmt.Sprintf("%s/tournament_%s.json", binaryDir, hostName)
+			err = RmIfExists(resultsPath)
+			if !IsNil(err) {
+				panic(err)
+			}
+
 			err = RmIfExists(binaryDir)
 			if !IsNil(err) {
 				panic(err)
 			}
+
 			return
 		}
 

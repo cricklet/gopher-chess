@@ -228,8 +228,9 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 			options.debugSearchTree = &debugSearchTree{}
 		} else if strings.HasPrefix(arg, "transpositionTable") {
 			options.useTranspositionTable = true
+		} else if arg == "" {
 		} else {
-			return options, Errorf("unknown option: %s", arg)
+			return options, Errorf("unknown option: '%s'", arg)
 		}
 	}
 
