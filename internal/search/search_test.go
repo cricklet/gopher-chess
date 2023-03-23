@@ -67,14 +67,11 @@ func TestNoLegalMoves(t *testing.T) {
 	assert.True(t, IsNil(err), err)
 	bitboards := game.CreateBitboards()
 
-	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards, SearcherOptions{})
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards, SearcherOptions{
+		maxDepth: Some(3),
+	})
 
 	var result Optional[Move]
-
-	go func() {
-		time.Sleep(time.Millisecond * 10000)
-		searcher.OutOfTime = true
-	}()
 
 	result, err = searcher.Search()
 
@@ -280,6 +277,58 @@ func TestQuiescence(t *testing.T) {
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(searcher.DebugStats())
+}
+
+func TestCrash1(t *testing.T) {
+	fen := "r1b1q3/2p2k2/pp3Q2/3pBn2/8/2N5/PP4PP/5R1K b - - 2 24"
+
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err), err)
+	bitboards := game.CreateBitboards()
+
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards,
+		SearcherOptions{
+			maxDepth: Some(5),
+		})
+
+	var move Optional[Move]
+	move, err = searcher.Search()
+	assert.True(t, IsNil(err), err)
+	assert.True(t, move.HasValue())
+}
+func TestCrash2(t *testing.T) {
+	fen := "4qk1r/3R3p/5p1p/2Q1p3/p6K/6PP/8/8 b - - 9 38"
+
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err), err)
+	bitboards := game.CreateBitboards()
+
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards,
+		SearcherOptions{
+			maxDepth: Some(4),
+		})
+
+	var move Optional[Move]
+	move, err = searcher.Search()
+	assert.True(t, IsNil(err), err)
+	assert.True(t, move.HasValue())
+}
+func TestCrash3(t *testing.T) {
+	fen := "rk1R1r2/pp4Q1/7p/4pN2/P1Pp4/3P4/2P3PP/R1n4K b - - 0 24"
+
+	game, err := GamestateFromFenString(fen)
+	assert.True(t, IsNil(err), err)
+	bitboards := game.CreateBitboards()
+
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards,
+		SearcherOptions{
+			maxDepth: Some(6),
+		})
+
+	var move Optional[Move]
+	move, err = searcher.Search()
+	assert.True(t, IsNil(err), err)
+	assert.True(t, move.HasValue())
 }
 
 func TestDeeperSearchesAvoidPins(t *testing.T) {

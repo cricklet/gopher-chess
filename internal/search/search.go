@@ -149,8 +149,8 @@ var AllSearchOptions = []string{
 	"sortPartial=0",
 	"sortPartial=1",
 	"sortPartial=4",
-	"incDepthForCheck=1",
 	"incDepthForCheck=2",
+	"incDepthForCheck=4",
 }
 
 var DisallowedSearchOptionCombinations = [][]string{
@@ -203,7 +203,7 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 				}
 			} else {
 				options.incDepthForCheck = incDepthForCheck{
-					depthLimit: 3,
+					depthLimit: 4,
 				}
 			}
 		} else if strings.HasPrefix(arg, "sortPartial") {
@@ -286,6 +286,10 @@ func (s *SearcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta in
 	var returnScore int
 	var returnError Error
 
+	if s.OutOfTime {
+		return returnScore, returnError
+	}
+
 	if player != s.Game.Player {
 		returnError = Errorf("player != s.Game.Player")
 		return returnScore, returnError
@@ -366,6 +370,10 @@ func (s *SearcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha in
 	var returnLegality bool
 	var returnError Error
 
+	if s.OutOfTime {
+		return returnScore, returnLegality, returnError
+	}
+
 	if player != s.Game.Player {
 		returnError = Errorf("player != s.Game.Player")
 		return returnScore, returnLegality, returnError
@@ -408,6 +416,10 @@ func (s *SearcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha in
 }
 
 func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta int, depth int) (int, Error) {
+	if s.OutOfTime {
+		return 0, NilError
+	}
+
 	if player != s.Game.Player {
 		return 0, Errorf("player != s.Game.Player")
 	}
@@ -521,6 +533,10 @@ func (s *SearcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 	var returnLegality bool
 	var returnError Error
 
+	if s.OutOfTime {
+		return returnScore, returnLegality, returnError
+	}
+
 	if player != s.Game.Player {
 		returnError = Errorf("player != s.Game.Player")
 		return returnScore, returnLegality, returnError
@@ -559,10 +575,10 @@ func (s *SearcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 	if depth <= 1 {
 		if !s.OutOfTime && s.options.incDepthForCheck.currentDepth < s.options.incDepthForCheck.depthLimit {
 			if KingIsInCheck(s.Bitboards, enemy) {
-				depth += 1
-				s.options.incDepthForCheck.currentDepth += 1
+				depth += 2
+				s.options.incDepthForCheck.currentDepth += 2
 				defer func() {
-					s.options.incDepthForCheck.currentDepth -= 1
+					s.options.incDepthForCheck.currentDepth -= 2
 				}()
 			}
 		}
@@ -596,6 +612,16 @@ func (s *SearcherV2) DebugStats() string {
 	return result
 }
 
+type MoveKey int
+
+func MoveToMoveKey(move Move) MoveKey {
+	key := move.StartIndex*64 + move.EndIndex
+	if move.PromotionPiece.HasValue() {
+		key += int(move.PromotionPiece.Value()) * 4096
+	}
+	return MoveKey(key)
+}
+
 func (s *SearcherV2) Search() (Optional[Move], Error) {
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
@@ -609,21 +635,22 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 		maxDepth = s.options.maxDepth.Value()
 	}
 
-	evaluationsAtDepth := make(map[int]map[Move]int)
+	evaluationsAtDepth := make(map[int]map[MoveKey]int)
 	getEvalAtDepth := func(depth int, move Move) int {
-		if eval, ok := evaluationsAtDepth[depth][move]; ok {
+		if eval, ok := evaluationsAtDepth[depth][MoveToMoveKey(move)]; ok {
 			return eval
 		} else {
 			return -Inf
 		}
 	}
 
-	depth := 1
-	for ; depth <= maxDepth; depth += 1 {
+	depthForSorting := 1
+
+	for depth := 1; depth <= maxDepth; depth++ {
 		s.DebugDepthIteration = depth
 		s.DebugMovesToConsider = len(*moves)
 		s.DebugMovesConsidered = 0
-		evaluationsAtDepth[depth] = make(map[Move]int)
+		evaluationsAtDepth[depth] = make(map[MoveKey]int)
 
 		err := func() Error {
 			if s.options.debugSearchTree != nil {
@@ -639,32 +666,33 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 					return err
 				}
 
-				s.DebugMovesConsidered++
-
-				if !legality {
-					evaluationsAtDepth[depth][(*moves)[i]] = -Inf
-					continue
-				} else {
-					evaluationsAtDepth[depth][(*moves)[i]] = score
-				}
-
 				if s.OutOfTime {
+					// We just ran out of time. It's likely we didn't evaluate this move fully
 					break
 				}
+
+				// s.Logger.Println("considering move", (*moves)[i].String(),
+				// 	"at depth", depth, "with legality ", legality, "and score", score)
+				s.DebugMovesConsidered++
+
+				moveKey := MoveToMoveKey((*moves)[i])
+				if !legality {
+					evaluationsAtDepth[depth][moveKey] = -Inf
+					continue
+				} else {
+					evaluationsAtDepth[depth][moveKey] = score
+				}
 			}
 
-			if !s.OutOfTime || len(evaluationsAtDepth[depth]) > 6 {
-				SortMaxFirst(moves, func(m Move) int {
-					return getEvalAtDepth(depth, m)
-				})
+			SortMaxFirst(moves, func(m Move) int {
+				return getEvalAtDepth(depth, m)
+			})
+
+			s.Logger.Println(fmt.Sprintf("info move: %v %v", (*moves)[0].String(), getEvalAtDepth(depth, (*moves)[0])), s.DebugStats())
+
+			if !s.OutOfTime || len(evaluationsAtDepth[depth]) >= 6 {
+				depthForSorting = depth
 			}
-
-			s.Logger.Println(
-				"search results "+strings.Join(MapSlice((*moves)[:3], func(m Move) string {
-					return fmt.Sprint(getEvalAtDepth(depth, m))
-				}), " "), ". ")
-
-			s.Logger.Println(s.DebugStats())
 
 			return NilError
 		}()
@@ -682,13 +710,15 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 		return Empty[Move](), NilError // forfeit / stalemate
 	}
 
-	bestMove := (*moves)[0]
-	eval := getEvalAtDepth(depth, bestMove)
-	if len(evaluationsAtDepth[depth]) > 6 {
-		eval = getEvalAtDepth(depth-1, bestMove)
-	}
+	bestIndex := IndexOfMax(*moves, func(m Move) int {
+		return getEvalAtDepth(depthForSorting, m)
+	})
+	bestMove := (*moves)[bestIndex]
+	bestEval := getEvalAtDepth(depthForSorting, bestMove)
 
-	if eval == -Inf {
+	s.Logger.Printf("info using evaluation from depth %v => %v %v\n", depthForSorting, bestMove.String(), bestEval)
+
+	if bestEval == -Inf {
 		return Empty[Move](), NilError // forfeit / stalemate
 	}
 

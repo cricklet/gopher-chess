@@ -189,6 +189,9 @@ func PlayBinaries(player0 *binary.BinaryRunner, player1 *binary.BinaryRunner,
 	}
 
 	nextBinary := player0
+	if runner.Player() == Black {
+		nextBinary = player1
+	}
 
 	history := map[string]int{}
 

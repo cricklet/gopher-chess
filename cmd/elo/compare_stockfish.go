@@ -185,10 +185,10 @@ func playGameBinaries(
 	binaryPath string,
 	binaryArgs []string,
 	stockfishElo int,
+	fen string,
 ) stockfishMatchResult {
 	var err Error
 
-	fen := "rnbqkbnr/pppppppp/8/8/8/8/PP1PP1PP/RNBQKBNR w KQkq - 0 1"
 	runner := NewChessGoRunner()
 	err = runner.SetupPosition(Position{
 		Fen:   fen,
@@ -302,7 +302,7 @@ func allEloResultsInDir(dir string) ([]stockfishEloResults, Error) {
 	return results, NilError
 }
 
-func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPath string) {
+func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPath string, fen string) {
 	var err Error
 	if shouldClean {
 		logger.Printf("cleaning %v\n     and %v\n", binaryPath, jsonPath)
@@ -347,7 +347,7 @@ func mainInner(shouldClean bool, binaryArgs []string, binaryPath string, jsonPat
 	logger.SetFooter(currentSuffix, _footerCurrent)
 	logger.SetFooter(historySuffix, _footerHistory)
 
-	result := playGameBinaries(binaryPath, binaryArgs, stockfishElo)
+	result := playGameBinaries(binaryPath, binaryArgs, stockfishElo, fen)
 
 	err = unmarshalEloResults(jsonPath, &results)
 	if !IsNil(err) {
@@ -380,6 +380,8 @@ func CompareStockfishMain(args []string) {
 	shouldProfile := false
 
 	tags := []string{}
+
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPP1PP/RNBQKBNR w KQkq - 0 1"
 
 	for _, arg := range args {
 		if arg == "clean" {
@@ -493,7 +495,7 @@ func CompareStockfishMain(args []string) {
 			fileNameBase := strings.Join(append([]string{dateString}, nextTags...), "_")
 			binaryPath := fmt.Sprintf("%s/%v", resultsDir, fileNameBase)
 			jsonPath := fmt.Sprintf("%s/%v.json", resultsDir, fileNameBase)
-			mainInner(shouldClean, nextBinaryArgs, binaryPath, jsonPath)
+			mainInner(shouldClean, nextBinaryArgs, binaryPath, jsonPath, fen)
 		}()
 
 		if !shouldClean {

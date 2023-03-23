@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"time"
 )
 
 func main() {
@@ -12,8 +11,8 @@ func main() {
 		if r := recover(); r != nil {
 			fmt.Fprintln(os.Stderr, fmt.Sprint(r))
 			fmt.Fprintln(os.Stderr, string(debug.Stack()))
-			time.Sleep(60 * time.Second)
-			main()
+			// time.Sleep(60 * time.Second)
+			// main()
 		}
 	}()
 

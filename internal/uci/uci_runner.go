@@ -6,7 +6,6 @@ import (
 
 	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/search"
 )
 
 type uciRunner struct {
@@ -82,11 +81,7 @@ func (u *uciRunner) HandleInput(input string) ([]string, Error) {
 		}
 
 		if move.IsEmpty() {
-			if search.KingIsInCheck(u.Runner.Bitboards(), u.Runner.Player()) {
-				result = append(result, "bestmove forfeit")
-			} else {
-				result = append(result, "bestmove draw")
-			}
+			result = append(result, "bestmove forfeit")
 		} else {
 			result = append(result, fmt.Sprintf("bestmove %v", move.Value()))
 		}
