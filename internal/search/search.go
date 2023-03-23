@@ -636,6 +636,13 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 				} else {
 					(*moves)[i].Evaluation = Some(score)
 				}
+
+				if i > 8 && s.OutOfTime {
+					for j := i + 1; j < len(*moves); j++ {
+						(*moves)[j].Evaluation = Empty[int]()
+					}
+					break
+				}
 			}
 
 			SortMaxFirst(moves, func(m Move) int {

@@ -226,6 +226,10 @@ func (r *ChessGoRunner) Player() Player {
 	return r.g.Player
 }
 
+func (r *ChessGoRunner) Bitboards() *Bitboards {
+	return r.b
+}
+
 func (r *ChessGoRunner) Board() BoardArray {
 	return r.g.Board
 }
@@ -235,7 +239,7 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	var err Error
 
 	go func() {
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		r.Searcher().OutOfTime = true
 	}()
 

@@ -69,6 +69,19 @@ func BuildChessGoIfMissing(binaryPath string) Error {
 	return NilError
 }
 
+func findMoveInOutput(output []string) (string, Error) {
+	if len(output) == 0 {
+		return "", Errorf("output was empty")
+	}
+	bestMoveString := FindInSlice(output, func(v string) bool {
+		return strings.HasPrefix(v, "bestmove ")
+	})
+	if bestMoveString.HasValue() {
+		return strings.Split(bestMoveString.Value(), " ")[1], NilError
+	}
+	return "", Errorf("couldn't find bestmove in output %v", output)
+}
+
 func Search(player Player, binary *binary.BinaryRunner, fen string, moveHistory []string, expectedFen string) []string {
 	fenInput := fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " "))
 	RunAsync(binary, fenInput)
@@ -90,9 +103,12 @@ func Search(player Player, binary *binary.BinaryRunner, fen string, moveHistory 
 
 	RunAsync(binary, "go")
 	if binary.CmdName() == "stockfish" {
-		time.Sleep(time.Millisecond * 10)
+		time.Sleep(time.Millisecond * 500)
 	}
-	move := findMoveInOutput(Run(binary, "stop", Some("bestmove")))
+	move, err := findMoveInOutput(Run(binary, "stop", Some("bestmove")))
+	if !IsNil(err) {
+		panic(err)
+	}
 	moveHistory = append(moveHistory, move)
 
 	logger.Printf("%v (%v) > %v\n", binary.CmdName(), player.String(), move)
