@@ -70,7 +70,6 @@ func (g *GameState) MoveFromString(s string) Move {
 		StartIndex:     start,
 		EndIndex:       end,
 		PromotionPiece: promotion,
-		Evaluation:     Empty[int](),
 	}
 }
 

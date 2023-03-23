@@ -32,7 +32,7 @@ func generateWalkMovesWithMagic(
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.NextIndexOfOne()
-				output = append(output, Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex, Evaluation: Empty[int]()})
+				output = append(output, Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex})
 			}
 		}
 		{
@@ -40,7 +40,7 @@ func generateWalkMovesWithMagic(
 			for tempCapture != 0 {
 				captureIndex, tempCapture = tempCapture.NextIndexOfOne()
 
-				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex, Evaluation: Empty[int]()})
+				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex})
 			}
 		}
 	}
@@ -70,7 +70,7 @@ func generateJumpMovesByLookup(
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.NextIndexOfOne()
-				output = append(output, Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex, Evaluation: Empty[int]()})
+				output = append(output, Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex})
 			}
 		}
 		{
@@ -78,7 +78,7 @@ func generateJumpMovesByLookup(
 			for tempCapture != 0 {
 				captureIndex, tempCapture = tempCapture.NextIndexOfOne()
 
-				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex, Evaluation: Empty[int]()})
+				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex})
 			}
 		}
 	}
@@ -112,7 +112,6 @@ func appendPawnMovesAndPossiblePromotions(moves []Move, moveType MoveType, playe
 					StartIndex:     startIndex,
 					EndIndex:       endIndex,
 					PromotionPiece: Some(piece),
-					Evaluation:     Empty[int](),
 				})
 			}
 		} else {
@@ -121,7 +120,6 @@ func appendPawnMovesAndPossiblePromotions(moves []Move, moveType MoveType, playe
 				StartIndex:     startIndex,
 				EndIndex:       endIndex,
 				PromotionPiece: Some(Queen),
-				Evaluation:     Empty[int](),
 			})
 		}
 	} else {
@@ -129,7 +127,6 @@ func appendPawnMovesAndPossiblePromotions(moves []Move, moveType MoveType, playe
 			MoveType:   moveType,
 			StartIndex: startIndex,
 			EndIndex:   endIndex,
-			Evaluation: Empty[int](),
 		})
 	}
 	return moves
@@ -190,7 +187,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 			for tempPotential != 0 {
 				index, tempPotential = tempPotential.NextIndexOfOne()
 
-				*moves = append(*moves, Move{MoveType: QuietMove, StartIndex: index - 2*pushOffset, EndIndex: index, Evaluation: Empty[int]()})
+				*moves = append(*moves, Move{MoveType: QuietMove, StartIndex: index - 2*pushOffset, EndIndex: index})
 			}
 		}
 
@@ -223,7 +220,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 					for tempPotential != 0 {
 						index, tempPotential = tempPotential.NextIndexOfOne()
 
-						*moves = append(*moves, Move{MoveType: EnPassantMove, StartIndex: index - captureOffset, EndIndex: index, Evaluation: Empty[int]()})
+						*moves = append(*moves, Move{MoveType: EnPassantMove, StartIndex: index - captureOffset, EndIndex: index})
 					}
 				}
 			}

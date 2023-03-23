@@ -239,39 +239,29 @@ func NewSearcherV2(logger Logger, game *GameState, bitboards *Bitboards, options
 	}
 }
 
-func (s *SearcherV2) basicMoveEvaluation(moves *[]Move) {
+func (s *SearcherV2) basicMoveEvaluation(moves *[]Move, evals map[Move]int) {
 	for i := range *moves {
-		(*moves)[i].Evaluation = Some(EvaluateMove(&(*moves)[i], s.Game))
+		evals[(*moves)[i]] = EvaluateMove(&(*moves)[i], s.Game)
 	}
 }
 
-func (s *SearcherV2) SortMoves(moves *[]Move) {
+func (s *SearcherV2) SortMoves(moves *[]Move, evals map[Move]int) {
 	if s.options.sortPartial.HasValue() {
 		n := s.options.sortPartial.Value()
 		if n == 0 {
 			return
 		} else {
-			s.basicMoveEvaluation(moves)
+			s.basicMoveEvaluation(moves, evals)
 			psort.Slice(*moves, func(i, j int) bool {
-				return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
+				return evals[(*moves)[i]] > evals[(*moves)[j]]
 			}, n)
 			return
 		}
 	}
-	s.basicMoveEvaluation(moves)
+	s.basicMoveEvaluation(moves, evals)
 	sort.SliceStable(*moves, func(i, j int) bool {
-		return (*moves)[i].Evaluation.Value() > (*moves)[j].Evaluation.Value()
+		return evals[(*moves)[i]] > evals[(*moves)[j]]
 	})
-}
-
-func (s *SearcherV2) GenerateSortedPseudoMoves(moves *[]Move) {
-	GeneratePseudoMoves(s.Bitboards, s.Game, moves)
-	s.SortMoves(moves)
-}
-
-func (s *SearcherV2) GenerateSortedPseudoCaptures(moves *[]Move) {
-	GeneratePseudoCaptures(s.Bitboards, s.Game, moves)
-	s.SortMoves(moves)
 }
 
 func (s *SearcherV2) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, Error) {
@@ -322,7 +312,10 @@ func (s *SearcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta in
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	s.GenerateSortedPseudoCaptures(moves)
+	evals := make(map[Move]int)
+	GeneratePseudoCaptures(s.Bitboards, s.Game, moves)
+	s.SortMoves(moves, evals)
+
 	if len(*moves) == 0 {
 		returnScore = s.EvaluatePosition(player)
 		s.DebugTotalEvaluations++
@@ -330,9 +323,11 @@ func (s *SearcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta in
 	}
 
 	for i := range *moves {
-		if (*moves)[i].Evaluation.Value() <= 0 {
-			s.DebugCapturesSkipped++
-			break
+		if eval, ok := evals[(*moves)[i]]; ok {
+			if eval <= 0 {
+				s.DebugCapturesSkipped++
+				break
+			}
 		}
 
 		s.DebugCapturesSearched++
@@ -450,7 +445,9 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	s.GenerateSortedPseudoMoves(moves)
+	evals := make(map[Move]int)
+	GeneratePseudoMoves(s.Bitboards, s.Game, moves)
+	s.SortMoves(moves, evals)
 
 	hasLegalMove := false
 
@@ -603,22 +600,36 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	s.GenerateSortedPseudoMoves(moves)
+	evals := make(map[Move]int)
+	GeneratePseudoMoves(s.Bitboards, s.Game, moves)
+	s.SortMoves(moves, evals)
 
 	maxDepth := 20
 	if s.options.maxDepth.HasValue() {
 		maxDepth = s.options.maxDepth.Value()
 	}
 
-	for depth := 1; depth <= maxDepth; depth += 1 {
+	evaluationsAtDepth := make(map[int]map[Move]int)
+	getEvalAtDepth := func(depth int, move Move) int {
+		if eval, ok := evaluationsAtDepth[depth][move]; ok {
+			return eval
+		} else {
+			return -Inf
+		}
+	}
+
+	depth := 1
+	for ; depth <= maxDepth; depth += 1 {
 		s.DebugDepthIteration = depth
 		s.DebugMovesToConsider = len(*moves)
 		s.DebugMovesConsidered = 0
+		evaluationsAtDepth[depth] = make(map[Move]int)
+
 		err := func() Error {
 			if s.options.debugSearchTree != nil {
 				s.options.debugSearchTree.DepthPush(fmt.Sprintf("depth %d", depth))
 				defer func() {
-					s.options.debugSearchTree.DepthPop(fmt.Sprintf("depth %d", depth), (*moves)[0].Evaluation.Value())
+					s.options.debugSearchTree.DepthPop(fmt.Sprintf("depth %d", depth), getEvalAtDepth(depth, (*moves)[0]))
 				}()
 			}
 
@@ -631,31 +642,26 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 				s.DebugMovesConsidered++
 
 				if !legality {
-					(*moves)[i].Evaluation = Empty[int]()
+					evaluationsAtDepth[depth][(*moves)[i]] = -Inf
 					continue
 				} else {
-					(*moves)[i].Evaluation = Some(score)
+					evaluationsAtDepth[depth][(*moves)[i]] = score
 				}
 
-				if i > 4 && s.OutOfTime {
-					for j := i + 1; j < len(*moves); j++ {
-						(*moves)[j].Evaluation = Empty[int]()
-					}
+				if s.OutOfTime {
 					break
 				}
 			}
 
-			SortMaxFirst(moves, func(m Move) int {
-				if m.Evaluation.HasValue() {
-					return m.Evaluation.Value()
-				} else {
-					return -Inf
-				}
-			})
+			if !s.OutOfTime || len(evaluationsAtDepth[depth]) > 6 {
+				SortMaxFirst(moves, func(m Move) int {
+					return getEvalAtDepth(depth, m)
+				})
+			}
 
 			s.Logger.Println(
 				"search results "+strings.Join(MapSlice((*moves)[:3], func(m Move) string {
-					return m.String() + " " + strconv.Itoa(m.Evaluation.Value())
+					return fmt.Sprint(getEvalAtDepth(depth, m))
 				}), " "), ". ")
 
 			s.Logger.Println(s.DebugStats())
@@ -677,7 +683,12 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 	}
 
 	bestMove := (*moves)[0]
-	if !bestMove.Evaluation.HasValue() || bestMove.Evaluation.Value() == -Inf {
+	eval := getEvalAtDepth(depth, bestMove)
+	if len(evaluationsAtDepth[depth]) > 6 {
+		eval = getEvalAtDepth(depth-1, bestMove)
+	}
+
+	if eval == -Inf {
 		return Empty[Move](), NilError // forfeit / stalemate
 	}
 
