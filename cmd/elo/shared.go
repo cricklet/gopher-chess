@@ -275,8 +275,13 @@ func RunThenStop(binary *binary.BinaryRunner, cmd string, wait time.Duration, st
 	var result []string
 	binary.Logger.Print("in=>", cmd)
 
+	done := false
+
 	go func() {
 		time.Sleep(wait)
+		if done {
+			return
+		}
 		binary.Logger.Print("in=>", stopCmd)
 		err := binary.RunAsync(stopCmd)
 		if !IsNil(err) {
@@ -288,5 +293,7 @@ func RunThenStop(binary *binary.BinaryRunner, cmd string, wait time.Duration, st
 	if !IsNil(err) {
 		panic(err)
 	}
+
+	done = true
 	return result, returnErr
 }

@@ -637,7 +637,7 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 					(*moves)[i].Evaluation = Some(score)
 				}
 
-				if i > 8 && s.OutOfTime {
+				if i > 4 && s.OutOfTime {
 					for j := i + 1; j < len(*moves); j++ {
 						(*moves)[j].Evaluation = Empty[int]()
 					}

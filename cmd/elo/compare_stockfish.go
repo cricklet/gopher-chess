@@ -188,7 +188,7 @@ func playGameBinaries(
 ) stockfishMatchResult {
 	var err Error
 
-	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPP1P/RNBQKBNR w KQkq - 0 1"
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PP1PP1PP/RNBQKBNR w KQkq - 0 1"
 	runner := NewChessGoRunner()
 	err = runner.SetupPosition(Position{
 		Fen:   fen,
