@@ -146,15 +146,15 @@ type SearcherOptions struct {
 var DefaultSearchOptions = SearcherOptions{}
 
 var AllSearchOptions = []string{
-	"incDepthForCheck",
-	"endgamePushEnemyKing",
-	"handleLegality",
+	// "incDepthForCheck",
+	// "endgamePushEnemyKing",
+	// "handleLegality",
 	"transpositionTable",
-	"sortPartial=0",
-	"sortPartial=1",
-	"sortPartial=4",
+	// "sortPartial=0",
+	// "sortPartial=1",
+	// "sortPartial=4",
 	"incDepthForCheck=1",
-	"incDepthForCheck=2",
+	// "incDepthForCheck=2",
 }
 
 var DisallowedSearchOptionCombinations = [][]string{

@@ -100,24 +100,25 @@ func setupChessGoRunner(binaryPath string, options string, fen string) (*binary.
 	return player, err
 }
 
-func runGame(binaryPath string, opt1 string, opt2 string) (float32, Error) {
+func runGame(binaryPath string, opt1 string, opt2 string) (float32, []int, Error) {
+	evaluations := []int{0}
 	evaluator, err := NewEvaluator()
 	if !IsNil(err) {
-		return 0.5, err
+		return 0.5, evaluations, err
 	}
 
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 	var player1 *binary.BinaryRunner
 	player1, err = setupChessGoRunner(binaryPath, opt1, fen)
 	if !IsNil(err) {
-		return 0.5, err
+		return 0.5, evaluations, err
 	}
 	defer player1.Close()
 
 	var player2 *binary.BinaryRunner
 	player2, err = setupChessGoRunner(binaryPath, opt2, fen)
 	if !IsNil(err) {
-		return 0.5, err
+		return 0.5, evaluations, err
 	}
 	defer player2.Close()
 
@@ -130,12 +131,20 @@ func runGame(binaryPath string, opt1 string, opt2 string) (float32, Error) {
 		panic(err)
 	}
 
+	currentSuffix := HintText(fmt.Sprintf(
+		"white (%v) vs black (%v), %v",
+		opt1, opt2, binaryPath))
+	logger.SetFooter(currentSuffix, _footerCurrent)
+
 	result, err := PlayBinaries(player1, player2, &runner, func() {
 		player := runner.Player()
 
 		pgnString := fmt.Sprintf("%v\n%v", runner.PgnFromMoveHistory(), runner.FenString())
 		logger.SetFooter(HintText(pgnString), _footerPgn)
 		logger.SetFooter(runner.Board().Unicode(), _footerBoard)
+		logger.SetFooter(
+			HintText(strings.Join(MapSlice(evaluations, func(e int) string { return fmt.Sprintf("%v", e) }), " ")),
+			_footerHistory)
 
 		score, err := evaluator.Evaluate(runner.FenString())
 		if !IsNil(err) {
@@ -146,24 +155,28 @@ func runGame(binaryPath string, opt1 string, opt2 string) (float32, Error) {
 			score = -score
 		}
 
+		evaluations = append(evaluations, score)
+
 		logger.SetFooter(HintText(fmt.Sprintf("eval: %v, piece: %v",
 			score,
 			runner.EvaluateSimple(White))),
 			_footerEval)
 	})
 	if !IsNil(err) {
-		return 0.5, err
+		return 0.5, evaluations, err
 	}
 
-	return result, err
+	return result, evaluations, err
 }
 
 type matchResult struct {
-	WhiteBinary string  `json:"whiteBinary"`
-	WhiteOpts   string  `json:"whiteOpts"`
-	BlackBinary string  `json:"blackBinary"`
-	BlackOpts   string  `json:"blackOpts"`
-	Result      float32 `json:"result"`
+	WhiteBinary  string  `json:"whiteBinary"`
+	WhiteOpts    string  `json:"whiteOpts"`
+	BlackBinary  string  `json:"blackBinary"`
+	BlackOpts    string  `json:"blackOpts"`
+	Result       float32 `json:"result"`
+	HalfwayEval  int     `json:"halfwayEval"`
+	EndgameEvals []int   `json:"endgameEvals"`
 }
 
 type binaryDefinition struct {
@@ -262,17 +275,19 @@ func runTournament(binaryPath string, updater updateTournamentResults) Error {
 				if opt1 == opt2 {
 					continue
 				}
-				result, err := runGame(binaryPath, opt1, opt2)
+				result, evaluations, err := runGame(binaryPath, opt1, opt2)
 				if !IsNil(err) {
 					return err
 				}
 
 				err = updater.Update(matchResult{
-					WhiteBinary: binaryPath,
-					WhiteOpts:   opt1,
-					BlackBinary: binaryPath,
-					BlackOpts:   opt2,
-					Result:      result,
+					WhiteBinary:  binaryPath,
+					WhiteOpts:    opt1,
+					BlackBinary:  binaryPath,
+					BlackOpts:    opt2,
+					Result:       result,
+					HalfwayEval:  evaluations[len(evaluations)/2],
+					EndgameEvals: evaluations[len(evaluations)-5:],
 				})
 				if !IsNil(err) {
 					return err
