@@ -138,7 +138,6 @@ func TestCheckMateInOne(t *testing.T) {
 	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
 		SearcherOptions{
 			debugSearchTree:   &debugSearchTree{},
-			handleLegality:    true,
 			evaluationOptions: []EvaluationOption{EndgamePushEnemyKing},
 		})
 
@@ -172,7 +171,6 @@ func TestCheckMateInOne2(t *testing.T) {
 	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
 		SearcherOptions{
 			debugSearchTree: &debugSearchTree{},
-			handleLegality:  true,
 		})
 
 	var result Optional[Move]
@@ -231,7 +229,6 @@ func TestShouldMateInsteadOfDraw(t *testing.T) {
 
 	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
 		SearcherOptions{
-			handleLegality: true,
 			evaluationOptions: []EvaluationOption{
 				EndgamePushEnemyKing,
 			},
@@ -281,8 +278,7 @@ func TestQuiescence(t *testing.T) {
 
 	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
 		SearcherOptions{
-			maxDepth:       Some(3),
-			handleLegality: true,
+			maxDepth: Some(3),
 		})
 
 	_, err = searcher.Search()
@@ -307,7 +303,6 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 			// debugSearchTree:    &debugSearchTree{},
 			// debugSearchStack:   &[]string{},
 			sortPartial:           Some(3),
-			handleLegality:        true,
 			useTranspositionTable: true,
 		})
 

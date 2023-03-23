@@ -292,6 +292,8 @@ func runTournament(binaryPath string, updater updateTournamentResults) Error {
 				if !IsNil(err) {
 					return err
 				}
+
+				time.Sleep(20 * time.Second)
 			}
 		}
 	}

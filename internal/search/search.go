@@ -135,7 +135,6 @@ type incDepthForCheck struct {
 type SearcherOptions struct {
 	incDepthForCheck      incDepthForCheck
 	evaluationOptions     []EvaluationOption
-	handleLegality        bool
 	sortPartial           Optional[int]
 	useTranspositionTable bool
 
@@ -148,7 +147,6 @@ var DefaultSearchOptions = SearcherOptions{}
 var AllSearchOptions = []string{
 	// "incDepthForCheck",
 	// "endgamePushEnemyKing",
-	// "handleLegality",
 	"transpositionTable",
 	// "sortPartial=0",
 	// "sortPartial=1",
@@ -222,8 +220,6 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 			}
 		} else if strings.HasPrefix(arg, "endgamePushEnemyKing") {
 			options.evaluationOptions = append(options.evaluationOptions, EndgamePushEnemyKing)
-		} else if strings.HasPrefix(arg, "handleLegality") {
-			options.handleLegality = true
 		} else if strings.HasPrefix(arg, "debugSearchTree") {
 			options.debugSearchTree = &debugSearchTree{}
 		} else if strings.HasPrefix(arg, "transpositionTable") {
@@ -486,13 +482,9 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 			returnScore = moveScore
 			returnScoreType = Exact
 		}
-
-		if s.OutOfTime {
-			break
-		}
 	}
 
-	if !hasLegalMove && s.options.handleLegality {
+	if !hasLegalMove {
 		if KingIsInCheck(s.Bitboards, s.Game.Player) {
 			returnScore = -Inf
 			returnScoreType = Exact
@@ -622,7 +614,7 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 		maxDepth = s.options.maxDepth.Value()
 	}
 
-	for depth := 2; depth <= maxDepth; depth += 2 {
+	for depth := 1; depth <= maxDepth; depth += 1 {
 		s.DebugDepthIteration = depth
 		s.DebugMovesToConsider = len(*moves)
 		s.DebugMovesConsidered = 0
@@ -647,10 +639,6 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 					continue
 				} else {
 					(*moves)[i].Evaluation = Some(score)
-				}
-
-				if s.OutOfTime {
-					break
 				}
 			}
 
