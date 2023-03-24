@@ -39,21 +39,21 @@ func IsLegal(g *GameState, b *Bitboards, move Move) (bool, Error) {
 }
 
 func NoValidMoves(g *GameState, b *Bitboards) (bool, Error) {
-	moves := GetMovesBuffer()
-	defer ReleaseMovesBuffer(moves)
+	foundValidMove := false
+	returnError := NilError
 
-	GeneratePseudoMovesSkippingCastling(b, g, moves)
+	GeneratePseudoMovesSkippingCastling(func(move Move) {
+		if foundValidMove || !IsNil(returnError) {
+			return
+		}
 
-	for _, move := range *moves {
 		legal, err := IsLegal(g, b, move)
 		if !IsNil(err) {
-			return legal, err
+			returnError = Join(returnError, err)
+		} else if legal {
+			foundValidMove = true
 		}
+	}, b, g)
 
-		if legal {
-			return false, NilError
-		}
-	}
-
-	return true, NilError
+	return !foundValidMove, returnError
 }

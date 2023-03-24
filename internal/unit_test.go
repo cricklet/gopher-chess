@@ -356,11 +356,9 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 	bitboards := g.CreateBitboards()
 
 	result := []string{}
-	moves := GetMovesBuffer()
-	GeneratePseudoMoves(&bitboards, &g, moves)
-	for _, move := range *moves {
+	GeneratePseudoMoves(func(move Move) {
 		result = append(result, move.String())
-	}
+	}, &bitboards, &g)
 
 	expected := []string{
 		"a2a3",
@@ -438,12 +436,9 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 	bitboards := g.CreateBitboards()
 
 	result := []string{}
-
-	moves := GetMovesBuffer()
-	GeneratePseudoMoves(&bitboards, &g, moves)
-	for _, move := range *moves {
+	GeneratePseudoMoves(func(move Move) {
 		result = append(result, move.String())
-	}
+	}, &bitboards, &g)
 
 	expected := []string{
 		"a2a3",
@@ -654,12 +649,9 @@ func TestWhiteCastling(t *testing.T) {
 	bitboards := g.CreateBitboards()
 
 	result := []string{}
-
-	moves := GetMovesBuffer()
-	GeneratePseudoMoves(&bitboards, &g, moves)
-	for _, move := range *moves {
+	GeneratePseudoMoves(func(move Move) {
 		result = append(result, move.String())
-	}
+	}, &bitboards, &g)
 
 	expected := []string{
 		// rook
@@ -750,12 +742,9 @@ func TestBlackCastling(t *testing.T) {
 	bitboards := g.CreateBitboards()
 
 	result := []string{}
-
-	moves := GetMovesBuffer()
-	GeneratePseudoMoves(&bitboards, &g, moves)
-	for _, move := range *moves {
+	GeneratePseudoMoves(func(move Move) {
 		result = append(result, move.String())
-	}
+	}, &bitboards, &g)
 
 	expected := []string{
 		// queen

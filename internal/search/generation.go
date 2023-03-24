@@ -7,13 +7,13 @@ import (
 )
 
 func generateWalkMovesWithMagic(
+	f func(move Move),
 	pieces Bitboard,
 	allOccupied Bitboard,
 	selfOccupied Bitboard,
 	magicTable MagicMoveTable,
 	onlyCaptures bool,
-	output []Move,
-) []Move {
+) {
 	startIndex, tempPieces := 0, Bitboard(pieces)
 	for tempPieces != 0 {
 		startIndex, tempPieces = tempPieces.NextIndexOfOne()
@@ -32,7 +32,7 @@ func generateWalkMovesWithMagic(
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.NextIndexOfOne()
-				output = append(output, Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex})
+				f(Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex})
 			}
 		}
 		{
@@ -40,22 +40,20 @@ func generateWalkMovesWithMagic(
 			for tempCapture != 0 {
 				captureIndex, tempCapture = tempCapture.NextIndexOfOne()
 
-				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex})
+				f(Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex})
 			}
 		}
 	}
-
-	return output
 }
 
 func generateJumpMovesByLookup(
+	f func(move Move),
 	pieces Bitboard,
 	allOccupied Bitboard,
 	selfOccupied Bitboard,
 	attackMasks [64]Bitboard,
 	onlyCaptures bool,
-	output []Move,
-) []Move {
+) {
 	startIndex, tempPieces := 0, Bitboard(pieces)
 	for tempPieces != 0 {
 		startIndex, tempPieces = tempPieces.NextIndexOfOne()
@@ -70,7 +68,7 @@ func generateJumpMovesByLookup(
 			endIndex, tempQuiet := 0, Bitboard(quiet)
 			for tempQuiet != 0 {
 				endIndex, tempQuiet = tempQuiet.NextIndexOfOne()
-				output = append(output, Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex})
+				f(Move{MoveType: QuietMove, StartIndex: startIndex, EndIndex: endIndex})
 			}
 		}
 		{
@@ -78,36 +76,34 @@ func generateJumpMovesByLookup(
 			for tempCapture != 0 {
 				captureIndex, tempCapture = tempCapture.NextIndexOfOne()
 
-				output = append(output, Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex})
+				f(Move{MoveType: CaptureMove, StartIndex: startIndex, EndIndex: captureIndex})
 			}
 		}
 	}
-
-	return output
 }
 
 var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = CreatePool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
-func GeneratePseudoMoves(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, false /* allPossiblePromotions */, false /*skipCastling*/)
+func GeneratePseudoMoves(f func(move Move), b *Bitboards, g *GameState) {
+	GeneratePseudoMovesInternal(f, b, g, false /* onlyCaptures */, false /* allPossiblePromotions */, false /*skipCastling*/)
 }
-func GeneratePseudoMovesWithAllPromotions(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, true /* allPossiblePromotions */, false /*skipCastling*/)
+func GeneratePseudoMovesWithAllPromotions(f func(move Move), b *Bitboards, g *GameState) {
+	GeneratePseudoMovesInternal(f, b, g, false /* onlyCaptures */, true /* allPossiblePromotions */, false /*skipCastling*/)
 }
-func GeneratePseudoMovesSkippingCastling(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, false /* onlyCaptures */, true /* allPossiblePromotions */, true /*skipCastling*/)
+func GeneratePseudoMovesSkippingCastling(f func(move Move), b *Bitboards, g *GameState) {
+	GeneratePseudoMovesInternal(f, b, g, false /* onlyCaptures */, true /* allPossiblePromotions */, true /*skipCastling*/)
 }
-func GeneratePseudoCaptures(b *Bitboards, g *GameState, moves *[]Move) {
-	GeneratePseudoMovesInternal(b, g, moves, true /* onlyCaptures */, false /* allPossiblePromotions */, true /* skipCastling */)
+func GeneratePseudoCaptures(f func(move Move), b *Bitboards, g *GameState) {
+	GeneratePseudoMovesInternal(f, b, g, true /* onlyCaptures */, false /* allPossiblePromotions */, true /* skipCastling */)
 }
 
 var possiblePromotions = []PieceType{Queen, Rook, Bishop, Knight}
 
-func appendPawnMovesAndPossiblePromotions(moves []Move, moveType MoveType, player Player, startIndex int, endIndex int, allPossiblePromotions bool) []Move {
+func appendPawnMovesAndPossiblePromotions(f func(move Move), moveType MoveType, player Player, startIndex int, endIndex int, allPossiblePromotions bool) {
 	if IsPromotionIndex(endIndex, player) {
 		if allPossiblePromotions {
 			for _, piece := range possiblePromotions {
-				moves = append(moves, Move{
+				f(Move{
 					MoveType:       moveType,
 					StartIndex:     startIndex,
 					EndIndex:       endIndex,
@@ -115,7 +111,7 @@ func appendPawnMovesAndPossiblePromotions(moves []Move, moveType MoveType, playe
 				})
 			}
 		} else {
-			moves = append(moves, Move{
+			f(Move{
 				MoveType:       moveType,
 				StartIndex:     startIndex,
 				EndIndex:       endIndex,
@@ -123,16 +119,15 @@ func appendPawnMovesAndPossiblePromotions(moves []Move, moveType MoveType, playe
 			})
 		}
 	} else {
-		moves = append(moves, Move{
+		f(Move{
 			MoveType:   moveType,
 			StartIndex: startIndex,
 			EndIndex:   endIndex,
 		})
 	}
-	return moves
 }
 
-func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, onlyCaptures bool, allPossiblePromotions bool, skipCastling bool) {
+func GeneratePseudoMovesInternal(f func(move Move), b *Bitboards, g *GameState, onlyCaptures bool, allPossiblePromotions bool, skipCastling bool) {
 	player := g.Player
 	playerBoards := b.Players[player]
 	enemyBoards := &b.Players[player.Other()]
@@ -154,7 +149,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 				}
 
 				if canCastle {
-					*moves = append(*moves, requirements.Move)
+					f(requirements.Move)
 				}
 			}
 		}
@@ -170,7 +165,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 			index, tempPotential := 0, Bitboard(potential)
 			for tempPotential != 0 {
 				index, tempPotential = tempPotential.NextIndexOfOne()
-				*moves = appendPawnMovesAndPossiblePromotions(*moves, QuietMove, player, index-pushOffset, index, allPossiblePromotions)
+				appendPawnMovesAndPossiblePromotions(f, QuietMove, player, index-pushOffset, index, allPossiblePromotions)
 			}
 		}
 
@@ -187,7 +182,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 			for tempPotential != 0 {
 				index, tempPotential = tempPotential.NextIndexOfOne()
 
-				*moves = append(*moves, Move{MoveType: QuietMove, StartIndex: index - 2*pushOffset, EndIndex: index})
+				f(Move{MoveType: QuietMove, StartIndex: index - 2*pushOffset, EndIndex: index})
 			}
 		}
 
@@ -202,7 +197,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 				for tempPotential != 0 {
 					index, tempPotential = tempPotential.NextIndexOfOne()
 
-					*moves = appendPawnMovesAndPossiblePromotions(*moves, CaptureMove, player, index-captureOffset, index, allPossiblePromotions)
+					appendPawnMovesAndPossiblePromotions(f, CaptureMove, player, index-captureOffset, index, allPossiblePromotions)
 				}
 			}
 		}
@@ -220,7 +215,7 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 					for tempPotential != 0 {
 						index, tempPotential = tempPotential.NextIndexOfOne()
 
-						*moves = append(*moves, Move{MoveType: EnPassantMove, StartIndex: index - captureOffset, EndIndex: index})
+						f(Move{MoveType: EnPassantMove, StartIndex: index - captureOffset, EndIndex: index})
 					}
 				}
 			}
@@ -248,18 +243,18 @@ func GeneratePseudoMovesInternal(b *Bitboards, g *GameState, moves *[]Move, only
 		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, NW, *moves)
 		// *moves = generateWalkMoves(playerBoards.pieces[QUEEN], b.occupied, enemyBoards.occupied, SW, *moves)
 
-		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Rook], b.Occupied, playerBoards.Occupied, RookMagicTable, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Bishop], b.Occupied, playerBoards.Occupied, BishopMagicTable, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Queen], b.Occupied, playerBoards.Occupied, RookMagicTable, onlyCaptures, *moves)
-		*moves = generateWalkMovesWithMagic(playerBoards.Pieces[Queen], b.Occupied, playerBoards.Occupied, BishopMagicTable, onlyCaptures, *moves)
+		generateWalkMovesWithMagic(f, playerBoards.Pieces[Rook], b.Occupied, playerBoards.Occupied, RookMagicTable, onlyCaptures)
+		generateWalkMovesWithMagic(f, playerBoards.Pieces[Bishop], b.Occupied, playerBoards.Occupied, BishopMagicTable, onlyCaptures)
+		generateWalkMovesWithMagic(f, playerBoards.Pieces[Queen], b.Occupied, playerBoards.Occupied, RookMagicTable, onlyCaptures)
+		generateWalkMovesWithMagic(f, playerBoards.Pieces[Queen], b.Occupied, playerBoards.Occupied, BishopMagicTable, onlyCaptures)
 	}
 
 	{
 		// generate knight moves
-		*moves = generateJumpMovesByLookup(playerBoards.Pieces[Knight], b.Occupied, playerBoards.Occupied, KnightAttackMasks, onlyCaptures, *moves)
+		generateJumpMovesByLookup(f, playerBoards.Pieces[Knight], b.Occupied, playerBoards.Occupied, KnightAttackMasks, onlyCaptures)
 
 		// generate king moves
-		*moves = generateJumpMovesByLookup(playerBoards.Pieces[King], b.Occupied, playerBoards.Occupied, KingAttackMasks, onlyCaptures, *moves)
+		generateJumpMovesByLookup(f, playerBoards.Pieces[King], b.Occupied, playerBoards.Occupied, KingAttackMasks, onlyCaptures)
 	}
 }
 
@@ -350,26 +345,29 @@ func DangerBoard(b *Bitboards, player Player) Bitboard {
 }
 
 func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) Error {
-	player := g.Player
-	potentialMoves := GetMovesBuffer()
-	defer ReleaseMovesBuffer(potentialMoves)
-	GeneratePseudoMoves(b, g, potentialMoves)
+	var returnError Error
 
-	for _, move := range *potentialMoves {
-		update := BoardUpdate{}
-		err := g.PerformMove(move, &update, b)
-		if !IsNil(err) {
-			return err
+	player := g.Player
+	GeneratePseudoMoves(func(move Move) {
+		if !IsNil(returnError) {
+			return
 		}
+
+		update := BoardUpdate{}
+		returnError = g.PerformMove(move, &update, b)
+		if !IsNil(returnError) {
+			return
+		}
+
 		if !KingIsInCheck(b, player) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 
-		err = g.UndoUpdate(&update, b)
-		if !IsNil(err) {
-			return Errorf("GenerateLegalMoves: %w", err)
+		returnError = g.UndoUpdate(&update, b)
+		if !IsNil(returnError) {
+			return
 		}
-	}
+	}, b, g)
 
-	return NilError
+	return returnError
 }

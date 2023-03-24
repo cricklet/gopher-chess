@@ -67,16 +67,13 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 
 	movingPlayer := g.Player
 
-	moves := GetMovesBuffer()
-	GeneratePseudoMovesWithAllPromotions(b, g, moves)
-
 	startingFen := ""
 	if outputPerftResults != nil {
 		startingFen = FenStringForGame(g)
 	}
 
-	for _, move := range *moves {
-		func() {
+	GeneratePseudoMovesWithAllPromotions(
+		func(move Move) {
 			update := BoardUpdate{}
 			err := g.PerformMove(move, &update, b)
 			if !IsNil(err) {
@@ -117,14 +114,11 @@ func countAndPerftForDepth(t *testing.T, g *GameState, b *Bitboards, n int, prog
 					}
 				}
 			}
-		}()
-
-		if progress != nil {
-			*progress <- result.leaves
-		}
-	}
-
-	ReleaseMovesBuffer(moves)
+			if progress != nil {
+				*progress <- result.leaves
+			}
+		},
+		b, g)
 
 	return result
 }
@@ -462,7 +456,9 @@ func TestPositionPromotion(t *testing.T) {
 
 	{
 		moves := []Move{}
-		GeneratePseudoMovesWithAllPromotions(&b, &g, &moves)
+		GeneratePseudoMovesWithAllPromotions(func(m Move) {
+			moves = append(moves, m)
+		}, &b, &g)
 
 		expectedMoves := []string{
 			"h2h1q",
@@ -482,7 +478,9 @@ func TestPositionPromotion(t *testing.T) {
 
 	{
 		moves := []Move{}
-		GeneratePseudoMoves(&b, &g, &moves)
+		GeneratePseudoMoves(func(m Move) {
+			moves = append(moves, m)
+		}, &b, &g)
 
 		expectedMoves := []string{
 			"h2h1q",
@@ -609,7 +607,9 @@ func TestPosition5QueenRetreat(t *testing.T) {
 	assert.Equal(t, strings.Join(expectedBitboardString, "\n"), b.Occupied.String())
 
 	moves := []Move{}
-	GeneratePseudoMovesWithAllPromotions(&b, &g, &moves)
+	GeneratePseudoMovesWithAllPromotions(func(m Move) {
+		moves = append(moves, m)
+	}, &b, &g)
 	moveStrings := MapSlice(moves, func(m Move) string { return m.String() })
 
 	numExpectedMoves := 55

@@ -200,15 +200,6 @@ func NewSearcherV2(logger Logger, game *GameState, bitboards *Bitboards, options
 	}
 }
 
-func (s *SearcherV2) SortMoves(moves *[]Move, evals map[Move]int) {
-	for i := range *moves {
-		evals[(*moves)[i]] = EvaluateMove(&(*moves)[i], s.Game)
-	}
-	sort.SliceStable(*moves, func(i, j int) bool {
-		return evals[(*moves)[i]] > evals[(*moves)[j]]
-	})
-}
-
 func (s *SearcherV2) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, Error) {
 	s.DebugTotalMovesPerformed++
 	err := s.Game.PerformMove(move, update, s.Bitboards)
@@ -262,8 +253,14 @@ func (s *SearcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta in
 	defer ReleaseMovesBuffer(moves)
 
 	evals := make(map[Move]int)
-	GeneratePseudoCaptures(s.Bitboards, s.Game, moves)
-	s.SortMoves(moves, evals)
+	GeneratePseudoCaptures(func(m Move) {
+		*moves = append(*moves, m)
+		evals[m] = EvaluateMove(&m, s.Game)
+	}, s.Bitboards, s.Game)
+
+	sort.Slice(*moves, func(i, j int) bool {
+		return evals[(*moves)[i]] > evals[(*moves)[j]]
+	})
 
 	if len(*moves) == 0 {
 		returnScore = s.EvaluatePosition(player)
@@ -382,17 +379,18 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 				} else {
 					return alpha, NilError
 				}
-			} else if scoreType == AlphaFailUpperBound {
-				if score <= alpha {
-					// There isn't a better result in this subtree
-					return alpha, NilError
-				}
-			} else if scoreType == BetaFailLowerBound {
-				if score >= beta {
-					// The enemy will avoid this line
-					return beta, NilError
-				}
 			}
+			// else if scoreType == AlphaFailUpperBound {
+			// 	if score <= alpha {
+			// 		// There isn't a better result in this subtree
+			// 		return alpha, NilError
+			// 	}
+			// } else if scoreType == BetaFailLowerBound {
+			// 	if score >= beta {
+			// 		// The enemy will avoid this line
+			// 		return beta, NilError
+			// 	}
+			// }
 		}
 	}
 
@@ -403,8 +401,14 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 	defer ReleaseMovesBuffer(moves)
 
 	evals := make(map[Move]int)
-	GeneratePseudoMoves(s.Bitboards, s.Game, moves)
-	s.SortMoves(moves, evals)
+	GeneratePseudoMoves(func(m Move) {
+		*moves = append(*moves, m)
+		evals[m] = EvaluateMove(&m, s.Game)
+	}, s.Bitboards, s.Game)
+
+	sort.Slice(*moves, func(i, j int) bool {
+		return evals[(*moves)[i]] > evals[(*moves)[j]]
+	})
 
 	hasLegalMove := false
 
@@ -572,8 +576,14 @@ func (s *SearcherV2) Search() (Optional[Move], Error) {
 	defer ReleaseMovesBuffer(moves)
 
 	evals := make(map[Move]int)
-	GeneratePseudoMoves(s.Bitboards, s.Game, moves)
-	s.SortMoves(moves, evals)
+	GeneratePseudoMoves(func(m Move) {
+		*moves = append(*moves, m)
+		evals[m] = EvaluateMove(&m, s.Game)
+	}, s.Bitboards, s.Game)
+
+	sort.Slice(*moves, func(i, j int) bool {
+		return evals[(*moves)[i]] > evals[(*moves)[j]]
+	})
 
 	maxDepth := 20
 	if s.options.maxDepth.HasValue() {
