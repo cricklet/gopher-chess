@@ -342,13 +342,7 @@ func TestDeeperSearchesAvoidPins(t *testing.T) {
 
 	player := Black
 
-	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards,
-		SearcherOptions{
-			// debugSearchTree:    &debugSearchTree{},
-			// debugSearchStack:   &[]string{},
-			sortPartial:           Some(3),
-			useTranspositionTable: true,
-		})
+	searcher := NewSearcherV2(&SilentLogger, &game, &bitboards, SearcherOptions{})
 
 	{
 		go func() {

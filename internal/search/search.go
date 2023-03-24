@@ -3,10 +3,8 @@ package search
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
-	"github.com/bluele/psort"
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -116,6 +114,8 @@ type SearcherV2 struct {
 	Game      *GameState
 	Bitboards *Bitboards
 
+	hasIncrementedDepthForCheck bool
+
 	options SearcherOptions
 
 	DebugTotalEvaluations    int
@@ -127,16 +127,9 @@ type SearcherV2 struct {
 	DebugCapturesSkipped     int
 }
 
-type incDepthForCheck struct {
-	depthLimit   int
-	currentDepth int
-}
-
 type SearcherOptions struct {
-	incDepthForCheck      incDepthForCheck
-	evaluationOptions     []EvaluationOption
-	sortPartial           Optional[int]
-	useTranspositionTable bool
+	evaluationOptions      []EvaluationOption
+	skipTranspositionTable bool
 
 	debugSearchTree *debugSearchTree
 	maxDepth        Optional[int]
@@ -145,18 +138,10 @@ type SearcherOptions struct {
 var DefaultSearchOptions = SearcherOptions{}
 
 var AllSearchOptions = []string{
-	"transpositionTable",
-	"sortPartial=0",
-	"sortPartial=1",
-	"sortPartial=4",
-	"incDepthForCheck=2",
-	"incDepthForCheck=4",
+	"skipTranspositionTable",
 }
 
-var DisallowedSearchOptionCombinations = [][]string{
-	{"sortPartial", "sortPartial"},
-	{"incDepthForCheck", "incDepthForCheck"},
-}
+var DisallowedSearchOptionCombinations = [][]string{}
 
 func RemoveFirstPrefixMatch(slice []string, prefix string) ([]string, bool) {
 	for i, item := range slice {
@@ -192,34 +177,10 @@ func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
 	options := SearcherOptions{}
 
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "incDepthForCheck") {
-			if strings.Contains(arg, "=") {
-				n, err := strconv.ParseInt(strings.Split(arg, "=")[1], 10, 64)
-				if err != nil {
-					return options, Wrap(err)
-				}
-				options.incDepthForCheck = incDepthForCheck{
-					depthLimit: int(n),
-				}
-			} else {
-				options.incDepthForCheck = incDepthForCheck{
-					depthLimit: 4,
-				}
-			}
-		} else if strings.HasPrefix(arg, "sortPartial") {
-			if strings.Contains(arg, "=") {
-				n, err := strconv.ParseInt(strings.Split(arg, "=")[1], 10, 64)
-				if err != nil {
-					return options, Wrap(err)
-				}
-				options.sortPartial = Some(int(n))
-			} else {
-				options.sortPartial = Some(3)
-			}
-		} else if strings.HasPrefix(arg, "debugSearchTree") {
+		if strings.HasPrefix(arg, "debugSearchTree") {
 			options.debugSearchTree = &debugSearchTree{}
-		} else if strings.HasPrefix(arg, "transpositionTable") {
-			options.useTranspositionTable = true
+		} else if strings.HasPrefix(arg, "skipTranspositionTable") {
+			options.skipTranspositionTable = true
 		} else if arg == "" {
 		} else {
 			return options, Errorf("unknown option: '%s'", arg)
@@ -239,26 +200,10 @@ func NewSearcherV2(logger Logger, game *GameState, bitboards *Bitboards, options
 	}
 }
 
-func (s *SearcherV2) basicMoveEvaluation(moves *[]Move, evals map[Move]int) {
+func (s *SearcherV2) SortMoves(moves *[]Move, evals map[Move]int) {
 	for i := range *moves {
 		evals[(*moves)[i]] = EvaluateMove(&(*moves)[i], s.Game)
 	}
-}
-
-func (s *SearcherV2) SortMoves(moves *[]Move, evals map[Move]int) {
-	if s.options.sortPartial.HasValue() {
-		n := s.options.sortPartial.Value()
-		if n == 0 {
-			return
-		} else {
-			s.basicMoveEvaluation(moves, evals)
-			psort.Slice(*moves, func(i, j int) bool {
-				return evals[(*moves)[i]] > evals[(*moves)[j]]
-			}, n)
-			return
-		}
-	}
-	s.basicMoveEvaluation(moves, evals)
 	sort.SliceStable(*moves, func(i, j int) bool {
 		return evals[(*moves)[i]] > evals[(*moves)[j]]
 	})
@@ -424,7 +369,7 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 		return 0, Errorf("player != s.Game.Player")
 	}
 
-	if s.options.useTranspositionTable {
+	if !s.options.skipTranspositionTable {
 		if entry := DefaultTranspositionTable().Get(s.Game.ZobristHash(), depth); entry.HasValue() {
 			score := entry.Value().Score
 			scoreType := entry.Value().ScoreType
@@ -499,7 +444,7 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 		}
 	}
 
-	if s.options.useTranspositionTable {
+	if !s.options.skipTranspositionTable {
 		// This always clobbers the existing value in the transposition table. TODO: should we be smarter?
 		// eg only clobber if we have an exact score or if the depth increased?
 		hash := s.Game.ZobristHash()
@@ -573,12 +518,12 @@ func (s *SearcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, 
 		return returnScore, returnLegality, returnError
 	}
 	if depth <= 1 {
-		if !s.OutOfTime && s.options.incDepthForCheck.currentDepth < s.options.incDepthForCheck.depthLimit {
+		if !s.OutOfTime && !s.hasIncrementedDepthForCheck {
 			if KingIsInCheck(s.Bitboards, enemy) {
 				depth += 2
-				s.options.incDepthForCheck.currentDepth += 2
+				s.hasIncrementedDepthForCheck = true
 				defer func() {
-					s.options.incDepthForCheck.currentDepth -= 2
+					s.hasIncrementedDepthForCheck = false
 				}()
 			}
 		}
@@ -603,7 +548,7 @@ func (s *SearcherV2) DebugStats() string {
 		humanize.Comma(int64(s.DebugMovesConsidered)), humanize.Comma(int64(s.DebugMovesToConsider)),
 		humanize.Comma(int64(s.DebugTotalEvaluations)), humanize.Comma(int64(s.DebugTotalMovesPerformed)),
 		humanize.Comma(int64(s.DebugCapturesSearched)), humanize.Comma(int64(s.DebugCapturesSkipped)))
-	if s.options.useTranspositionTable {
+	if !s.options.skipTranspositionTable {
 		result += fmt.Sprintf(", %v", DefaultTranspositionTable().Stats())
 	}
 	if s.options.debugSearchTree != nil {
