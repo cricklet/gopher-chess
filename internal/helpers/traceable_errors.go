@@ -9,10 +9,47 @@ type Error struct {
 	other []tracerr.Error
 }
 
+func (e *Error) IsNil() bool {
+	return IsNil(e)
+}
+
+type ErrorRef struct {
+	// only hold a single value so the internal accumulated value isn't copied
+	// when ErrorAccumulator is passed by value
+	reference []Error
+}
+
+func (e *ErrorRef) Add(err Error) {
+	if e.reference == nil {
+		e.reference = []Error{err}
+	} else {
+		e.reference[0] = Join(e.reference[0], err)
+	}
+}
+
+func (e *ErrorRef) IsNil() bool {
+	return e.reference == nil || IsNil(e.reference[0])
+}
+
+func (e *ErrorRef) HasError() bool {
+	return !e.IsNil()
+}
+
+func (e *ErrorRef) Error() Error {
+	if e.reference == nil {
+		return NilError
+	} else {
+		return e.reference[0]
+	}
+}
+
 var NilError = Error{nil, nil}
 
 func IsNil(err error) bool {
 	if traceableErr, ok := err.(Error); ok {
+		return traceableErr.First() == nil
+	}
+	if traceableErr, ok := err.(*Error); ok {
 		return traceableErr.First() == nil
 	}
 	return err == nil
@@ -44,8 +81,9 @@ func Wrap(err error) Error {
 func WrapReturn[T any](x T, err error) (T, Error) {
 	return x, Wrap(err)
 }
-func JoinReturn[T any](x T, errs []Error) (T, Error) {
-	return x, Join(errs...)
+
+func JoinReturn[T any](e Error, x T, err Error) (T, Error) {
+	return x, Join(e, Join(err))
 }
 
 func Join(others ...Error) Error {
