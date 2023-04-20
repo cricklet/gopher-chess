@@ -73,6 +73,7 @@ type SearchHelperImpl struct {
 	Game      *GameState
 	Bitboards *Bitboards
 	OutOfTime *bool
+	MaxDepth  Optional[int]
 }
 
 var _ SearchHelper = (*SearchHelperImpl)(nil)
@@ -94,24 +95,26 @@ func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Mov
 	}, helper.Bitboards, helper.Game)
 
 	for _, move := range *moves {
-		var update BoardUpdate
-		errs.Add(
-			helper.Game.PerformMove(move, &update, helper.Bitboards))
-
-		defer func() {
+		result := LoopContinue
+		func() {
+			var update BoardUpdate
 			errs.Add(
-				helper.Game.UndoUpdate(&update, helper.Bitboards))
+				helper.Game.PerformMove(move, &update, helper.Bitboards))
+
+			defer func() {
+				errs.Add(
+					helper.Game.UndoUpdate(&update, helper.Bitboards))
+			}()
+
+			if errs.HasError() {
+				return
+			}
+
+			if !search.KingIsInCheck(helper.Bitboards, helper.Game.Enemy()) {
+				// move is legal
+				result = callback(move)
+			}
 		}()
-
-		if errs.HasError() {
-			return
-		}
-
-		if search.KingIsInCheck(helper.Bitboards, helper.Game.Enemy()) {
-			continue // skip illegal moves
-		}
-
-		result := callback(move)
 		if result == LoopBreak {
 			break
 		}
@@ -169,15 +172,35 @@ func alphaBetaMin(errs ErrorRef, helper SearchHelper, alpha int, beta int, depth
 	return beta
 }
 
-func scoreForPlayer(errRef ErrorRef, helper SearchHelperImpl, player Player, depth int) int {
+func scoreForPlayer(errRef ErrorRef, helper SearchHelperImpl, player Player) int {
 	if player == White {
-		return alphaBetaMax(errRef, helper, -100000, 100000, 3)
+		return alphaBetaMax(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
 	} else {
-		return -alphaBetaMin(errRef, helper, -100000, 100000, 3)
+		return -alphaBetaMin(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
 	}
 }
 
-func Search(fen string, outOfTime *bool) (Optional[Move], Error) {
+type SearchOption interface {
+	apply(helper *SearchHelperImpl)
+}
+
+type WithMaxDepth struct {
+	MaxDepth int
+}
+
+func (o WithMaxDepth) apply(helper *SearchHelperImpl) {
+	helper.MaxDepth = Some(o.MaxDepth)
+}
+
+type WithOutOfTime struct {
+	OutOfTime *bool
+}
+
+func (o WithOutOfTime) apply(helper *SearchHelperImpl) {
+	helper.OutOfTime = o.OutOfTime
+}
+
+func Search(fen string, opts ...SearchOption) (Optional[Move], Error) {
 	game, err := GamestateFromFenString(fen)
 	if !err.IsNil() {
 		return Empty[Move](), err
@@ -186,13 +209,17 @@ func Search(fen string, outOfTime *bool) (Optional[Move], Error) {
 	bitboards := game.CreateBitboards()
 
 	errRef := ErrorRef{}
-	helper := SearchHelperImpl{Game: &game, Bitboards: &bitboards, OutOfTime: outOfTime}
+	helper := SearchHelperImpl{Game: &game, Bitboards: &bitboards}
+
+	for _, opt := range opts {
+		opt.apply(&helper)
+	}
 
 	bestScore := -search.Inf
 	bestMove := Empty[Move]()
 
 	helper.forEachMove(errRef, func(move Move) LoopResult {
-		if *outOfTime {
+		if helper.OutOfTime != nil && *helper.OutOfTime {
 			return LoopBreak
 		}
 
@@ -200,7 +227,7 @@ func Search(fen string, outOfTime *bool) (Optional[Move], Error) {
 			return LoopBreak
 		}
 
-		score := scoreForPlayer(errRef, helper, game.Player, 4)
+		score := scoreForPlayer(errRef, helper, game.Player)
 		if errRef.HasError() {
 			return LoopBreak
 		}

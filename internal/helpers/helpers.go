@@ -208,6 +208,13 @@ func (o Optional[T]) Value() T {
 	return o._t
 }
 
+func (o Optional[T]) ValueOr(t T) T {
+	if o._hasValue {
+		return o._t
+	}
+	return t
+}
+
 func MapOptional[T, V any](o Optional[T], f func(T) V) Optional[V] {
 	if o.HasValue() {
 		return Some(f(o.Value()))
