@@ -5,8 +5,7 @@ import (
 )
 
 type Error struct {
-	err   tracerr.Error
-	other []tracerr.Error
+	errs []tracerr.Error
 }
 
 func (e *Error) IsNil() bool {
@@ -17,6 +16,13 @@ type ErrorRef struct {
 	// only hold a single value so the internal accumulated value isn't copied
 	// when ErrorAccumulator is passed by value
 	reference []Error
+}
+
+func (errRef *ErrorRef) NumErrors() int {
+	if errRef.IsNil() {
+		return 0
+	}
+	return errRef.reference[0].NumErrors()
 }
 
 func (e *ErrorRef) Add(err Error) {
@@ -43,7 +49,7 @@ func (e *ErrorRef) Error() Error {
 	}
 }
 
-var NilError = Error{nil, nil}
+var NilError = Error{nil}
 
 func IsNil(err error) bool {
 	if traceableErr, ok := err.(Error); ok {
@@ -63,19 +69,32 @@ var _errorIndents = []string{
 
 func (e Error) Error() string {
 	_errorNumber = (_errorNumber + 1) % len(_errorIndents)
-	return Indent(tracerr.Sprint(e.err), _errorIndents[_errorNumber])
+	result := ""
+	for _, err := range e.errs {
+		result += Indent(tracerr.Sprint(err), _errorIndents[_errorNumber]) + "\n"
+	}
+	return result
 }
 
 func (e Error) String() string {
-	return tracerr.SprintSourceColor(e.err, 3)
+	result := ""
+	for _, err := range e.errs {
+		result += "-------------------------------------------------------------------------------\n"
+		result += tracerr.SprintSourceColor(err, 3) + "\n"
+	}
+	return result
 }
 
 func (e Error) First() tracerr.Error {
-	return e.err
+	if e.errs == nil {
+		return nil
+	} else {
+		return e.errs[0]
+	}
 }
 
 func Wrap(err error) Error {
-	return Error{tracerr.Wrap(err), nil}
+	return Error{[]tracerr.Error{tracerr.Wrap(err)}}
 }
 
 func WrapReturn[T any](x T, err error) (T, Error) {
@@ -104,10 +123,28 @@ func Join(others ...Error) Error {
 	if len(others) == 1 {
 		return others[0]
 	} else {
-		return Error{others[0].err, MapSlice(others[1:], func(e Error) tracerr.Error { return e.err })}
+		result := Error{}
+		for _, o := range others {
+			result.errs = append(result.errs, o.errs...)
+		}
+		return result
 	}
 }
 
+func (err Error) NumErrors() int {
+	if IsNil(err) {
+		return 0
+	}
+
+	num := 0
+	for _, e := range err.errs {
+		if e != nil {
+			num++
+		}
+	}
+	return num
+}
+
 func Errorf(format string, args ...interface{}) Error {
-	return Error{tracerr.Errorf(format, args...), nil}
+	return Error{[]tracerr.Error{tracerr.Errorf(format, args...)}}
 }
