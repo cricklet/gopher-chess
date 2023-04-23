@@ -107,12 +107,9 @@ func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Mov
 			}()
 
 			if errs.HasError() {
-				return
-			}
-
-			if !search.KingIsInCheck(helper.Bitboards, helper.Game.Enemy()) {
-				// move is legal
-				result = callback(move)
+				result = LoopBreak
+			} else if !search.KingIsInCheck(helper.Bitboards, helper.Game.Enemy()) {
+				result = callback(move) // move is legal
 			}
 		}()
 		if result == LoopBreak {
