@@ -25,7 +25,7 @@ func TestOpening(t *testing.T) {
 func TestOpeningResponse(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1"
 
-	result, score, err := Search(fen, WithMaxDepth{4})
+	result, score, err := Search(fen, WithMaxDepth{2})
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(score, result)

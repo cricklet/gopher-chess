@@ -67,7 +67,6 @@ maximize(a, i)
 
 maximize(board, depth) -> principle-variation, score
 minimize(board, depth) -> principle-variation, score
-
 */
 
 type LoopResult int
@@ -79,6 +78,7 @@ const (
 
 type SearchHelper interface {
 	evaluateWhite() int
+	evaluateCurrentPlayer() int
 	forEachMove(errs ErrorRef, callback func(move Move) LoopResult)
 }
 
@@ -93,6 +93,9 @@ var _ SearchHelper = (*SearchHelperImpl)(nil)
 
 func (helper SearchHelperImpl) evaluateWhite() int {
 	return search.Evaluate(helper.Bitboards, White)
+}
+func (helper SearchHelperImpl) evaluateCurrentPlayer() int {
+	return search.Evaluate(helper.Bitboards, helper.Game.Player)
 }
 
 func (helper SearchHelperImpl) String() string {
@@ -135,6 +138,33 @@ func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Mov
 	}
 
 	return
+}
+
+func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
+	if depthleft == 0 {
+		return []Move{}, helper.evaluateCurrentPlayer()
+	}
+
+	if errs.HasError() {
+		return []Move{}, alpha
+	}
+
+	principleVariation := []Move{}
+
+	helper.forEachMove(errs, func(move Move) LoopResult {
+		variation, enemyScore := alphaBeta(errs, helper, -beta, -alpha, depthleft-1)
+		score := -enemyScore
+		if score >= beta {
+			alpha = beta // fail hard beta-cutoff
+			return LoopBreak
+		} else if score > alpha {
+			alpha = score
+			principleVariation = append([]Move{move}, variation...)
+		}
+		return LoopContinue
+	})
+
+	return principleVariation, alpha
 }
 
 func alphaBetaMax(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
@@ -192,13 +222,16 @@ func alphaBetaMin(errs ErrorRef, helper SearchHelper, alpha int, beta int, depth
 	return principleVariation, beta
 }
 
-func findPrincipleVariation(errRef ErrorRef, helper SearchHelperImpl, player Player) ([]Move, int) {
-	if player == White {
-		return alphaBetaMax(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
-	} else {
-		variation, score := alphaBetaMin(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
-		return variation, -score
-	}
+func findPrincipleVariation(errRef ErrorRef, helper SearchHelperImpl) ([]Move, int) {
+	// player := helper.Game.Player
+	// if player == White {
+	// 	return alphaBetaMax(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
+	// } else {
+	// 	variation, score := alphaBetaMin(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
+	// 	return variation, -score
+	// }
+
+	return alphaBeta(errRef, helper, -search.Inf, search.Inf, helper.MaxDepth.ValueOr(3))
 }
 
 type SearchOption interface {
@@ -249,8 +282,7 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 			return LoopBreak
 		}
 
-		enemy := game.Player
-		variation, enemyScore := findPrincipleVariation(errRef, helper, enemy)
+		variation, enemyScore := findPrincipleVariation(errRef, helper)
 		if errRef.HasError() {
 			return LoopBreak
 		}
