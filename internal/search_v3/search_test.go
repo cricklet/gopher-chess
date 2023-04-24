@@ -13,22 +13,34 @@ import (
 func TestOpening(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	result, err := Search(fen, WithMaxDepth{1})
+	result, score, err := Search(fen, WithMaxDepth{4})
 	assert.True(t, IsNil(err), err)
 
-	fmt.Println(result)
+	fmt.Println(score, result)
 
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
+	assert.True(t, expectedOpenings[result[0].String()])
+}
+
+func TestOpeningResponse(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1"
+
+	result, score, err := Search(fen, WithMaxDepth{4})
+	assert.True(t, IsNil(err), err)
+
+	fmt.Println(score, result)
+
+	expectedOpenings := map[string]bool{"d7d5": true, "e7e5": true, "g8f6": true, "b8c6": true}
 	assert.True(t, expectedOpenings[result[0].String()])
 }
 
 func TestPointlessSacrifice(t *testing.T) {
 	fen := "rnbqkbnr/ppp2ppp/8/3pp3/4P3/3P1N2/PPP2PPP/RNBQKB1R b KQkq - 5 3"
 
-	result, err := Search(fen, WithMaxDepth{3})
+	result, score, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	fmt.Println(result[0].String())
+	fmt.Println(score, result[0].String())
 
 	assert.NotEqual(t, "c8f5", result[0].String())
 }
@@ -36,10 +48,10 @@ func TestPointlessSacrifice(t *testing.T) {
 func TestNoLegalMoves(t *testing.T) {
 	fen := "rn1qkb1r/ppp3pp/5n2/3ppb2/8/2NP1NP1/PPP2PBP/R1BQK2R b KQkq - 13 7"
 
-	result, err := Search(fen, WithMaxDepth{3})
+	result, score, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	fmt.Println(result[0].String())
+	fmt.Println(score, result[0].String())
 
 	assert.True(t, result != nil)
 }
@@ -47,7 +59,7 @@ func TestNoLegalMoves(t *testing.T) {
 func TestCheckMateSearch(t *testing.T) {
 	fen := "kQK5/8/8/8/8/8/8/8 b KQkq - 13 7"
 
-	result, err := Search(fen, WithMaxDepth{3})
+	result, _, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
 	assert.True(t, result == nil)
@@ -56,7 +68,7 @@ func TestCheckMateSearch(t *testing.T) {
 func TestCheckMateDetection(t *testing.T) {
 	fen := "kQK5/8/8/8/8/8/8/8/8 b KQkq - 13 7"
 
-	result, err := Search(fen, WithMaxDepth{3})
+	result, _, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
 	assert.True(t, result == nil)
@@ -72,10 +84,11 @@ func TestCheckMateDetection(t *testing.T) {
 func TestCheckMateInOne(t *testing.T) {
 	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
 
-	result, err := Search(fen, WithMaxDepth{3})
+	result, score, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
-
 	assert.True(t, result != nil)
+
+	fmt.Println(score, result)
 
 	checkMateMoves := map[string]bool{"c2c7": true, "c2c8": true}
 	assert.True(t, checkMateMoves[result[0].String()], result[0].String())
@@ -84,10 +97,12 @@ func TestCheckMateInOne(t *testing.T) {
 func TestCheckMateInOne2(t *testing.T) {
 	fen := "5b2/3kp2p/4r3/1p6/4n3/p3P1p1/3p1r2/6K1 b - - 1 46"
 
-	result, err := Search(fen, WithMaxDepth{3})
+	result, score, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
 	assert.True(t, result != nil)
+
+	fmt.Println(score, result)
 
 	checkMateMoves := map[string]bool{"d2d1q": true}
 	assert.True(t, checkMateMoves[result[0].String()], result[0].String())
@@ -96,34 +111,33 @@ func TestCheckMateInOne2(t *testing.T) {
 func TestQuiescence(t *testing.T) {
 	fen := "r1bqk2r/p1p2ppp/1pnp1n2/4p3/1bPPP3/2N3P1/PP2NPBP/R1BQK2R b KQkq d3 0 7"
 
-	_, err := Search(fen, WithMaxDepth{3})
+	_, _, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 }
 
 func TestCrash1(t *testing.T) {
 	fen := "r1b1q3/2p2k2/pp3Q2/3pBn2/8/2N5/PP4PP/5R1K b - - 2 24"
 
-	result, err := Search(fen, WithMaxDepth{3})
-	assert.True(t, IsNil(err), err)
+	result, score, err := Search(fen, WithMaxDepth{3})
 
 	assert.True(t, result != nil)
 	assert.True(t, IsNil(err), err)
+
+	fmt.Println(score, result)
 }
 func TestCrash2(t *testing.T) {
 	fen := "4qk1r/3R3p/5p1p/2Q1p3/p6K/6PP/8/8 b - - 9 38"
 
-	result, err := Search(fen, WithMaxDepth{4})
+	result, score, err := Search(fen, WithMaxDepth{4})
 	assert.True(t, IsNil(err), err)
-
 	assert.True(t, result != nil)
-	assert.True(t, IsNil(err), err)
+	fmt.Println(score, result)
 }
 func TestCrash3(t *testing.T) {
 	fen := "rk1R1r2/pp4Q1/7p/4pN2/P1Pp4/3P4/2P3PP/R1n4K b - - 0 24"
 
-	result, err := Search(fen, WithMaxDepth{4})
+	result, score, err := Search(fen, WithMaxDepth{4})
 	assert.True(t, IsNil(err), err)
-
 	assert.True(t, result != nil)
-	assert.True(t, IsNil(err), err)
+	fmt.Println(score, result)
 }

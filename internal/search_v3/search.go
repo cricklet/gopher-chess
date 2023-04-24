@@ -1,6 +1,8 @@
 package searchv3
 
 import (
+	"fmt"
+
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -135,60 +137,67 @@ func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Mov
 	return
 }
 
-func alphaBetaMax(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) int {
+func alphaBetaMax(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
 	if depthleft == 0 {
-		return helper.evaluateWhite()
+		return []Move{}, helper.evaluateWhite()
 	}
 
 	if errs.HasError() {
-		return alpha
+		return []Move{}, alpha
 	}
 
-	helper.forEachMove(errs, func(_ Move) LoopResult {
-		score := alphaBetaMin(errs, helper, alpha, beta, depthleft-1)
+	principleVariation := []Move{}
+
+	helper.forEachMove(errs, func(move Move) LoopResult {
+		variation, score := alphaBetaMin(errs, helper, alpha, beta, depthleft-1)
 		if score >= beta {
 			alpha = beta // fail hard beta-cutoff
 			return LoopBreak
 		}
 		if score > alpha {
 			alpha = score // alpha acts like max in MiniMax
+			principleVariation = append([]Move{move}, variation...)
 		}
 		return LoopContinue
 	})
 
-	return alpha
+	return principleVariation, alpha
 }
 
-func alphaBetaMin(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) int {
+func alphaBetaMin(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
 	if depthleft == 0 {
-		return helper.evaluateWhite()
+		return []Move{}, helper.evaluateWhite()
 	}
 
 	if errs.HasError() {
-		return alpha
+		return []Move{}, alpha
 	}
 
-	helper.forEachMove(errs, func(_ Move) LoopResult {
-		score := alphaBetaMax(errs, helper, alpha, beta, depthleft-1)
+	principleVariation := []Move{}
+
+	helper.forEachMove(errs, func(move Move) LoopResult {
+		variation, score := alphaBetaMax(errs, helper, alpha, beta, depthleft-1)
 		if score <= alpha {
 			beta = alpha // fail hard alpha-cutoff
 			return LoopBreak
 		}
 		if score < beta {
 			beta = score // beta acts like min in MiniMax
+			principleVariation = append([]Move{move}, variation...)
 		}
 
 		return LoopContinue
 	})
 
-	return beta
+	return principleVariation, beta
 }
 
-func scoreForPlayer(errRef ErrorRef, helper SearchHelperImpl, player Player) int {
+func findPrincipleVariation(errRef ErrorRef, helper SearchHelperImpl, player Player) ([]Move, int) {
 	if player == White {
 		return alphaBetaMax(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
 	} else {
-		return -alphaBetaMin(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
+		variation, score := alphaBetaMin(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
+		return variation, -score
 	}
 }
 
@@ -212,10 +221,10 @@ func (o WithOutOfTime) apply(helper *SearchHelperImpl) {
 	helper.OutOfTime = o.OutOfTime
 }
 
-func Search(fen string, opts ...SearchOption) ([]Move, Error) {
+func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 	game, err := GamestateFromFenString(fen)
 	if !err.IsNil() {
-		return []Move{}, err
+		return []Move{}, 0, err
 	}
 
 	bitboards := game.CreateBitboards()
@@ -228,11 +237,8 @@ func Search(fen string, opts ...SearchOption) ([]Move, Error) {
 	}
 
 	bestScore := -search.Inf
-	bestMove := Empty[Move]()
 
-	searchingPlayer := game.Player
-
-	bestVariation := []Move{}
+	principleVariation := []Move{}
 
 	helper.forEachMove(errRef, func(move Move) LoopResult {
 		if helper.OutOfTime != nil && *helper.OutOfTime {
@@ -243,18 +249,21 @@ func Search(fen string, opts ...SearchOption) ([]Move, Error) {
 			return LoopBreak
 		}
 
-		score := scoreForPlayer(errRef, helper, searchingPlayer)
+		enemy := game.Player
+		variation, enemyScore := findPrincipleVariation(errRef, helper, enemy)
 		if errRef.HasError() {
 			return LoopBreak
 		}
 
+		score := -enemyScore
+		fmt.Println(score, move, variation)
 		if score > bestScore {
 			bestScore = score
-			bestMove = Some(move)
+			principleVariation = append([]Move{move}, variation...)
 		}
 
 		return LoopContinue
 	})
 
-	return []Move{bestMove.Value()}, errRef.Error()
+	return principleVariation, bestScore, errRef.Error()
 }
