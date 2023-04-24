@@ -80,6 +80,7 @@ type SearchHelper interface {
 	evaluateWhite() int
 	evaluateCurrentPlayer() int
 	forEachMove(errs ErrorRef, callback func(move Move) LoopResult)
+	inCheck() bool
 }
 
 type SearchHelperImpl struct {
@@ -100,6 +101,10 @@ func (helper SearchHelperImpl) evaluateCurrentPlayer() int {
 
 func (helper SearchHelperImpl) String() string {
 	return helper.Game.Board.String()
+}
+
+func (helper SearchHelperImpl) inCheck() bool {
+	return search.KingIsInCheck(helper.Bitboards, helper.Game.Player)
 }
 
 func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Move) LoopResult) {
@@ -151,7 +156,11 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthlef
 
 	principleVariation := []Move{}
 
+	foundMove := false
+
 	helper.forEachMove(errs, func(move Move) LoopResult {
+		foundMove = true
+
 		variation, enemyScore := alphaBeta(errs, helper, -beta, -alpha, depthleft-1)
 		score := -enemyScore
 		if score >= beta {
@@ -164,63 +173,71 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthlef
 		return LoopContinue
 	})
 
-	return principleVariation, alpha
-}
-
-func alphaBetaMax(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
-	if depthleft == 0 {
-		return []Move{}, helper.evaluateWhite()
-	}
-
-	if errs.HasError() {
-		return []Move{}, alpha
-	}
-
-	principleVariation := []Move{}
-
-	helper.forEachMove(errs, func(move Move) LoopResult {
-		variation, score := alphaBetaMin(errs, helper, alpha, beta, depthleft-1)
-		if score >= beta {
-			alpha = beta // fail hard beta-cutoff
-			return LoopBreak
+	if !foundMove {
+		if helper.inCheck() {
+			alpha = -search.Inf
+		} else {
+			alpha = 0
 		}
-		if score > alpha {
-			alpha = score // alpha acts like max in MiniMax
-			principleVariation = append([]Move{move}, variation...)
-		}
-		return LoopContinue
-	})
+	}
 
 	return principleVariation, alpha
 }
 
-func alphaBetaMin(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
-	if depthleft == 0 {
-		return []Move{}, helper.evaluateWhite()
-	}
+// func alphaBetaMax(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
+// 	if depthleft == 0 {
+// 		return []Move{}, helper.evaluateWhite()
+// 	}
 
-	if errs.HasError() {
-		return []Move{}, alpha
-	}
+// 	if errs.HasError() {
+// 		return []Move{}, alpha
+// 	}
 
-	principleVariation := []Move{}
+// 	principleVariation := []Move{}
 
-	helper.forEachMove(errs, func(move Move) LoopResult {
-		variation, score := alphaBetaMax(errs, helper, alpha, beta, depthleft-1)
-		if score <= alpha {
-			beta = alpha // fail hard alpha-cutoff
-			return LoopBreak
-		}
-		if score < beta {
-			beta = score // beta acts like min in MiniMax
-			principleVariation = append([]Move{move}, variation...)
-		}
+// 	helper.forEachMove(errs, func(move Move) LoopResult {
+// 		variation, score := alphaBetaMin(errs, helper, alpha, beta, depthleft-1)
+// 		if score >= beta {
+// 			alpha = beta // fail hard beta-cutoff
+// 			return LoopBreak
+// 		}
+// 		if score > alpha {
+// 			alpha = score // alpha acts like max in MiniMax
+// 			principleVariation = append([]Move{move}, variation...)
+// 		}
+// 		return LoopContinue
+// 	})
 
-		return LoopContinue
-	})
+// 	return principleVariation, alpha
+// }
 
-	return principleVariation, beta
-}
+// func alphaBetaMin(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
+// 	if depthleft == 0 {
+// 		return []Move{}, helper.evaluateWhite()
+// 	}
+
+// 	if errs.HasError() {
+// 		return []Move{}, alpha
+// 	}
+
+// 	principleVariation := []Move{}
+
+// 	helper.forEachMove(errs, func(move Move) LoopResult {
+// 		variation, score := alphaBetaMax(errs, helper, alpha, beta, depthleft-1)
+// 		if score <= alpha {
+// 			beta = alpha // fail hard alpha-cutoff
+// 			return LoopBreak
+// 		}
+// 		if score < beta {
+// 			beta = score // beta acts like min in MiniMax
+// 			principleVariation = append([]Move{move}, variation...)
+// 		}
+
+// 		return LoopContinue
+// 	})
+
+// 	return principleVariation, beta
+// }
 
 func findPrincipleVariation(errRef ErrorRef, helper SearchHelperImpl) ([]Move, int) {
 	// player := helper.Game.Player

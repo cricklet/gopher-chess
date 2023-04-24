@@ -62,7 +62,7 @@ func TestCheckMateSearch(t *testing.T) {
 	result, _, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	assert.True(t, result == nil)
+	assert.Equal(t, len(result), 0)
 }
 
 func TestCheckMateDetection(t *testing.T) {
@@ -71,7 +71,7 @@ func TestCheckMateDetection(t *testing.T) {
 	result, _, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	assert.True(t, result == nil)
+	assert.Equal(t, len(result), 0)
 
 	game, err := game.GamestateFromFenString(fen)
 	assert.True(t, IsNil(err), err)
@@ -90,7 +90,7 @@ func TestCheckMateInOne(t *testing.T) {
 
 	fmt.Println(score, result)
 
-	checkMateMoves := map[string]bool{"c2c7": true, "c2c8": true}
+	checkMateMoves := map[string]bool{"c2c7": true}
 	assert.True(t, checkMateMoves[result[0].String()], result[0].String())
 }
 
