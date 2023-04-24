@@ -92,10 +92,3 @@ func TestZobristHashSimple(t *testing.T) {
 
 	assert.Equal(t, hash0, hash2)
 }
-func TestDebugPrint(t *testing.T) {
-	s := "7K/8/8/8/8/8/8/7k w - - 0 1"
-
-	g, err := GamestateFromFenString(s)
-	assert.True(t, IsNil(err))
-	g.DebugPrint()
-}

@@ -57,6 +57,17 @@ similarly, if we're investigating white's future f=>m move, we know:
       we can ignore results worse for white than alpha
 */
 
+/*
+maximize(a, i)
+  we find the best move for white and return it
+	minimize(b, i - 1)
+      we find the best move for black and return it
+
+maximize(board, depth) -> principle-variation, score
+minimize(board, depth) -> principle-variation, score
+
+*/
+
 type LoopResult int
 
 const (
@@ -201,10 +212,10 @@ func (o WithOutOfTime) apply(helper *SearchHelperImpl) {
 	helper.OutOfTime = o.OutOfTime
 }
 
-func Search(fen string, opts ...SearchOption) (Optional[Move], Error) {
+func Search(fen string, opts ...SearchOption) ([]Move, Error) {
 	game, err := GamestateFromFenString(fen)
 	if !err.IsNil() {
-		return Empty[Move](), err
+		return []Move{}, err
 	}
 
 	bitboards := game.CreateBitboards()
@@ -220,6 +231,8 @@ func Search(fen string, opts ...SearchOption) (Optional[Move], Error) {
 	bestMove := Empty[Move]()
 
 	searchingPlayer := game.Player
+
+	bestVariation := []Move{}
 
 	helper.forEachMove(errRef, func(move Move) LoopResult {
 		if helper.OutOfTime != nil && *helper.OutOfTime {
@@ -243,5 +256,5 @@ func Search(fen string, opts ...SearchOption) (Optional[Move], Error) {
 		return LoopContinue
 	})
 
-	return bestMove, errRef.Error()
+	return []Move{bestMove.Value()}, errRef.Error()
 }

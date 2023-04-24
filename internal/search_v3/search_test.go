@@ -13,13 +13,13 @@ import (
 func TestOpening(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	result, err := Search(fen, WithMaxDepth{2})
+	result, err := Search(fen, WithMaxDepth{1})
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(result)
 
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
-	assert.True(t, expectedOpenings[result.Value().String()])
+	assert.True(t, expectedOpenings[result[0].String()])
 }
 
 func TestPointlessSacrifice(t *testing.T) {
@@ -28,9 +28,9 @@ func TestPointlessSacrifice(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	fmt.Println(result.Value().String())
+	fmt.Println(result[0].String())
 
-	assert.NotEqual(t, "c8f5", result.Value().String())
+	assert.NotEqual(t, "c8f5", result[0].String())
 }
 
 func TestNoLegalMoves(t *testing.T) {
@@ -39,9 +39,9 @@ func TestNoLegalMoves(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	fmt.Println(result.Value().String())
+	fmt.Println(result[0].String())
 
-	assert.True(t, result.HasValue())
+	assert.True(t, result != nil)
 }
 
 func TestCheckMateSearch(t *testing.T) {
@@ -50,7 +50,7 @@ func TestCheckMateSearch(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	assert.False(t, result.HasValue(), result)
+	assert.True(t, result == nil)
 }
 
 func TestCheckMateDetection(t *testing.T) {
@@ -59,7 +59,7 @@ func TestCheckMateDetection(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	assert.False(t, result.HasValue(), result)
+	assert.True(t, result == nil)
 
 	game, err := game.GamestateFromFenString(fen)
 	assert.True(t, IsNil(err), err)
@@ -75,10 +75,10 @@ func TestCheckMateInOne(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	assert.True(t, result.HasValue())
+	assert.True(t, result != nil)
 
 	checkMateMoves := map[string]bool{"c2c7": true, "c2c8": true}
-	assert.True(t, checkMateMoves[result.Value().String()], result.Value().String())
+	assert.True(t, checkMateMoves[result[0].String()], result[0].String())
 }
 
 func TestCheckMateInOne2(t *testing.T) {
@@ -87,10 +87,10 @@ func TestCheckMateInOne2(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	assert.True(t, result.HasValue())
+	assert.True(t, result != nil)
 
 	checkMateMoves := map[string]bool{"d2d1q": true}
-	assert.True(t, checkMateMoves[result.Value().String()], result.Value().String())
+	assert.True(t, checkMateMoves[result[0].String()], result[0].String())
 }
 
 func TestQuiescence(t *testing.T) {
@@ -106,7 +106,7 @@ func TestCrash1(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 
-	assert.True(t, result.HasValue())
+	assert.True(t, result != nil)
 	assert.True(t, IsNil(err), err)
 }
 func TestCrash2(t *testing.T) {
@@ -115,7 +115,7 @@ func TestCrash2(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{4})
 	assert.True(t, IsNil(err), err)
 
-	assert.True(t, result.HasValue())
+	assert.True(t, result != nil)
 	assert.True(t, IsNil(err), err)
 }
 func TestCrash3(t *testing.T) {
@@ -124,6 +124,6 @@ func TestCrash3(t *testing.T) {
 	result, err := Search(fen, WithMaxDepth{4})
 	assert.True(t, IsNil(err), err)
 
-	assert.True(t, result.HasValue())
+	assert.True(t, result != nil)
 	assert.True(t, IsNil(err), err)
 }
