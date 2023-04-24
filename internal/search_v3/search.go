@@ -82,6 +82,10 @@ func (helper SearchHelperImpl) evaluateWhite() int {
 	return search.Evaluate(helper.Bitboards, White)
 }
 
+func (helper SearchHelperImpl) String() string {
+	return helper.Game.Board.String()
+}
+
 func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Move) LoopResult) {
 	if errs.HasError() {
 		return
@@ -215,6 +219,8 @@ func Search(fen string, opts ...SearchOption) (Optional[Move], Error) {
 	bestScore := -search.Inf
 	bestMove := Empty[Move]()
 
+	searchingPlayer := game.Player
+
 	helper.forEachMove(errRef, func(move Move) LoopResult {
 		if helper.OutOfTime != nil && *helper.OutOfTime {
 			return LoopBreak
@@ -224,7 +230,7 @@ func Search(fen string, opts ...SearchOption) (Optional[Move], Error) {
 			return LoopBreak
 		}
 
-		score := scoreForPlayer(errRef, helper, game.Player)
+		score := scoreForPlayer(errRef, helper, searchingPlayer)
 		if errRef.HasError() {
 			return LoopBreak
 		}

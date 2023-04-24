@@ -19,16 +19,11 @@ func TestOpening(t *testing.T) {
 	assert.True(t, IsNil(err), err)
 	bitboards := game.CreateBitboards()
 
-	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards, SearcherOptions{})
+	searcher := NewSearcherV2(&DefaultLogger, &game, &bitboards, SearcherOptions{
+		maxDepth: Some(3),
+	})
 
-	var result Optional[Move]
-
-	go func() {
-		time.Sleep(time.Millisecond * 200)
-		searcher.OutOfTime = true
-	}()
-
-	result, err = searcher.Search()
+	result, err := searcher.Search()
 
 	assert.True(t, IsNil(err), err)
 

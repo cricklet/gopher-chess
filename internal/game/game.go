@@ -279,6 +279,10 @@ func (g *GameState) applyUndoToBitboards(update *BoardUpdate, b *Bitboards) Erro
 	return NilError
 }
 
+func (g *GameState) String() string {
+	return g.Board.String()
+}
+
 func (g *GameState) Enemy() Player {
 	return g.Player.Other()
 }

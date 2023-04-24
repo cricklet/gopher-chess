@@ -336,6 +336,7 @@ func (n NaturalBoardArray) AsBoardArray() BoardArray {
 }
 
 func (b BoardArray) String() string {
+	fmt.Println(b.Unicode())
 	result := ""
 	for rank := 7; rank >= 0; rank-- {
 		row := b[rank*8 : (rank+1)*8]

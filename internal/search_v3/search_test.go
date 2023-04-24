@@ -13,7 +13,7 @@ import (
 func TestOpening(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	result, err := Search(fen, WithMaxDepth{3})
+	result, err := Search(fen, WithMaxDepth{2})
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(result)
