@@ -1,7 +1,7 @@
 package searchv3
 
 import (
-	"fmt"
+	"strings"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
@@ -81,13 +81,16 @@ type SearchHelper interface {
 	evaluateCurrentPlayer() int
 	forEachMove(errs ErrorRef, callback func(move Move) LoopResult)
 	inCheck() bool
+	Logger
 }
 
 type SearchHelperImpl struct {
-	Game      *GameState
-	Bitboards *Bitboards
-	OutOfTime *bool
-	MaxDepth  Optional[int]
+	Game            *GameState
+	Bitboards       *Bitboards
+	OutOfTime       *bool
+	MaxDepth        Optional[int]
+	OnlySearchMoves Optional[SearchMoves]
+	Logger
 }
 
 var _ SearchHelper = (*SearchHelperImpl)(nil)
@@ -115,9 +118,17 @@ func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Mov
 	moves := search.GetMovesBuffer()
 	defer search.ReleaseMovesBuffer(moves)
 
-	search.GeneratePseudoMoves(func(m Move) {
-		*moves = append(*moves, m)
-	}, helper.Bitboards, helper.Game)
+	if helper.OnlySearchMoves.HasValue() {
+		moveTable := helper.OnlySearchMoves.Value().fenToMoves
+		fen := FenStringForGame(helper.Game)
+		for _, moveStr := range moveTable[fen] {
+			*moves = append(*moves, helper.Game.MoveFromString(moveStr))
+		}
+	} else {
+		search.GeneratePseudoMoves(func(m Move) {
+			*moves = append(*moves, m)
+		}, helper.Bitboards, helper.Game)
+	}
 
 	for _, move := range *moves {
 		result := LoopContinue
@@ -145,8 +156,8 @@ func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Mov
 	return
 }
 
-func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
-	if depthleft == 0 {
+func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentDepth int, maxDepth int) ([]Move, int) {
+	if currentDepth >= maxDepth {
 		return []Move{}, helper.evaluateCurrentPlayer()
 	}
 
@@ -160,15 +171,21 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthlef
 
 	helper.forEachMove(errs, func(move Move) LoopResult {
 		foundMove = true
+		helper.Println(strings.Repeat(" ", currentDepth), "?", move.String())
 
-		variation, enemyScore := alphaBeta(errs, helper, -beta, -alpha, depthleft-1)
+		variation, enemyScore := alphaBeta(errs, helper, -beta, -alpha, currentDepth+1, maxDepth)
+
 		score := -enemyScore
 		if score >= beta {
 			alpha = beta // fail hard beta-cutoff
+			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.String(), "beta cutoff")
 			return LoopBreak
 		} else if score > alpha {
 			alpha = score
 			principleVariation = append([]Move{move}, variation...)
+			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.String(), "principle variation", principleVariation[1:])
+		} else {
+			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.String(), "skip")
 		}
 		return LoopContinue
 	})
@@ -239,20 +256,27 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthlef
 // 	return principleVariation, beta
 // }
 
-func findPrincipleVariation(errRef ErrorRef, helper SearchHelperImpl) ([]Move, int) {
+func findPrincipleVariation(errRef ErrorRef, helper SearchHelperImpl, currentDepth int, maxDepth int) ([]Move, int) {
 	// player := helper.Game.Player
 	// if player == White {
-	// 	return alphaBetaMax(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
+	// 	return alphaBetaMax(errRef, helper, -100000, 100000, maxDepth)
 	// } else {
-	// 	variation, score := alphaBetaMin(errRef, helper, -100000, 100000, helper.MaxDepth.ValueOr(3))
+	// 	variation, score := alphaBetaMin(errRef, helper, -100000, 100000, maxDepth)
 	// 	return variation, -score
 	// }
 
-	return alphaBeta(errRef, helper, -search.Inf, search.Inf, helper.MaxDepth.ValueOr(3))
+	return alphaBeta(errRef, helper, -search.Inf-1, search.Inf+1, currentDepth, maxDepth)
 }
 
 type SearchOption interface {
 	apply(helper *SearchHelperImpl)
+}
+
+type WithDebugLogging struct {
+}
+
+func (o WithDebugLogging) apply(helper *SearchHelperImpl) {
+	helper.Logger = &DefaultLogger
 }
 
 type WithMaxDepth struct {
@@ -261,6 +285,43 @@ type WithMaxDepth struct {
 
 func (o WithMaxDepth) apply(helper *SearchHelperImpl) {
 	helper.MaxDepth = Some(o.MaxDepth)
+}
+
+type SearchMoves struct {
+	fenToMoves map[string][]string
+}
+
+func InitSearchMoves(fen string, moves [][]string) (SearchMoves, Error) {
+	result := SearchMoves{fenToMoves: map[string][]string{}}
+	for _, line := range moves {
+		game, err := GamestateFromFenString(fen)
+		if !err.IsNil() {
+			return SearchMoves{}, err
+		}
+		bitboards := game.CreateBitboards()
+		currentPosition := FenStringForGame(&game)
+
+		for _, move := range line {
+			gameMove := game.MoveFromString(move)
+			game.PerformMove(gameMove, &BoardUpdate{}, &bitboards)
+			nextMoves := result.fenToMoves[currentPosition]
+			if !Contains(nextMoves, move) {
+				result.fenToMoves[currentPosition] = append(nextMoves, move)
+			}
+
+			currentPosition = FenStringForGame(&game)
+		}
+	}
+
+	return result, Error{}
+}
+
+type WithSearch struct {
+	search SearchMoves
+}
+
+func (o WithSearch) apply(helper *SearchHelperImpl) {
+	helper.OnlySearchMoves = Some(o.search)
 }
 
 type WithOutOfTime struct {
@@ -280,7 +341,11 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 	bitboards := game.CreateBitboards()
 
 	errRef := ErrorRef{}
-	helper := SearchHelperImpl{Game: &game, Bitboards: &bitboards}
+	helper := SearchHelperImpl{
+		Game:      &game,
+		Bitboards: &bitboards,
+		Logger:    &SilentLogger,
+	}
 
 	for _, opt := range opts {
 		opt.apply(&helper)
@@ -298,14 +363,20 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 		if errRef.HasError() {
 			return LoopBreak
 		}
+		helper.Println("!", move.String())
 
-		variation, enemyScore := findPrincipleVariation(errRef, helper)
+		variation, enemyScore := findPrincipleVariation(
+			errRef,
+			helper,
+			// current depth is 1 (0 would be before we applied `move`)
+			1,
+			helper.MaxDepth.ValueOr(3))
 		if errRef.HasError() {
 			return LoopBreak
 		}
 
 		score := -enemyScore
-		fmt.Println(score, move, variation)
+		helper.Println(">", score, move, "principle variation", variation)
 		if score > bestScore {
 			bestScore = score
 			principleVariation = append([]Move{move}, variation...)

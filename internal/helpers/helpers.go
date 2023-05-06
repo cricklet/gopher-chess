@@ -73,6 +73,12 @@ func MapSlice[T, U any](ts []T, f func(T) U) []U {
 	return us
 }
 
+func ConcatStringify[T fmt.Stringer](ts []T) string {
+	return strings.Join(
+		MapSlice(ts, func(t T) string { return t.String() }),
+		", ")
+}
+
 func FilterSlice[T any](ts []T, f func(T) bool) []T {
 	filtered := []T{}
 	for i := range ts {

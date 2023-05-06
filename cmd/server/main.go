@@ -279,13 +279,13 @@ func main() {
 			} else if message.Move != nil {
 				err := chessGoRunner.PerformMoveFromString(*message.Move)
 				if !IsNil(err) {
-					logger.Println("perform: ", message.Move, err) // TODO reset
+					logger.Println("perform: ", message.Move, err) // FUTURE reset
 				}
 				shouldUpdate = true
 			} else if message.Rewind != nil {
 				err := chessGoRunner.Rewind(*message.Rewind)
 				if !IsNil(err) {
-					logger.Println("rewind: ", message.Rewind, err) // TODO reset
+					logger.Println("rewind: ", message.Rewind, err) // FUTURE reset
 				}
 				shouldUpdate = true
 			} else if message.Ready != nil {

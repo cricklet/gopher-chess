@@ -22,6 +22,34 @@ func TestOpening(t *testing.T) {
 	assert.True(t, expectedOpenings[result[0].String()])
 }
 
+func TestOpeningQuiescence(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	searchMoves, err := InitSearchMoves(fen,
+		[][]string{
+			{
+				"e2e4", "f7f5", "b1c3", "f5e4", "c3e4",
+			},
+		},
+	)
+	assert.True(t, IsNil(err))
+
+	// if we don't search far enough, we don't see trades
+	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithDebugLogging{})
+	fmt.Println(result, score)
+	assert.Less(t, score, 0)
+	assert.Equal(t,
+		ConcatStringify(result),
+		"e2e4, f7f5, b1c3, f5e4")
+
+	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5}, WithDebugLogging{})
+	fmt.Println(result, score)
+	assert.Greater(t, score, 0)
+	assert.Equal(t,
+		ConcatStringify(result),
+		"e2e4, f7f5, b1c3, f5e4, c3e4")
+}
+
 func TestOpeningResponse(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1"
 
@@ -81,17 +109,48 @@ func TestCheckMateDetection(t *testing.T) {
 	assert.True(t, isCheckMate)
 }
 
-func TestCheckMateInOne(t *testing.T) {
+func TestCheckMateInTwo(t *testing.T) {
 	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
 
+	// searching 3 ahead doesn't see the checkmate because we aren't able
+	// to see that the enemy has no moves allowed
 	result, score, err := Search(fen, WithMaxDepth{3})
 	assert.True(t, IsNil(err), err)
 	assert.True(t, result != nil)
 
-	fmt.Println(score, result)
-
 	checkMateMoves := map[string]bool{"c2c7": true}
+	assert.Less(t, score, 9999)
+	assert.False(t, checkMateMoves[result[0].String()], result[0].String())
+
+	// instead search 4 ahead
+	result, score, err = Search(fen, WithMaxDepth{4})
+	assert.True(t, IsNil(err), err)
+	assert.True(t, result != nil)
+
+	assert.Greater(t, score, 9999)
 	assert.True(t, checkMateMoves[result[0].String()], result[0].String())
+}
+func TestCheckMateInTwoSpecific(t *testing.T) {
+	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
+
+	searchMoves, err := InitSearchMoves(fen,
+		[][]string{
+			{
+				"c2c7", "b8a8", "e4e3",
+			},
+			{
+				"c2c7", "b8a8", "c7a7",
+			},
+		},
+	)
+	assert.True(t, IsNil(err))
+
+	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithDebugLogging{})
+	assert.True(t, IsNil(err))
+	assert.Greater(t, score, 9999)
+	assert.Equal(t,
+		"c2c7, b8a8, c7a7",
+		ConcatStringify(result))
 }
 
 func TestCheckMateInOne2(t *testing.T) {
