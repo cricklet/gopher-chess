@@ -76,41 +76,18 @@ const (
 	LoopBreak
 )
 
-type SearchHelper interface {
-	evaluateWhite() int
-	evaluateCurrentPlayer() int
+type MoveGen interface {
 	forEachMove(errs ErrorRef, callback func(move Move) LoopResult)
-	inCheck() bool
-	Logger
 }
 
-type SearchHelperImpl struct {
-	Game            *GameState
-	Bitboards       *Bitboards
-	OutOfTime       *bool
-	MaxDepth        Optional[int]
-	OnlySearchMoves Optional[SearchMoves]
-	Logger
+type DefaultMoveGenerator struct {
+	*GameState
+	*Bitboards
 }
 
-var _ SearchHelper = (*SearchHelperImpl)(nil)
+var _ MoveGen = (*DefaultMoveGenerator)(nil)
 
-func (helper SearchHelperImpl) evaluateWhite() int {
-	return search.Evaluate(helper.Bitboards, White)
-}
-func (helper SearchHelperImpl) evaluateCurrentPlayer() int {
-	return search.Evaluate(helper.Bitboards, helper.Game.Player)
-}
-
-func (helper SearchHelperImpl) String() string {
-	return helper.Game.Board.String()
-}
-
-func (helper SearchHelperImpl) inCheck() bool {
-	return search.KingIsInCheck(helper.Bitboards, helper.Game.Player)
-}
-
-func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Move) LoopResult) {
+func (gen DefaultMoveGenerator) forEachMove(errs ErrorRef, callback func(move Move) LoopResult) {
 	if errs.HasError() {
 		return
 	}
@@ -118,33 +95,25 @@ func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Mov
 	moves := search.GetMovesBuffer()
 	defer search.ReleaseMovesBuffer(moves)
 
-	if helper.OnlySearchMoves.HasValue() {
-		moveTable := helper.OnlySearchMoves.Value().fenToMoves
-		fen := FenStringForGame(helper.Game)
-		for _, moveStr := range moveTable[fen] {
-			*moves = append(*moves, helper.Game.MoveFromString(moveStr))
-		}
-	} else {
-		search.GeneratePseudoMoves(func(m Move) {
-			*moves = append(*moves, m)
-		}, helper.Bitboards, helper.Game)
-	}
+	search.GeneratePseudoMoves(func(m Move) {
+		*moves = append(*moves, m)
+	}, gen.Bitboards, gen.GameState)
 
 	for _, move := range *moves {
 		result := LoopContinue
 		func() {
 			var update BoardUpdate
 			errs.Add(
-				helper.Game.PerformMove(move, &update, helper.Bitboards))
+				gen.GameState.PerformMove(move, &update, gen.Bitboards))
 
 			defer func() {
 				errs.Add(
-					helper.Game.UndoUpdate(&update, helper.Bitboards))
+					gen.GameState.UndoUpdate(&update, gen.Bitboards))
 			}()
 
 			if errs.HasError() {
 				result = LoopBreak
-			} else if !search.KingIsInCheck(helper.Bitboards, helper.Game.Enemy()) {
+			} else if !search.KingIsInCheck(gen.Bitboards, gen.GameState.Enemy()) {
 				result = callback(move) // move is legal
 			}
 		}()
@@ -154,6 +123,83 @@ func (helper SearchHelperImpl) forEachMove(errs ErrorRef, callback func(move Mov
 	}
 
 	return
+}
+
+type SearchTreeMoveGenerator struct {
+	SearchTree
+	*GameState
+	*Bitboards
+	currentlySearching *SearchTree
+}
+
+var _ MoveGen = (*SearchTreeMoveGenerator)(nil)
+
+func (gen *SearchTreeMoveGenerator) forEachMove(errs ErrorRef, callback func(move Move) LoopResult) {
+	if errs.HasError() {
+		return
+	}
+
+	if gen.currentlySearching == nil {
+		gen.currentlySearching = &gen.SearchTree
+	}
+
+	if gen.currentlySearching.continueSearching {
+		DefaultMoveGenerator{gen.GameState, gen.Bitboards}.forEachMove(errs, callback)
+		return
+	}
+
+	prevSearchTree := gen.currentlySearching
+	for nextMove, nextSearchTree := range gen.currentlySearching.moves {
+		result := LoopContinue
+		func() {
+			gen.currentlySearching = nextSearchTree
+			move := gen.GameState.MoveFromString(nextMove)
+
+			var update BoardUpdate
+			errs.Add(
+				gen.GameState.PerformMove(move, &update, gen.Bitboards))
+
+			defer func() {
+				gen.currentlySearching = prevSearchTree
+				errs.Add(
+					gen.GameState.UndoUpdate(&update, gen.Bitboards))
+			}()
+
+			if errs.HasError() {
+				result = LoopBreak
+			} else if !search.KingIsInCheck(gen.Bitboards, gen.GameState.Enemy()) {
+				result = callback(move) // move is legal
+			}
+		}()
+		if result == LoopBreak {
+			break
+		}
+	}
+	return
+}
+
+type SearchHelper struct {
+	MoveGen
+	*GameState
+	*Bitboards
+	OutOfTime *bool
+	Logger
+	MaxDepth int
+}
+
+func (helper SearchHelper) evaluateWhite() int {
+	return search.Evaluate(helper.Bitboards, White)
+}
+func (helper SearchHelper) evaluateCurrentPlayer() int {
+	return search.Evaluate(helper.Bitboards, helper.GameState.Player)
+}
+
+func (helper SearchHelper) String() string {
+	return helper.GameState.Board.String()
+}
+
+func (helper SearchHelper) inCheck() bool {
+	return search.KingIsInCheck(helper.Bitboards, helper.GameState.Player)
 }
 
 func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentDepth int, maxDepth int) ([]Move, int) {
@@ -256,8 +302,8 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentD
 // 	return principleVariation, beta
 // }
 
-func findPrincipleVariation(errRef ErrorRef, helper SearchHelperImpl, currentDepth int, maxDepth int) ([]Move, int) {
-	// player := helper.Game.Player
+func findPrincipleVariation(errRef ErrorRef, helper SearchHelper, currentDepth int, maxDepth int) ([]Move, int) {
+	// player := helper.GameState.Player
 	// if player == White {
 	// 	return alphaBetaMax(errRef, helper, -100000, 100000, maxDepth)
 	// } else {
@@ -269,47 +315,61 @@ func findPrincipleVariation(errRef ErrorRef, helper SearchHelperImpl, currentDep
 }
 
 type SearchOption interface {
-	apply(helper *SearchHelperImpl)
+	apply(helper *SearchHelper)
 }
 
 type WithDebugLogging struct {
 }
 
-func (o WithDebugLogging) apply(helper *SearchHelperImpl) {
+func (o WithDebugLogging) apply(helper *SearchHelper) {
 	helper.Logger = &DefaultLogger
+}
+
+type WithQuiescence struct {
+}
+
+func (o WithQuiescence) apply(helper *SearchHelper) {
 }
 
 type WithMaxDepth struct {
 	MaxDepth int
 }
 
-func (o WithMaxDepth) apply(helper *SearchHelperImpl) {
-	helper.MaxDepth = Some(o.MaxDepth)
+func (o WithMaxDepth) apply(helper *SearchHelper) {
+	helper.MaxDepth = o.MaxDepth
 }
 
-type SearchMoves struct {
-	fenToMoves map[string][]string
+type SearchTree struct {
+	moves             map[string]*SearchTree
+	continueSearching bool
 }
 
-func InitSearchMoves(fen string, moves [][]string) (SearchMoves, Error) {
-	result := SearchMoves{fenToMoves: map[string][]string{}}
-	for _, line := range moves {
-		game, err := GamestateFromFenString(fen)
-		if !err.IsNil() {
-			return SearchMoves{}, err
-		}
-		bitboards := game.CreateBitboards()
-		currentPosition := FenStringForGame(&game)
+func SearchTreeFromLines(
+	startingFen string,
+	lines [][]string,
+	continueSearchingPastLines bool,
+) (SearchTree, Error) {
+	result := SearchTree{
+		moves:             map[string]*SearchTree{},
+		continueSearching: false,
+	}
 
+	for _, line := range lines {
+		currentTree := &result
 		for _, move := range line {
-			gameMove := game.MoveFromString(move)
-			game.PerformMove(gameMove, &BoardUpdate{}, &bitboards)
-			nextMoves := result.fenToMoves[currentPosition]
-			if !Contains(nextMoves, move) {
-				result.fenToMoves[currentPosition] = append(nextMoves, move)
+			if nextTree, contains := currentTree.moves[move]; contains {
+				currentTree = nextTree
+			} else {
+				currentTree.moves[move] = &SearchTree{
+					moves:             map[string]*SearchTree{},
+					continueSearching: false,
+				}
+				currentTree = currentTree.moves[move]
 			}
+		}
 
-			currentPosition = FenStringForGame(&game)
+		if continueSearchingPastLines {
+			currentTree.continueSearching = true
 		}
 	}
 
@@ -317,18 +377,23 @@ func InitSearchMoves(fen string, moves [][]string) (SearchMoves, Error) {
 }
 
 type WithSearch struct {
-	search SearchMoves
+	search SearchTree
 }
 
-func (o WithSearch) apply(helper *SearchHelperImpl) {
-	helper.OnlySearchMoves = Some(o.search)
+func (o WithSearch) apply(helper *SearchHelper) {
+	helper.MoveGen = &SearchTreeMoveGenerator{
+		o.search,
+		helper.GameState,
+		helper.Bitboards,
+		nil,
+	}
 }
 
 type WithOutOfTime struct {
 	OutOfTime *bool
 }
 
-func (o WithOutOfTime) apply(helper *SearchHelperImpl) {
+func (o WithOutOfTime) apply(helper *SearchHelper) {
 	helper.OutOfTime = o.OutOfTime
 }
 
@@ -341,8 +406,13 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 	bitboards := game.CreateBitboards()
 
 	errRef := ErrorRef{}
-	helper := SearchHelperImpl{
-		Game:      &game,
+	helper := SearchHelper{
+		MoveGen: DefaultMoveGenerator{
+			&game,
+			&bitboards,
+		},
+		MaxDepth:  3,
+		GameState: &game,
 		Bitboards: &bitboards,
 		Logger:    &SilentLogger,
 	}
@@ -370,7 +440,7 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 			helper,
 			// current depth is 1 (0 would be before we applied `move`)
 			1,
-			helper.MaxDepth.ValueOr(3))
+			helper.MaxDepth)
 		if errRef.HasError() {
 			return LoopBreak
 		}

@@ -13,24 +13,67 @@ import (
 func TestOpening(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	result, score, err := Search(fen, WithMaxDepth{4})
+	result, score, err := Search(fen, WithMaxDepth{5})
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(score, result)
 
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
 	assert.True(t, expectedOpenings[result[0].String()])
-}
 
+	// Note that searching an even depth will cause us to play overly cautiously
+	// because we don't have quiescence implemented yet so we can't see that we are
+	// able to trade when an emeny captures a piece after us
+	result, score, err = Search(fen, WithMaxDepth{4})
+	assert.True(t, IsNil(err), err)
+
+	assert.False(t, expectedOpenings[result[0].String()])
+}
 func TestOpeningQuiescence(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	searchMoves, err := InitSearchMoves(fen,
+	searchMoves, err := SearchTreeFromLines(
+		fen,
+		[][]string{
+			{"e2e4"},
+			{"e2e3"},
+		},
+		true, // continue searching past e2e4 and e2e3
+	)
+
+	// with search depth 4, we will be conservative
+	result, _, err := Search(fen,
+		WithMaxDepth{4}, WithSearch{searchMoves})
+	assert.True(t, IsNil(err), err)
+
+	assert.Equal(t, "e2e3", result[0].String())
+
+	// with search depth 5, we will be aggressive
+	result, _, err = Search(fen,
+		WithMaxDepth{5}, WithSearch{searchMoves})
+	assert.True(t, IsNil(err), err)
+
+	assert.Equal(t, "e2e4", result[0].String())
+
+	// with search depth 4 and quiescence enabled, we should be aggressive
+	result, _, err = Search(fen,
+		WithMaxDepth{4}, WithSearch{searchMoves}, WithQuiescence{})
+	assert.True(t, IsNil(err), err)
+
+	assert.Equal(t, "e2e4", result[0].String())
+}
+
+func TestOpeningCapture(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	searchMoves, err := SearchTreeFromLines(
+		fen,
 		[][]string{
 			{
 				"e2e4", "f7f5", "b1c3", "f5e4", "c3e4",
 			},
 		},
+		false, // only search the specified line
 	)
 	assert.True(t, IsNil(err))
 
@@ -39,15 +82,15 @@ func TestOpeningQuiescence(t *testing.T) {
 	fmt.Println(result, score)
 	assert.Less(t, score, 0)
 	assert.Equal(t,
-		ConcatStringify(result),
-		"e2e4, f7f5, b1c3, f5e4")
+		"e2e4, f7f5, b1c3, f5e4",
+		ConcatStringify(result))
 
 	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5}, WithDebugLogging{})
 	fmt.Println(result, score)
 	assert.Greater(t, score, 0)
 	assert.Equal(t,
-		ConcatStringify(result),
-		"e2e4, f7f5, b1c3, f5e4, c3e4")
+		"e2e4, f7f5, b1c3, f5e4, c3e4",
+		ConcatStringify(result))
 }
 
 func TestOpeningResponse(t *testing.T) {
@@ -133,7 +176,8 @@ func TestCheckMateInTwo(t *testing.T) {
 func TestCheckMateInTwoSpecific(t *testing.T) {
 	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
 
-	searchMoves, err := InitSearchMoves(fen,
+	searchMoves, err := SearchTreeFromLines(
+		fen,
 		[][]string{
 			{
 				"c2c7", "b8a8", "e4e3",
@@ -142,6 +186,7 @@ func TestCheckMateInTwoSpecific(t *testing.T) {
 				"c2c7", "b8a8", "c7a7",
 			},
 		},
+		false, // only search the two lines
 	)
 	assert.True(t, IsNil(err))
 
