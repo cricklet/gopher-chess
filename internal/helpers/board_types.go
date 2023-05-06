@@ -439,6 +439,10 @@ const (
 	EnPassantMove
 )
 
+func (t MoveType) Captures() bool {
+	return t == CaptureMove || t == EnPassantMove
+}
+
 func (t MoveType) String() string {
 	switch t {
 	case QuietMove:
@@ -483,7 +487,13 @@ func (m Move) String() string {
 }
 
 func (m Move) DebugString() string {
-	return fmt.Sprintf("%v:%v", m.String(), m.MoveType.String())
+	if m.PromotionPiece.HasValue() {
+		return StringFromBoardIndex(m.StartIndex) + StringFromBoardIndex(m.EndIndex) + m.PromotionPiece.Value().String()
+	}
+	if m.MoveType.Captures() {
+		return StringFromBoardIndex(m.StartIndex) + "x" + StringFromBoardIndex(m.EndIndex)
+	}
+	return StringFromBoardIndex(m.StartIndex) + StringFromBoardIndex(m.EndIndex)
 }
 
 type BoardUpdate struct {

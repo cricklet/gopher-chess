@@ -83,6 +83,7 @@ type MoveGen interface {
 type DefaultMoveGenerator struct {
 	*GameState
 	*Bitboards
+	onlyCaptures bool
 }
 
 var _ MoveGen = (*DefaultMoveGenerator)(nil)
@@ -95,9 +96,15 @@ func (gen DefaultMoveGenerator) forEachMove(errs ErrorRef, callback func(move Mo
 	moves := search.GetMovesBuffer()
 	defer search.ReleaseMovesBuffer(moves)
 
-	search.GeneratePseudoMoves(func(m Move) {
-		*moves = append(*moves, m)
-	}, gen.Bitboards, gen.GameState)
+	if gen.onlyCaptures {
+		search.GeneratePseudoCaptures(func(m Move) {
+			*moves = append(*moves, m)
+		}, gen.Bitboards, gen.GameState)
+	} else {
+		search.GeneratePseudoMoves(func(m Move) {
+			*moves = append(*moves, m)
+		}, gen.Bitboards, gen.GameState)
+	}
 
 	for _, move := range *moves {
 		result := LoopContinue
@@ -144,7 +151,7 @@ func (gen *SearchTreeMoveGenerator) forEachMove(errs ErrorRef, callback func(mov
 	}
 
 	if gen.currentlySearching.continueSearching {
-		DefaultMoveGenerator{gen.GameState, gen.Bitboards}.forEachMove(errs, callback)
+		DefaultMoveGenerator{gen.GameState, gen.Bitboards, false}.forEachMove(errs, callback)
 		return
 	}
 
@@ -178,20 +185,77 @@ func (gen *SearchTreeMoveGenerator) forEachMove(errs ErrorRef, callback func(mov
 	return
 }
 
+type Evaluator interface {
+	evaluate(errRef ErrorRef, player Player, alpha int, beta int, currentDepth int) ([]Move, int)
+}
+
+type BasicEvaluator struct {
+	*GameState
+	*Bitboards
+}
+
+var _ Evaluator = (*BasicEvaluator)(nil)
+
+func (e BasicEvaluator) evaluate(errRef ErrorRef, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
+	return []Move{}, search.Evaluate(e.Bitboards, player)
+}
+
+type QuiescenceEvaluator struct {
+	Helper *SearchHelper
+}
+
+var _ Evaluator = (*QuiescenceEvaluator)(nil)
+
+func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
+	if errRef.HasError() {
+		return []Move{}, alpha
+	}
+
+	// if we decide not to not take (eg make a neutral move / stand-pat)
+	// and that's really good for us (eg other player will have prevented this path)
+	//   we can return early
+	// if it's good for us but not so good the other player can prevent this path
+	//   we need to search captures
+	//   but we can also update alpha
+	//   because we now have a guess of the best score we can achieve
+	// if it's bad for us, we need to search captures
+	_, standPat := BasicEvaluator{e.Helper.GameState, e.Helper.Bitboards}.evaluate(errRef, player, alpha, beta, currentDepth)
+	if errRef.HasError() {
+		return []Move{}, alpha
+	}
+
+	if standPat >= beta {
+		return []Move{}, beta
+	} else if standPat > alpha {
+		alpha = standPat
+	}
+
+	captureGenerator := DefaultMoveGenerator{e.Helper.GameState, e.Helper.Bitboards, true /*onlyCaptures*/}
+	newSearchHelper := SearchHelper{
+		captureGenerator,
+		BasicEvaluator{e.Helper.GameState, e.Helper.Bitboards},
+		e.Helper.GameState,
+		e.Helper.Bitboards,
+		nil, // e.Helper.OutOfTime,
+		e.Helper.Logger,
+		e.Helper.MaxDepth + 10, // allow deep capture searching
+	}
+
+	// TODO always calculate stand-pat when performing quiescence alpha-beta
+	// maybe make alphaBeta a method on SearchHelper
+	// give SearchHelper an option for calculating stand pat that's only on
+	//   during capture searching
+	return alphaBeta(errRef, newSearchHelper, alpha, beta, currentDepth, newSearchHelper.MaxDepth)
+}
+
 type SearchHelper struct {
 	MoveGen
+	Evaluator
 	*GameState
 	*Bitboards
 	OutOfTime *bool
 	Logger
 	MaxDepth int
-}
-
-func (helper SearchHelper) evaluateWhite() int {
-	return search.Evaluate(helper.Bitboards, White)
-}
-func (helper SearchHelper) evaluateCurrentPlayer() int {
-	return search.Evaluate(helper.Bitboards, helper.GameState.Player)
 }
 
 func (helper SearchHelper) String() string {
@@ -204,7 +268,7 @@ func (helper SearchHelper) inCheck() bool {
 
 func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentDepth int, maxDepth int) ([]Move, int) {
 	if currentDepth >= maxDepth {
-		return []Move{}, helper.evaluateCurrentPlayer()
+		return helper.evaluate(errs, helper.Player, alpha, beta, currentDepth)
 	}
 
 	if errs.HasError() {
@@ -217,21 +281,21 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentD
 
 	helper.forEachMove(errs, func(move Move) LoopResult {
 		foundMove = true
-		helper.Println(strings.Repeat(" ", currentDepth), "?", move.String())
+		helper.Println(strings.Repeat(" ", currentDepth), "?", move.DebugString())
 
 		variation, enemyScore := alphaBeta(errs, helper, -beta, -alpha, currentDepth+1, maxDepth)
 
 		score := -enemyScore
 		if score >= beta {
 			alpha = beta // fail hard beta-cutoff
-			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.String(), "beta cutoff")
+			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.DebugString(), "beta cutoff")
 			return LoopBreak
 		} else if score > alpha {
 			alpha = score
 			principleVariation = append([]Move{move}, variation...)
-			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.String(), "principle variation", principleVariation[1:])
+			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.DebugString(), "principle variation", principleVariation[1:])
 		} else {
-			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.String(), "skip")
+			helper.Println(strings.Repeat(" ", currentDepth), ">", score, move.DebugString(), "skip")
 		}
 		return LoopContinue
 	})
@@ -329,6 +393,9 @@ type WithQuiescence struct {
 }
 
 func (o WithQuiescence) apply(helper *SearchHelper) {
+	helper.Evaluator = QuiescenceEvaluator{
+		helper,
+	}
 }
 
 type WithMaxDepth struct {
@@ -407,14 +474,17 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 
 	errRef := ErrorRef{}
 	helper := SearchHelper{
-		MoveGen: DefaultMoveGenerator{
+		DefaultMoveGenerator{
 			&game,
 			&bitboards,
+			false,
 		},
-		MaxDepth:  3,
-		GameState: &game,
-		Bitboards: &bitboards,
-		Logger:    &SilentLogger,
+		BasicEvaluator{&game, &bitboards},
+		&game,
+		&bitboards,
+		nil, // out of time
+		&SilentLogger,
+		3, // max depth
 	}
 
 	for _, opt := range opts {
