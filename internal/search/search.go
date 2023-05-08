@@ -449,8 +449,8 @@ func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta in
 	}
 
 	if !s.options.skipTranspositionTable {
-		// This always clobbers the existing value in the transposition table. TODO: should we be smarter?
-		// eg only clobber if we have an exact score or if the depth increased?
+		// This always clobbers the existing value in the transposition table.
+		// Shoudl this be smarter? eg only clobber if we have an exact score or if the depth increased?
 		hash := s.Game.ZobristHash()
 		DefaultTranspositionTable().Put(hash, depth, returnScore, returnScoreType)
 	}

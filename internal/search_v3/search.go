@@ -241,7 +241,7 @@ func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, player Player, alpha int,
 		e.Helper.MaxDepth + 10, // allow deep capture searching
 	}
 
-	// TODO always calculate stand-pat when performing quiescence alpha-beta
+	// NEXT always calculate stand-pat when performing quiescence alpha-beta
 	// maybe make alphaBeta a method on SearchHelper
 	// give SearchHelper an option for calculating stand pat that's only on
 	//   during capture searching
