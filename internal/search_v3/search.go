@@ -78,12 +78,21 @@ const (
 
 type MoveGen interface {
 	forEachMove(errs ErrorRef, callback func(move Move) LoopResult)
+	searchingAllLegalMoves() bool
 }
 
 type DefaultMoveGenerator struct {
 	*GameState
 	*Bitboards
 	onlyCaptures bool
+}
+
+func (gen DefaultMoveGenerator) searchingAllLegalMoves() bool {
+	if gen.onlyCaptures {
+		return false
+	} else {
+		return true
+	}
 }
 
 var _ MoveGen = (*DefaultMoveGenerator)(nil)
@@ -141,6 +150,14 @@ type SearchTreeMoveGenerator struct {
 
 var _ MoveGen = (*SearchTreeMoveGenerator)(nil)
 
+func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
+	if gen.currentlySearching.continueSearching {
+		return true
+	} else {
+		return false
+	}
+}
+
 func (gen *SearchTreeMoveGenerator) forEachMove(errs ErrorRef, callback func(move Move) LoopResult) {
 	if errs.HasError() {
 		return
@@ -186,27 +203,24 @@ func (gen *SearchTreeMoveGenerator) forEachMove(errs ErrorRef, callback func(mov
 }
 
 type Evaluator interface {
-	evaluate(errRef ErrorRef, player Player, alpha int, beta int, currentDepth int) ([]Move, int)
+	evaluate(errRef ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int)
 }
 
 type BasicEvaluator struct {
-	*GameState
-	*Bitboards
 }
 
 var _ Evaluator = (*BasicEvaluator)(nil)
 
-func (e BasicEvaluator) evaluate(errRef ErrorRef, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
-	return []Move{}, search.Evaluate(e.Bitboards, player)
+func (e BasicEvaluator) evaluate(errRef ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
+	return []Move{}, search.Evaluate(helper.Bitboards, player)
 }
 
 type QuiescenceEvaluator struct {
-	Helper *SearchHelper
 }
 
 var _ Evaluator = (*QuiescenceEvaluator)(nil)
 
-func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
+func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
 	if errRef.HasError() {
 		return []Move{}, alpha
 	}
@@ -219,7 +233,7 @@ func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, player Player, alpha int,
 	//   but we can also update alpha
 	//   because we now have a guess of the best score we can achieve
 	// if it's bad for us, we need to search captures
-	_, standPat := BasicEvaluator{e.Helper.GameState, e.Helper.Bitboards}.evaluate(errRef, player, alpha, beta, currentDepth)
+	_, standPat := BasicEvaluator{}.evaluate(errRef, helper, player, alpha, beta, currentDepth)
 	if errRef.HasError() {
 		return []Move{}, alpha
 	}
@@ -230,29 +244,29 @@ func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, player Player, alpha int,
 		alpha = standPat
 	}
 
-	captureGenerator := DefaultMoveGenerator{e.Helper.GameState, e.Helper.Bitboards, true /*onlyCaptures*/}
-	newSearchHelper := SearchHelper{
+	captureGenerator := DefaultMoveGenerator{helper.GameState, helper.Bitboards, true /*onlyCaptures*/}
+	quiescenceHelper := SearchHelper{
 		captureGenerator,
-		BasicEvaluator{e.Helper.GameState, e.Helper.Bitboards},
-		e.Helper.GameState,
-		e.Helper.Bitboards,
-		nil, // e.Helper.OutOfTime,
-		e.Helper.Logger,
-		e.Helper.MaxDepth + 10, // allow deep capture searching
+		BasicEvaluator{},
+		helper.GameState,
+		helper.Bitboards,
+		nil, // helper.OutOfTime,
+		helper.Logger,
+		currentDepth + 10, // allow deep capture searching
 	}
 
 	// NEXT always calculate stand-pat when performing quiescence alpha-beta
-	// maybe make alphaBeta a method on SearchHelper
 	// give SearchHelper an option for calculating stand pat that's only on
 	//   during capture searching
-	return alphaBeta(errRef, newSearchHelper, alpha, beta, currentDepth, newSearchHelper.MaxDepth)
+	_, score := quiescenceHelper.alphaBeta(errRef, alpha, beta, currentDepth)
+	return []Move{}, score
 }
 
 type SearchHelper struct {
-	MoveGen
-	Evaluator
-	*GameState
-	*Bitboards
+	MoveGen   MoveGen
+	Evaluator Evaluator
+	GameState *GameState
+	Bitboards *Bitboards
 	OutOfTime *bool
 	Logger
 	MaxDepth int
@@ -266,9 +280,9 @@ func (helper SearchHelper) inCheck() bool {
 	return search.KingIsInCheck(helper.Bitboards, helper.GameState.Player)
 }
 
-func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentDepth int, maxDepth int) ([]Move, int) {
-	if currentDepth >= maxDepth {
-		return helper.evaluate(errs, helper.Player, alpha, beta, currentDepth)
+func (helper *SearchHelper) alphaBeta(errs ErrorRef, alpha int, beta int, currentDepth int) ([]Move, int) {
+	if currentDepth >= helper.MaxDepth {
+		return helper.Evaluator.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
 	}
 
 	if errs.HasError() {
@@ -279,11 +293,11 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentD
 
 	foundMove := false
 
-	helper.forEachMove(errs, func(move Move) LoopResult {
+	helper.MoveGen.forEachMove(errs, func(move Move) LoopResult {
 		foundMove = true
 		helper.Println(strings.Repeat(" ", currentDepth), "?", move.DebugString())
 
-		variation, enemyScore := alphaBeta(errs, helper, -beta, -alpha, currentDepth+1, maxDepth)
+		variation, enemyScore := helper.alphaBeta(errs, -beta, -alpha, currentDepth+1)
 
 		score := -enemyScore
 		if score >= beta {
@@ -301,10 +315,15 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentD
 	})
 
 	if !foundMove {
-		if helper.inCheck() {
-			alpha = -search.Inf
+		if helper.MoveGen.searchingAllLegalMoves() {
+			// If no legal moves exist, we're in stalemate or checkmate
+			if helper.inCheck() {
+				alpha = -search.Inf
+			} else {
+				alpha = 0
+			}
 		} else {
-			alpha = 0
+			return helper.Evaluator.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
 		}
 	}
 
@@ -366,7 +385,7 @@ func alphaBeta(errs ErrorRef, helper SearchHelper, alpha int, beta int, currentD
 // 	return principleVariation, beta
 // }
 
-func findPrincipleVariation(errRef ErrorRef, helper SearchHelper, currentDepth int, maxDepth int) ([]Move, int) {
+func findPrincipleVariation(errRef ErrorRef, helper SearchHelper, currentDepth int) ([]Move, int) {
 	// player := helper.GameState.Player
 	// if player == White {
 	// 	return alphaBetaMax(errRef, helper, -100000, 100000, maxDepth)
@@ -375,7 +394,7 @@ func findPrincipleVariation(errRef ErrorRef, helper SearchHelper, currentDepth i
 	// 	return variation, -score
 	// }
 
-	return alphaBeta(errRef, helper, -search.Inf-1, search.Inf+1, currentDepth, maxDepth)
+	return helper.alphaBeta(errRef, -search.Inf-1, search.Inf+1, currentDepth)
 }
 
 type SearchOption interface {
@@ -389,13 +408,11 @@ func (o WithDebugLogging) apply(helper *SearchHelper) {
 	helper.Logger = &DefaultLogger
 }
 
-type WithQuiescence struct {
+type WithoutQuiescence struct {
 }
 
-func (o WithQuiescence) apply(helper *SearchHelper) {
-	helper.Evaluator = QuiescenceEvaluator{
-		helper,
-	}
+func (o WithoutQuiescence) apply(helper *SearchHelper) {
+	helper.Evaluator = BasicEvaluator{}
 }
 
 type WithMaxDepth struct {
@@ -473,13 +490,15 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 	bitboards := game.CreateBitboards()
 
 	errRef := ErrorRef{}
+	defaultMoveGenerator := DefaultMoveGenerator{
+		&game,
+		&bitboards,
+		false,
+	}
+	quiescenceEvaluator := QuiescenceEvaluator{}
 	helper := SearchHelper{
-		DefaultMoveGenerator{
-			&game,
-			&bitboards,
-			false,
-		},
-		BasicEvaluator{&game, &bitboards},
+		defaultMoveGenerator,
+		quiescenceEvaluator,
 		&game,
 		&bitboards,
 		nil, // out of time
@@ -495,7 +514,7 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 
 	principleVariation := []Move{}
 
-	helper.forEachMove(errRef, func(move Move) LoopResult {
+	helper.MoveGen.forEachMove(errRef, func(move Move) LoopResult {
 		if helper.OutOfTime != nil && *helper.OutOfTime {
 			return LoopBreak
 		}
@@ -509,8 +528,7 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 			errRef,
 			helper,
 			// current depth is 1 (0 would be before we applied `move`)
-			1,
-			helper.MaxDepth)
+			1)
 		if errRef.HasError() {
 			return LoopBreak
 		}
