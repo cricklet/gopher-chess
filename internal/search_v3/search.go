@@ -137,8 +137,6 @@ func (gen DefaultMoveGenerator) forEachMove(errs ErrorRef, callback func(move Mo
 			break
 		}
 	}
-
-	return
 }
 
 type SearchTreeMoveGenerator struct {
@@ -199,7 +197,6 @@ func (gen *SearchTreeMoveGenerator) forEachMove(errs ErrorRef, callback func(mov
 			break
 		}
 	}
-	return
 }
 
 type Evaluator interface {
@@ -225,34 +222,16 @@ func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, helper *SearchHelper, pla
 		return []Move{}, alpha
 	}
 
-	// if we decide not to not take (eg make a neutral move / stand-pat)
-	// and that's really good for us (eg other player will have prevented this path)
-	//   we can return early
-	// if it's good for us but not so good the other player can prevent this path
-	//   we need to search captures
-	//   but we can also update alpha
-	//   because we now have a guess of the best score we can achieve
-	// if it's bad for us, we need to search captures
-	_, standPat := BasicEvaluator{}.evaluate(errRef, helper, player, alpha, beta, currentDepth)
-	if errRef.HasError() {
-		return []Move{}, alpha
-	}
-
-	if standPat >= beta {
-		return []Move{}, beta
-	} else if standPat > alpha {
-		alpha = standPat
-	}
-
 	captureGenerator := DefaultMoveGenerator{helper.GameState, helper.Bitboards, true /*onlyCaptures*/}
 	quiescenceHelper := SearchHelper{
 		captureGenerator,
 		BasicEvaluator{},
 		helper.GameState,
 		helper.Bitboards,
-		nil, // helper.OutOfTime,
+		nil,  // helper.OutOfTime,
+		true, // helper.CheckStandPat
 		helper.Logger,
-		currentDepth + 10, // allow deep capture searching
+		currentDepth + 6, // allow deep capture searching
 	}
 
 	// NEXT always calculate stand-pat when performing quiescence alpha-beta
@@ -263,11 +242,12 @@ func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, helper *SearchHelper, pla
 }
 
 type SearchHelper struct {
-	MoveGen   MoveGen
-	Evaluator Evaluator
-	GameState *GameState
-	Bitboards *Bitboards
-	OutOfTime *bool
+	MoveGen       MoveGen
+	Evaluator     Evaluator
+	GameState     *GameState
+	Bitboards     *Bitboards
+	OutOfTime     *bool
+	CheckStandPat bool
 	Logger
 	MaxDepth int
 }
@@ -287,6 +267,27 @@ func (helper *SearchHelper) alphaBeta(errs ErrorRef, alpha int, beta int, curren
 
 	if errs.HasError() {
 		return []Move{}, alpha
+	}
+
+	if helper.CheckStandPat {
+		// if we decide not to not take (eg make a neutral move / stand-pat)
+		// and that's really good for us (eg other player will have prevented this path)
+		//   we can return early
+		// if it's good for us but not so good the other player can prevent this path
+		//   we need to search captures
+		//   but we can also update alpha
+		//   because the future capture must beat standing pat in order for us to choose it
+		// if it's bad for us, we need to search captures
+		_, standPat := BasicEvaluator{}.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
+		if errs.HasError() {
+			return []Move{}, alpha
+		}
+
+		if standPat >= beta {
+			return []Move{}, beta
+		} else if standPat > alpha {
+			alpha = standPat
+		}
 	}
 
 	principleVariation := []Move{}
@@ -501,7 +502,8 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 		quiescenceEvaluator,
 		&game,
 		&bitboards,
-		nil, // out of time
+		nil,   // out of time
+		false, // helper.CheckStandPat
 		&SilentLogger,
 		3, // max depth
 	}

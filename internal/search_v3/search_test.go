@@ -24,7 +24,7 @@ func TestOpeningWithoutQuiescence(t *testing.T) {
 	// Note that searching an even depth will cause us to play overly cautiously
 	// because we don't have quiescence turned on so we can't see that we are
 	// able to trade when an emeny captures a piece after us
-	result, score, err = Search(fen, WithMaxDepth{4})
+	result, _, err = Search(fen, WithMaxDepth{4})
 	assert.True(t, IsNil(err), err)
 
 	assert.False(t, expectedOpenings[result[0].String()])
@@ -94,6 +94,7 @@ func TestOpeningCaptureWithoutQuiescence(t *testing.T) {
 
 	// without quiescence, if we don't search far enough, we don't see trades
 	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithoutQuiescence{})
+	assert.True(t, IsNil(err), err)
 	fmt.Println(result, score)
 	assert.Less(t, score, 0)
 	assert.Equal(t,
@@ -101,6 +102,7 @@ func TestOpeningCaptureWithoutQuiescence(t *testing.T) {
 		ConcatStringify(result))
 
 	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5}, WithoutQuiescence{})
+	assert.True(t, IsNil(err), err)
 	fmt.Println(result, score)
 	assert.Greater(t, score, 0)
 	assert.Equal(t,
@@ -124,6 +126,7 @@ func TestOpeningCaptureWithQuiescence(t *testing.T) {
 
 	// we should see the trades because of quiescence
 	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4})
+	assert.True(t, IsNil(err), err)
 	fmt.Println(result, score)
 	assert.Greater(t, score, 0)
 	assert.Equal(t,
@@ -131,6 +134,7 @@ func TestOpeningCaptureWithQuiescence(t *testing.T) {
 		ConcatStringify(result))
 
 	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5})
+	assert.True(t, IsNil(err), err)
 	fmt.Println(result, score)
 	assert.Greater(t, score, 0)
 	assert.Equal(t,
