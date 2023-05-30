@@ -14,7 +14,6 @@ import (
 	"github.com/cricklet/chessgo/internal/binary"
 	. "github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	. "github.com/cricklet/chessgo/internal/search"
 	elo "github.com/kortemy/elo-go"
 	combinations "github.com/mxschmitt/golang-combinations"
 )
@@ -456,21 +455,14 @@ func CompareStockfishMain(args []string) {
 	if performArgPermutations {
 		if len(userSpecifiedBinaryArgs) > 0 {
 			allBinaryArgsToTry = append(combinations.All(userSpecifiedBinaryArgs), []string{})
-		} else {
-			allBinaryArgsToTry = append(combinations.All(AllSearchOptions), []string{})
 		}
 	} else if eachArg {
 		if len(userSpecifiedBinaryArgs) > 0 {
 			allBinaryArgsToTry = append(MapSlice(userSpecifiedBinaryArgs, func(arg string) []string {
 				return []string{arg}
 			}), []string{})
-		} else {
-			allBinaryArgsToTry = append(MapSlice(AllSearchOptions, func(arg string) []string {
-				return []string{arg}
-			}), []string{})
 		}
 	}
-	allBinaryArgsToTry = FilterDisallowedSearchOptions(allBinaryArgsToTry)
 
 	logger.Println("trying", len(allBinaryArgsToTry), "arg permutations")
 	for _, binaryArgs := range allBinaryArgsToTry {

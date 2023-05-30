@@ -8,7 +8,6 @@ import (
 
 	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/search"
 	"github.com/cricklet/chessgo/internal/uci"
 	"github.com/pkg/profile"
 )
@@ -27,24 +26,8 @@ func main() {
 		p := profile.Start(profile.ProfilePath(profilePath))
 		defer p.Stop()
 	}
-	args = FilterSlice(args, func(arg string) bool {
-		return arg != "profile"
-	})
-
-	if len(args) > 0 && args[0] == "options" {
-		for _, option := range search.AllSearchOptions {
-			fmt.Println(option)
-		}
-		return
-	}
-
-	searchOptions, err := search.SearcherOptionsFromArgs(args...)
-	if !IsNil(err) {
-		panic(err)
-	}
 
 	r := uci.NewUciRunner(chessgo.NewChessGoRunner(
-		chessgo.WithSearchOptions(searchOptions),
 		chessgo.WithLogger(FuncLogger(
 			func(s string) {
 				fmt.Print(s)

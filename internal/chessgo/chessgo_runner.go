@@ -8,16 +8,15 @@ import (
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/cricklet/chessgo/internal/search"
-	. "github.com/cricklet/chessgo/internal/search"
 )
 
 type ChessGoRunner struct {
-	Logger        Logger
-	SearchOptions SearcherOptions
+	Logger Logger
 
-	g *GameState
-	b *Bitboards
-	s *search.SearcherV2
+	g         *GameState
+	b         *Bitboards
+	s         *search.SearchHelper
+	outOfTime *bool
 
 	StartFen string
 	history  []HistoryValue
@@ -27,9 +26,12 @@ var _ Runner = (*ChessGoRunner)(nil)
 
 type ChessGoOption func(*ChessGoRunner)
 
-func (r *ChessGoRunner) Searcher() *search.SearcherV2 {
+func (r *ChessGoRunner) Searcher() *search.SearchHelper {
 	if r.s == nil {
-		r.s = search.NewSearcherV2(r.Logger, r.g, r.b, r.SearchOptions)
+		r.s = search.Searcher(r.g, r.b,
+			search.WithLogger{Logger: r.Logger},
+			search.WithOutOfTime{OutOfTime: r.outOfTime},
+		)
 		PrintMemUsage()
 	}
 
@@ -42,14 +44,10 @@ func WithLogger(l Logger) ChessGoOption {
 	}
 }
 
-func WithSearchOptions(s SearcherOptions) ChessGoOption {
-	return func(r *ChessGoRunner) {
-		r.SearchOptions = s
-	}
-}
-
 func NewChessGoRunner(opts ...ChessGoOption) ChessGoRunner {
-	r := ChessGoRunner{}
+	r := ChessGoRunner{
+		outOfTime: new(bool),
+	}
 	for _, opt := range opts {
 		opt(&r)
 	}
@@ -179,7 +177,7 @@ func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, Error) {
 	selectionIndex := IndexFromFileRank(selectionFileRank)
 
 	legalMoves := []Move{}
-	err = GenerateLegalMoves(r.b, r.g, &legalMoves)
+	err = search.GenerateLegalMoves(r.b, r.g, &legalMoves)
 	if !IsNil(err) {
 		return nil, err
 	}
@@ -235,32 +233,34 @@ func (r *ChessGoRunner) Board() BoardArray {
 }
 
 func (r *ChessGoRunner) Search() (Optional[string], Error) {
-	var move Optional[Move]
+	var moves []Move
 	var err Error
+
+	*r.outOfTime = false
 
 	go func() {
 		time.Sleep(1000 * time.Millisecond)
-		r.Searcher().OutOfTime = true
+		*r.outOfTime = true
 	}()
 
-	move, err = r.Searcher().Search()
+	moves, _, err = r.Searcher().Search()
 	if !IsNil(err) {
 		return Empty[string](), err
 	}
 
-	if move.HasValue() {
-		return Some(move.Value().String()), NilError
+	if len(moves) > 0 {
+		return Some(moves[0].String()), NilError
 	}
 
-	return MapOptional(move, func(m Move) string { return m.String() }), NilError
+	return Empty[string](), NilError
 }
 
 func (r *ChessGoRunner) PlayerIsInCheck() bool {
-	return PlayerIsInCheck(r.g, r.b)
+	return search.PlayerIsInCheck(r.g, r.b)
 }
 
 func (r *ChessGoRunner) NoValidMoves() (bool, Error) {
-	return NoValidMoves(r.g, r.b)
+	return search.NoValidMoves(r.g, r.b)
 }
 
 func (r *ChessGoRunner) Evaluate(player Player) int {

@@ -1,683 +1,575 @@
 package search
 
 import (
-	"fmt"
-	"sort"
 	"strings"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/dustin/go-humanize"
 )
 
-type debugSearchLine struct {
-	DebugString string
-	Depth       int
-	Alpha       int
-	Beta        int
-	IsCapture   bool
-	Score       Optional[int]
-	Legal       Optional[bool]
+/*
+alpha/beta w/ caching from the ground up
+
+           a
+       /        \     <-- white moves
+      b          c
+   /   \       /   \   <-- black moves
+  d     e     f     g
+ / \   / \   / \   / \  <-- white move
+h   i j   k l   m n   o
+
+eval(x) = evaluation function for white
+maximize(x, i) = search from x, choosing the move that maximizes the evaluation
+minimize(y, j) = search from y, choosing the move that minimizes the evaluation
+
+maximize(a, 2) = search from a, with 2 ply
+  => white-move a=>b
+    minimize(b, 1)
+      => black-move b=>d -> maximize(d, 0) -> eval(d)
+      => black-move b=>e -> maximize(e, 0) -> eval(e)
+  => white-move a=>c
+    minimize(c, 1)
+      => black-move c=>f -> maximize(f, 0) -> eval(f)
+      => black-move c=>g -> maximize(g, 0) -> eval(g)
+
+by the time we're investigating a=>c, we already know the expected result of a=>b
+  (eg white eval lower bound, eg score white can force via a=>b)
+
+if black's c=>f move is better for black than the expected result white's a=>c
+  this is a refutation move
+  in this case, white won't play a=>c and we can ignore this whole branch
+  ^ this is the only pruning we're allowed to do!
+
+by the time we're investigating black's c=>g move, we know:
+  the best score white can force via a=>b (alpha, eg white eval lower bound)
+  the best score black can force via c=>f (beta, eg white eval upper bound)
+  this means that
+    when we're minimizing (eg minimize(c, j))
+      we can early exit if we find a black move that results in a alpha cutoff (eg worse for white than alpha)
+      we can ignore results worse for black than beta
+
+similarly, if we're investigating white's future f=>m move, we know:
+  the best score white can previously force (either via a=>b or via a=>c=>f=>l) (alpha, eg white eval lower bound)
+  the best score black can force (beta, eg white eval upper bound)
+  this means that
+    when we're maximizing (eg maximize(f, i))
+      we can early exit if we find a white move that results in an beta cut-off
+      we can ignore results worse for white than alpha
+*/
+
+/*
+maximize(a, i)
+  we find the best move for white and return it
+	minimize(b, i - 1)
+      we find the best move for black and return it
+
+maximize(board, depth) -> principle-variation, score
+minimize(board, depth) -> principle-variation, score
+*/
+
+type LoopResult int
+
+const (
+	LoopContinue LoopResult = iota
+	LoopBreak
+)
+
+type MoveGen interface {
+	forEachMove(errs ErrorRef, callback func(move Move) LoopResult)
+	searchingAllLegalMoves() bool
 }
 
-type debugSearchTree struct {
-	CurrentDepth int
-	CurrentPath  []string
-	Result       []debugSearchLine
+type DefaultMoveGenerator struct {
+	*GameState
+	*Bitboards
+	onlyCaptures bool
 }
 
-func (s *debugSearchTree) DebugString(depth int) string {
-	result := ""
-	for i := range s.Result {
-		// line := s.Result[len(s.Result)-i-1]
-		line := s.Result[i]
-		if line.Depth >= depth {
-			continue
-		}
-		if line.Score.HasValue() {
-			scoreString := fmt.Sprint(line.Score.Value())
-			if line.Legal.HasValue() && !line.Legal.Value() {
-				scoreString = "illegal"
-			}
-			captureString := ""
-			if line.IsCapture {
-				captureString = " x"
-			}
-			result += fmt.Sprintf("%v%v%v (%v %v) %v\n",
-				strings.Repeat(" ", line.Depth),
-				line.DebugString,
-				captureString,
-				line.Alpha,
-				line.Beta,
-				scoreString)
-		}
-		// else {
-		// result += fmt.Sprintf("%v%v (%v %v)\n",
-		// 	strings.Repeat(" ", line.Depth),
-		// 	line.DebugString,
-		// 	line.Alpha,
-		// 	line.Beta)
-		// }
-	}
-	return result
-}
-
-func (s *debugSearchTree) DepthPush(label string) {
-	s.Result = append(s.Result, debugSearchLine{
-		DebugString: "> " + label,
-		Depth:       s.CurrentDepth,
-	})
-	s.CurrentDepth += 1
-}
-
-func (s *debugSearchTree) DepthPop(label string, result int) {
-	s.CurrentDepth -= 1
-	s.Result = append(s.Result, debugSearchLine{
-		DebugString: "$ " + label,
-		Depth:       s.CurrentDepth,
-		Score:       Some(result),
-	})
-}
-
-func (s *debugSearchTree) MovePop(move Move, player Player, alpha int, beta int, result int, legal bool) {
-	s.CurrentDepth -= 1
-	s.Result = append(s.Result, debugSearchLine{
-		DebugString: fmt.Sprintf("$ %v (%v)", strings.Join(s.CurrentPath, " "), player),
-		Depth:       s.CurrentDepth,
-		Alpha:       alpha,
-		Beta:        beta,
-		Score:       Some(result),
-		Legal:       Some(legal),
-		IsCapture:   move.MoveType == CaptureMove || move.MoveType == EnPassantMove,
-	})
-	s.CurrentPath = s.CurrentPath[:len(s.CurrentPath)-1]
-}
-
-func (s *debugSearchTree) MovePush(move Move, player Player, alpha int, beta int) {
-	s.CurrentPath = append(s.CurrentPath, move.String())
-	s.Result = append(s.Result, debugSearchLine{
-		DebugString: fmt.Sprintf("> %v (%v)", strings.Join(s.CurrentPath, " "), player),
-		Depth:       s.CurrentDepth,
-		Alpha:       alpha,
-		Beta:        beta,
-		IsCapture:   move.MoveType == CaptureMove || move.MoveType == EnPassantMove,
-	})
-	s.CurrentDepth += 1
-}
-
-type SearcherV2 struct {
-	Logger Logger
-
-	OutOfTime bool
-
-	Game      *GameState
-	Bitboards *Bitboards
-
-	hasIncrementedDepthForCheck bool
-
-	options SearcherOptions
-
-	DebugTotalEvaluations    int
-	DebugTotalMovesPerformed int
-	DebugDepthIteration      int
-	DebugMovesToConsider     int
-	DebugMovesConsidered     int
-	DebugCapturesSearched    int
-	DebugCapturesSkipped     int
-}
-
-type SearcherOptions struct {
-	evaluationOptions      []EvaluationOption
-	skipTranspositionTable bool
-
-	debugSearchTree *debugSearchTree
-	maxDepth        Optional[int]
-}
-
-var DefaultSearchOptions = SearcherOptions{}
-
-var AllSearchOptions = []string{
-	"skipTranspositionTable",
-}
-
-var DisallowedSearchOptionCombinations = [][]string{}
-
-func RemoveFirstPrefixMatch(slice []string, prefix string) ([]string, bool) {
-	for i, item := range slice {
-		if strings.HasPrefix(item, prefix) {
-			return append(slice[:i], slice[i+1:]...), true
-		}
-	}
-	return slice, false
-}
-
-func FilterDisallowedSearchOptions(allOptions [][]string) [][]string {
-	return FilterSlice(allOptions, func(options []string) bool {
-		for _, disallowedOptions := range DisallowedSearchOptionCombinations {
-			disallowed := true
-
-			for _, disallowedOption := range disallowedOptions {
-				var foundDisallowedOption bool
-				options, foundDisallowedOption = RemoveFirstPrefixMatch(Clone(options), disallowedOption)
-				if !foundDisallowedOption {
-					disallowed = false
-					break
-				}
-			}
-			if disallowed {
-				return false
-			}
-		}
+func (gen DefaultMoveGenerator) searchingAllLegalMoves() bool {
+	if gen.onlyCaptures {
+		return false
+	} else {
 		return true
-	})
-}
-
-func SearcherOptionsFromArgs(args ...string) (SearcherOptions, Error) {
-	options := SearcherOptions{}
-
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "debugSearchTree") {
-			options.debugSearchTree = &debugSearchTree{}
-		} else if strings.HasPrefix(arg, "skipTranspositionTable") {
-			options.skipTranspositionTable = true
-		} else if arg == "" {
-		} else {
-			return options, Errorf("unknown option: '%s'", arg)
-		}
-	}
-
-	return options, NilError
-}
-
-func NewSearcherV2(logger Logger, game *GameState, bitboards *Bitboards, options SearcherOptions) *SearcherV2 {
-	return &SearcherV2{
-		Logger:    logger,
-		OutOfTime: false,
-		Game:      game,
-		Bitboards: bitboards,
-		options:   options,
 	}
 }
 
-func (s *SearcherV2) PerformMoveAndReturnLegality(move Move, update *BoardUpdate) (bool, Error) {
-	s.DebugTotalMovesPerformed++
-	err := s.Game.PerformMove(move, update, s.Bitboards)
-	if !IsNil(err) {
-		return false, err
+var _ MoveGen = (*DefaultMoveGenerator)(nil)
+
+func (gen DefaultMoveGenerator) forEachMove(errs ErrorRef, callback func(move Move) LoopResult) {
+	if errs.HasError() {
+		return
 	}
-
-	if KingIsInCheck(s.Bitboards, s.Game.Enemy()) {
-		return false, NilError
-	}
-
-	return true, NilError
-}
-
-func (s *SearcherV2) EvaluatePosition(player Player) int {
-	return Evaluate(s.Bitboards, player, s.options.evaluationOptions...)
-}
-
-func (s *SearcherV2) evaluateCapturesForPlayer(player Player, alpha int, beta int) (int, Error) {
-	var returnScore int
-	var returnError Error
-
-	if s.OutOfTime {
-		return returnScore, returnError
-	}
-
-	if player != s.Game.Player {
-		returnError = Errorf("player != s.Game.Player")
-		return returnScore, returnError
-	}
-
-	// if s.options.transpositionTable != nil {
-	// 	if entry := s.options.transpositionTable.Get(s.Game.ZobristHash(), 0); entry.HasValue() {
-	// 		returnScore := entry.Value().Score
-	// 		return returnScore, returnErrors
-	// 	}
-	// }
-
-	standPat := s.EvaluatePosition(player)
-
-	if standPat >= beta {
-		returnScore := beta
-		return returnScore, returnError
-	} else if standPat > alpha {
-		alpha = standPat
-	}
-
-	returnScore = alpha
 
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	evals := make(map[Move]int)
-	GeneratePseudoCaptures(func(m Move) {
-		*moves = append(*moves, m)
-		evals[m] = EvaluateMove(&m, s.Game)
-	}, s.Bitboards, s.Game)
-
-	sort.Slice(*moves, func(i, j int) bool {
-		return evals[(*moves)[i]] > evals[(*moves)[j]]
-	})
-
-	if len(*moves) == 0 {
-		returnScore = s.EvaluatePosition(player)
-		s.DebugTotalEvaluations++
-		return returnScore, returnError
+	if gen.onlyCaptures {
+		GeneratePseudoCaptures(func(m Move) {
+			*moves = append(*moves, m)
+		}, gen.Bitboards, gen.GameState)
+	} else {
+		GeneratePseudoMoves(func(m Move) {
+			*moves = append(*moves, m)
+		}, gen.Bitboards, gen.GameState)
 	}
 
-	for i := range *moves {
-		if eval, ok := evals[(*moves)[i]]; ok {
-			if eval <= 0 {
-				s.DebugCapturesSkipped++
-				break
+	for _, move := range *moves {
+		result := LoopContinue
+		func() {
+			var update BoardUpdate
+			errs.Add(
+				gen.GameState.PerformMove(move, &update, gen.Bitboards))
+
+			defer func() {
+				errs.Add(
+					gen.GameState.UndoUpdate(&update, gen.Bitboards))
+			}()
+
+			if errs.HasError() {
+				result = LoopBreak
+			} else if !KingIsInCheck(gen.Bitboards, gen.GameState.Enemy()) {
+				result = callback(move) // move is legal
 			}
+		}()
+		if result == LoopBreak {
+			break
+		}
+	}
+}
+
+type SearchTreeMoveGenerator struct {
+	SearchTree
+	*GameState
+	*Bitboards
+	currentlySearching *SearchTree
+}
+
+var _ MoveGen = (*SearchTreeMoveGenerator)(nil)
+
+func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
+	if gen.currentlySearching.continueSearching {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (gen *SearchTreeMoveGenerator) forEachMove(errs ErrorRef, callback func(move Move) LoopResult) {
+	if errs.HasError() {
+		return
+	}
+
+	if gen.currentlySearching == nil {
+		gen.currentlySearching = &gen.SearchTree
+	}
+
+	if gen.currentlySearching.continueSearching {
+		DefaultMoveGenerator{gen.GameState, gen.Bitboards, false}.forEachMove(errs, callback)
+		return
+	}
+
+	prevSearchTree := gen.currentlySearching
+	for nextMove, nextSearchTree := range gen.currentlySearching.moves {
+		result := LoopContinue
+		func() {
+			gen.currentlySearching = nextSearchTree
+			move := gen.GameState.MoveFromString(nextMove)
+
+			var update BoardUpdate
+			errs.Add(
+				gen.GameState.PerformMove(move, &update, gen.Bitboards))
+
+			defer func() {
+				gen.currentlySearching = prevSearchTree
+				errs.Add(
+					gen.GameState.UndoUpdate(&update, gen.Bitboards))
+			}()
+
+			if errs.HasError() {
+				result = LoopBreak
+			} else if !KingIsInCheck(gen.Bitboards, gen.GameState.Enemy()) {
+				result = callback(move) // move is legal
+			}
+		}()
+		if result == LoopBreak {
+			break
+		}
+	}
+}
+
+type Evaluator interface {
+	evaluate(errRef ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int)
+}
+
+type BasicEvaluator struct {
+}
+
+var _ Evaluator = (*BasicEvaluator)(nil)
+
+func (e BasicEvaluator) evaluate(errRef ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
+	return []Move{}, Evaluate(helper.Bitboards, player)
+}
+
+type QuiescenceEvaluator struct {
+}
+
+var _ Evaluator = (*QuiescenceEvaluator)(nil)
+
+func (e QuiescenceEvaluator) evaluate(errRef ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
+	if errRef.HasError() {
+		return []Move{}, alpha
+	}
+
+	captureGenerator := DefaultMoveGenerator{helper.GameState, helper.Bitboards, true /*onlyCaptures*/}
+	quiescenceHelper := SearchHelper{
+		captureGenerator,
+		BasicEvaluator{},
+		helper.GameState,
+		helper.Bitboards,
+		nil,  // helper.OutOfTime,
+		true, // helper.CheckStandPat
+		helper.Logger,
+		&SilentLogger,
+		currentDepth + 6, // allow deep capture searching
+	}
+
+	// NEXT always calculate stand-pat when performing quiescence alpha-beta
+	// give SearchHelper an option for calculating stand pat that's only on
+	//   during capture searching
+	moves, score := quiescenceHelper.alphaBeta(errRef, alpha, beta, currentDepth)
+	return moves, score
+}
+
+type SearchHelper struct {
+	MoveGen       MoveGen
+	Evaluator     Evaluator
+	GameState     *GameState
+	Bitboards     *Bitboards
+	OutOfTime     *bool
+	CheckStandPat bool
+	Logger
+	Debug    Logger
+	MaxDepth int
+}
+
+func (helper SearchHelper) String() string {
+	return helper.GameState.Board.String()
+}
+
+func (helper SearchHelper) inCheck() bool {
+	return KingIsInCheck(helper.Bitboards, helper.GameState.Player)
+}
+
+func (helper *SearchHelper) alphaBeta(errs ErrorRef, alpha int, beta int, currentDepth int) ([]Move, int) {
+	if currentDepth >= helper.MaxDepth {
+		return helper.Evaluator.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
+	}
+
+	if errs.HasError() {
+		return []Move{}, alpha
+	}
+
+	if helper.CheckStandPat {
+		// if we decide not to not take (eg make a neutral move / stand-pat)
+		// and that's really good for us (eg other player will have prevented this path)
+		//   we can return early
+		// if it's good for us but not so good the other player can prevent this path
+		//   we need to search captures
+		//   but we can also update alpha
+		//   because the future capture must beat standing pat in order for us to choose it
+		// if it's bad for us, we need to search captures
+		_, standPat := BasicEvaluator{}.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
+		if errs.HasError() {
+			return []Move{}, alpha
 		}
 
-		s.DebugCapturesSearched++
-
-		score, legality, childError := s.evaluateCaptureForPlayer(player, (*moves)[i], alpha, beta)
-
-		if !IsNil(childError) {
-			returnError = Join(returnError, childError)
-			return returnScore, returnError
+		if standPat >= beta {
+			return []Move{}, beta
+		} else if standPat > alpha {
+			alpha = standPat
 		}
+	}
 
-		if !legality {
-			continue
-		}
+	principleVariation := []Move{}
 
+	foundMove := false
+
+	helper.MoveGen.forEachMove(errs, func(move Move) LoopResult {
+		foundMove = true
+		helper.Debug.Println(strings.Repeat(" ", currentDepth), "?", move.DebugString())
+
+		variation, enemyScore := helper.alphaBeta(errs, -beta, -alpha, currentDepth+1)
+
+		score := -enemyScore
 		if score >= beta {
-			// The enemy will avoid this line
-			returnScore = beta
-			break
+			alpha = beta // fail hard beta-cutoff
+			helper.Debug.Println(strings.Repeat(" ", currentDepth), ">", score, move.DebugString(), "beta cutoff")
+			return LoopBreak
 		} else if score > alpha {
-			// This is our best choice of move
 			alpha = score
-			returnScore = score
+			principleVariation = append([]Move{move}, variation...)
+			helper.Debug.Println(strings.Repeat(" ", currentDepth), ">", score, move.DebugString(), "principle variation", principleVariation[1:])
+		} else {
+			helper.Debug.Println(strings.Repeat(" ", currentDepth), ">", score, move.DebugString(), "skip")
+		}
+		return LoopContinue
+	})
+
+	if !foundMove {
+		if helper.MoveGen.searchingAllLegalMoves() {
+			// If no legal moves exist, we're in stalemate or checkmate
+			if helper.inCheck() {
+				alpha = -Inf
+			} else {
+				alpha = 0
+			}
+		} else {
+			return helper.Evaluator.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
 		}
 	}
 
-	// if s.options.transpositionTable != nil {
-	// 	hash := s.Game.ZobristHash()
-	// 	s.options.transpositionTable.Put(hash, 0, returnScore)
+	return principleVariation, alpha
+}
+
+func (helper *SearchHelper) Search() ([]Move, int, Error) {
+	errRef := ErrorRef{}
+
+	availableMoves := []Pair[int, []Move]{}
+
+	helper.MoveGen.forEachMove(errRef, func(move Move) LoopResult {
+		if helper.OutOfTime != nil && *helper.OutOfTime {
+			return LoopBreak
+		}
+
+		if errRef.HasError() {
+			return LoopBreak
+		}
+
+		variation, enemyScore := findPrincipleVariation(
+			errRef,
+			*helper,
+			// current depth is 1 (0 would be before we applied `move`)
+			1)
+		if errRef.HasError() {
+			return LoopBreak
+		}
+
+		score := -enemyScore
+		availableMoves = append(availableMoves, Pair[int, []Move]{
+			First: score, Second: append([]Move{move}, variation...)})
+
+		return LoopContinue
+	})
+
+	SortMaxFirst(&availableMoves, func(t Pair[int, []Move]) int {
+		return t.First
+	})
+
+	for _, move := range availableMoves {
+		helper.Println(">", move.First, move.Second)
+	}
+
+	if len(availableMoves) == 0 {
+		return []Move{}, 0, errRef.Error()
+	}
+
+	bestMove := availableMoves[0]
+	return bestMove.Second, bestMove.First, errRef.Error()
+}
+
+// func alphaBetaMax(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
+// 	if depthleft == 0 {
+// 		return []Move{}, helper.evaluateWhite()
+// 	}
+
+// 	if errs.HasError() {
+// 		return []Move{}, alpha
+// 	}
+
+// 	principleVariation := []Move{}
+
+// 	helper.forEachMove(errs, func(move Move) LoopResult {
+// 		variation, score := alphaBetaMin(errs, helper, alpha, beta, depthleft-1)
+// 		if score >= beta {
+// 			alpha = beta // fail hard beta-cutoff
+// 			return LoopBreak
+// 		}
+// 		if score > alpha {
+// 			alpha = score // alpha acts like max in MiniMax
+// 			principleVariation = append([]Move{move}, variation...)
+// 		}
+// 		return LoopContinue
+// 	})
+
+// 	return principleVariation, alpha
+// }
+
+// func alphaBetaMin(errs ErrorRef, helper SearchHelper, alpha int, beta int, depthleft int) ([]Move, int) {
+// 	if depthleft == 0 {
+// 		return []Move{}, helper.evaluateWhite()
+// 	}
+
+// 	if errs.HasError() {
+// 		return []Move{}, alpha
+// 	}
+
+// 	principleVariation := []Move{}
+
+// 	helper.forEachMove(errs, func(move Move) LoopResult {
+// 		variation, score := alphaBetaMax(errs, helper, alpha, beta, depthleft-1)
+// 		if score <= alpha {
+// 			beta = alpha // fail hard alpha-cutoff
+// 			return LoopBreak
+// 		}
+// 		if score < beta {
+// 			beta = score // beta acts like min in MiniMax
+// 			principleVariation = append([]Move{move}, variation...)
+// 		}
+
+// 		return LoopContinue
+// 	})
+
+// 	return principleVariation, beta
+// }
+
+func findPrincipleVariation(errRef ErrorRef, helper SearchHelper, currentDepth int) ([]Move, int) {
+	// player := helper.GameState.Player
+	// if player == White {
+	// 	return alphaBetaMax(errRef, helper, -100000, 100000, maxDepth)
+	// } else {
+	// 	variation, score := alphaBetaMin(errRef, helper, -100000, 100000, maxDepth)
+	// 	return variation, -score
 	// }
-	return returnScore, returnError
+
+	return helper.alphaBeta(errRef, -Inf-1, Inf+1, currentDepth)
 }
 
-func (s *SearcherV2) evaluateCaptureForPlayer(player Player, move Move, alpha int, beta int) (int, bool, Error) {
-	var returnScore int
-	var returnLegality bool
-	var returnError Error
-
-	if s.OutOfTime {
-		return returnScore, returnLegality, returnError
-	}
-
-	if player != s.Game.Player {
-		returnError = Errorf("player != s.Game.Player")
-		return returnScore, returnLegality, returnError
-	}
-
-	enemy := player.Other()
-
-	if s.options.debugSearchTree != nil {
-		s.options.debugSearchTree.MovePush(
-			move,
-			player, alpha, beta)
-		defer func() {
-			s.options.debugSearchTree.MovePop(
-				move, player,
-				alpha, beta, returnScore, returnLegality)
-		}()
-	}
-
-	var update BoardUpdate
-	var err Error
-	returnLegality, err = s.PerformMoveAndReturnLegality(move, &update)
-	defer func() {
-		err = s.Game.UndoUpdate(&update, s.Bitboards)
-		if !IsNil(err) {
-			returnError = Join(returnError, err)
-		}
-	}()
-	if !IsNil(err) {
-		returnError = Join(returnError, err)
-		return returnScore, returnLegality, returnError
-	}
-	if !returnLegality {
-		return returnScore, returnLegality, returnError
-	}
-
-	var enemyScore int
-	enemyScore, returnError = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
-	returnScore = -enemyScore
-	return returnScore, returnLegality, returnError
+type SearchOption interface {
+	apply(helper *SearchHelper)
 }
 
-func (s *SearcherV2) evaluatePositionForPlayer(player Player, alpha int, beta int, depth int) (int, Error) {
-	if s.OutOfTime {
-		return 0, NilError
+type WithDebugLogging struct {
+}
+
+func (o WithDebugLogging) apply(helper *SearchHelper) {
+	helper.Debug = &DefaultLogger
+}
+
+type WithLogger struct {
+	Logger Logger
+}
+
+func (o WithLogger) apply(helper *SearchHelper) {
+	helper.Logger = o.Logger
+}
+
+type WithoutQuiescence struct {
+}
+
+func (o WithoutQuiescence) apply(helper *SearchHelper) {
+	helper.Evaluator = BasicEvaluator{}
+}
+
+type WithMaxDepth struct {
+	MaxDepth int
+}
+
+func (o WithMaxDepth) apply(helper *SearchHelper) {
+	helper.MaxDepth = o.MaxDepth
+}
+
+type SearchTree struct {
+	moves             map[string]*SearchTree
+	continueSearching bool
+}
+
+func SearchTreeFromLines(
+	startingFen string,
+	lines [][]string,
+	continueSearchingPastLines bool,
+) (SearchTree, Error) {
+	result := SearchTree{
+		moves:             map[string]*SearchTree{},
+		continueSearching: false,
 	}
 
-	if player != s.Game.Player {
-		return 0, Errorf("player != s.Game.Player")
-	}
-
-	if !s.options.skipTranspositionTable {
-		if entry := DefaultTranspositionTable().Get(s.Game.ZobristHash(), depth); entry.HasValue() {
-			score := entry.Value().Score
-			scoreType := entry.Value().ScoreType
-			if scoreType == Exact {
-				if score >= beta {
-					// The enemy will avoid this line
-					return beta, NilError
-				} else if score > alpha {
-					return score, NilError
-				} else {
-					return alpha, NilError
+	for _, line := range lines {
+		currentTree := &result
+		for _, move := range line {
+			if nextTree, contains := currentTree.moves[move]; contains {
+				currentTree = nextTree
+			} else {
+				currentTree.moves[move] = &SearchTree{
+					moves:             map[string]*SearchTree{},
+					continueSearching: false,
 				}
-			}
-			// else if scoreType == AlphaFailUpperBound {
-			// 	if score <= alpha {
-			// 		// There isn't a better result in this subtree
-			// 		return alpha, NilError
-			// 	}
-			// } else if scoreType == BetaFailLowerBound {
-			// 	if score >= beta {
-			// 		// The enemy will avoid this line
-			// 		return beta, NilError
-			// 	}
-			// }
-		}
-	}
-
-	returnScore := alpha
-	returnScoreType := AlphaFailUpperBound
-
-	moves := GetMovesBuffer()
-	defer ReleaseMovesBuffer(moves)
-
-	evals := make(map[Move]int)
-	GeneratePseudoMoves(func(m Move) {
-		*moves = append(*moves, m)
-		evals[m] = EvaluateMove(&m, s.Game)
-	}, s.Bitboards, s.Game)
-
-	sort.Slice(*moves, func(i, j int) bool {
-		return evals[(*moves)[i]] > evals[(*moves)[j]]
-	})
-
-	hasLegalMove := false
-
-	for i := range *moves {
-		moveScore, moveLegality, err := s.evaluateMoveForPlayer(player, (*moves)[i], alpha, beta, depth)
-
-		if !IsNil(err) {
-			return moveScore, err
-		}
-
-		if !moveLegality {
-			continue
-		} else {
-			hasLegalMove = true
-		}
-
-		if moveScore >= beta {
-			// The enemy will avoid this line
-			returnScore = beta
-			returnScoreType = BetaFailLowerBound
-			break
-		} else if moveScore > alpha {
-			// This is our best choice of move
-			alpha = moveScore
-			returnScore = moveScore
-			returnScoreType = Exact
-		}
-	}
-
-	if !hasLegalMove {
-		if KingIsInCheck(s.Bitboards, s.Game.Player) {
-			returnScore = -Inf
-			returnScoreType = Exact
-		} else {
-			returnScore = 0
-			returnScoreType = Exact
-		}
-	}
-
-	if !s.options.skipTranspositionTable {
-		// This always clobbers the existing value in the transposition table.
-		// Shoudl this be smarter? eg only clobber if we have an exact score or if the depth increased?
-		hash := s.Game.ZobristHash()
-		DefaultTranspositionTable().Put(hash, depth, returnScore, returnScoreType)
-	}
-	return returnScore, NilError
-}
-
-func (s *SearcherV2) evaluateMoveForTests(player Player, move Move, depth int) (int, bool, Error) {
-	if player == s.Game.Player {
-		score, legality, err := s.evaluateMoveForPlayer(player, move, -Inf, Inf, depth)
-		return score, legality, err
-	} else {
-		score, legality, err := s.evaluateMoveForPlayer(player.Other(), move, -Inf, Inf, depth)
-		return -score, legality, err
-	}
-}
-
-func (s *SearcherV2) evaluatePositionForTests(player Player, depth int) (int, Error) {
-	if player == s.Game.Player {
-		score, err := s.evaluatePositionForPlayer(player, -Inf, Inf, depth)
-		return score, err
-	} else {
-		score, err := s.evaluatePositionForPlayer(player.Other(), -Inf, Inf, depth)
-		return -score, err
-	}
-}
-
-func (s *SearcherV2) evaluateMoveForPlayer(player Player, move Move, alpha int, beta int, depth int) (int, bool, Error) {
-	var returnScore int
-	var returnLegality bool
-	var returnError Error
-
-	if s.OutOfTime {
-		return returnScore, returnLegality, returnError
-	}
-
-	if player != s.Game.Player {
-		returnError = Errorf("player != s.Game.Player")
-		return returnScore, returnLegality, returnError
-	}
-	enemy := player.Other()
-
-	if s.options.debugSearchTree != nil {
-		s.options.debugSearchTree.MovePush(
-			move,
-			player, alpha, beta)
-		defer func() {
-			s.options.debugSearchTree.MovePop(
-				move, player,
-				alpha, beta, returnScore, returnLegality)
-		}()
-	}
-
-	var update BoardUpdate
-	var err Error
-	returnLegality, err = s.PerformMoveAndReturnLegality(move, &update)
-
-	defer func() {
-		err = s.Game.UndoUpdate(&update, s.Bitboards)
-		if !IsNil(err) {
-			returnError = Join(returnError, err)
-		}
-	}()
-
-	if !IsNil(err) {
-		returnError = err
-		return returnScore, returnLegality, returnError
-	}
-	if !returnLegality {
-		return returnScore, returnLegality, returnError
-	}
-	if depth <= 1 {
-		if !s.OutOfTime && !s.hasIncrementedDepthForCheck {
-			if KingIsInCheck(s.Bitboards, enemy) {
-				depth += 2
-				s.hasIncrementedDepthForCheck = true
-				defer func() {
-					s.hasIncrementedDepthForCheck = false
-				}()
+				currentTree = currentTree.moves[move]
 			}
 		}
-	}
 
-	if depth == 0 {
-		var enemyScore int
-		enemyScore, returnError = s.evaluateCapturesForPlayer(enemy, -beta, -alpha)
-		returnScore = -enemyScore
-	} else {
-		var enemyScore int
-		enemyScore, returnError = s.evaluatePositionForPlayer(enemy, -beta, -alpha, depth-1)
-		returnScore = -enemyScore
-	}
-
-	return returnScore, returnLegality, returnError
-}
-
-func (s *SearcherV2) DebugStats() string {
-	result := fmt.Sprintf("depth: %v, %v / %v, evals %v, moves %v, quiescence %v, skipped %v",
-		humanize.Comma(int64(s.DebugDepthIteration)),
-		humanize.Comma(int64(s.DebugMovesConsidered)), humanize.Comma(int64(s.DebugMovesToConsider)),
-		humanize.Comma(int64(s.DebugTotalEvaluations)), humanize.Comma(int64(s.DebugTotalMovesPerformed)),
-		humanize.Comma(int64(s.DebugCapturesSearched)), humanize.Comma(int64(s.DebugCapturesSkipped)))
-	if !s.options.skipTranspositionTable {
-		result += fmt.Sprintf(", %v", DefaultTranspositionTable().Stats())
-	}
-	if s.options.debugSearchTree != nil {
-		result += fmt.Sprintf(", stack: %v", strings.Join(s.options.debugSearchTree.CurrentPath, ","))
-	}
-	return result
-}
-
-type MoveKey int
-
-func MoveToMoveKey(move Move) MoveKey {
-	key := move.StartIndex*64 + move.EndIndex
-	if move.PromotionPiece.HasValue() {
-		key += int(move.PromotionPiece.Value()) * 4096
-	}
-	return MoveKey(key)
-}
-
-func (s *SearcherV2) Search() (Optional[Move], Error) {
-	moves := GetMovesBuffer()
-	defer ReleaseMovesBuffer(moves)
-
-	evals := make(map[Move]int)
-	GeneratePseudoMoves(func(m Move) {
-		*moves = append(*moves, m)
-		evals[m] = EvaluateMove(&m, s.Game)
-	}, s.Bitboards, s.Game)
-
-	sort.Slice(*moves, func(i, j int) bool {
-		return evals[(*moves)[i]] > evals[(*moves)[j]]
-	})
-
-	maxDepth := 20
-	if s.options.maxDepth.HasValue() {
-		maxDepth = s.options.maxDepth.Value()
-	}
-
-	evaluationsAtDepth := make(map[int]map[MoveKey]int)
-	getEvalAtDepth := func(depth int, move Move) int {
-		if eval, ok := evaluationsAtDepth[depth][MoveToMoveKey(move)]; ok {
-			return eval
-		} else {
-			return -Inf
+		if continueSearchingPastLines {
+			currentTree.continueSearching = true
 		}
 	}
 
-	depthForSorting := 1
+	return result, Error{}
+}
 
-	for depth := 1; depth <= maxDepth; depth++ {
-		s.DebugDepthIteration = depth
-		s.DebugMovesToConsider = len(*moves)
-		s.DebugMovesConsidered = 0
-		evaluationsAtDepth[depth] = make(map[MoveKey]int)
+type WithSearch struct {
+	search SearchTree
+}
 
-		err := func() Error {
-			if s.options.debugSearchTree != nil {
-				s.options.debugSearchTree.DepthPush(fmt.Sprintf("depth %d", depth))
-				defer func() {
-					s.options.debugSearchTree.DepthPop(fmt.Sprintf("depth %d", depth), getEvalAtDepth(depth, (*moves)[0]))
-				}()
-			}
+func (o WithSearch) apply(helper *SearchHelper) {
+	helper.MoveGen = &SearchTreeMoveGenerator{
+		o.search,
+		helper.GameState,
+		helper.Bitboards,
+		nil,
+	}
+}
 
-			for i := range *moves {
-				score, legality, err := s.evaluateMoveForPlayer(s.Game.Player, (*moves)[i], -Inf, Inf, depth)
-				if !IsNil(err) {
-					return err
-				}
+type WithOutOfTime struct {
+	OutOfTime *bool
+}
 
-				if s.OutOfTime {
-					// We just ran out of time. It's likely we didn't evaluate this move fully
-					break
-				}
+func (o WithOutOfTime) apply(helper *SearchHelper) {
+	helper.OutOfTime = o.OutOfTime
+}
 
-				// s.Logger.Println("considering move", (*moves)[i].String(),
-				// 	"at depth", depth, "with legality ", legality, "and score", score)
-				s.DebugMovesConsidered++
-
-				moveKey := MoveToMoveKey((*moves)[i])
-				if !legality {
-					evaluationsAtDepth[depth][moveKey] = -Inf
-					continue
-				} else {
-					evaluationsAtDepth[depth][moveKey] = score
-				}
-			}
-
-			SortMaxFirst(moves, func(m Move) int {
-				return getEvalAtDepth(depth, m)
-			})
-
-			s.Logger.Println(fmt.Sprintf("info move: %v %v", (*moves)[0].String(), getEvalAtDepth(depth, (*moves)[0])), s.DebugStats())
-
-			if !s.OutOfTime || len(evaluationsAtDepth[depth]) >= 6 {
-				depthForSorting = depth
-			}
-
-			return NilError
-		}()
-
-		if !IsNil(err) {
-			return Empty[Move](), err
-		}
-
-		if s.OutOfTime {
-			break
-		}
+func Searcher(game *GameState, b *Bitboards, opts ...SearchOption) *SearchHelper {
+	defaultMoveGenerator := DefaultMoveGenerator{
+		game,
+		b,
+		false,
+	}
+	quiescenceEvaluator := QuiescenceEvaluator{}
+	helper := SearchHelper{
+		MoveGen:       defaultMoveGenerator,
+		Evaluator:     quiescenceEvaluator,
+		GameState:     game,
+		Bitboards:     b,
+		OutOfTime:     nil,
+		CheckStandPat: false,
+		Logger:        &SilentLogger,
+		Debug:         &SilentLogger,
+		MaxDepth:      4,
 	}
 
-	if len(*moves) == 0 {
-		return Empty[Move](), NilError // forfeit / stalemate
+	for _, opt := range opts {
+		opt.apply(&helper)
+	}
+	return &helper
+}
+
+func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
+	game, err := GamestateFromFenString(fen)
+	if !err.IsNil() {
+		return []Move{}, 0, err
 	}
 
-	bestIndex := IndexOfMax(*moves, func(m Move) int {
-		return getEvalAtDepth(depthForSorting, m)
-	})
-	bestMove := (*moves)[bestIndex]
-	bestEval := getEvalAtDepth(depthForSorting, bestMove)
+	bitboards := game.CreateBitboards()
+	helper := Searcher(&game, &bitboards, opts...)
 
-	s.Logger.Printf("info using evaluation from depth %v => %v %v\n", depthForSorting, bestMove.String(), bestEval)
-
-	if bestEval == -Inf {
-		return Empty[Move](), NilError // forfeit / stalemate
-	}
-
-	// fmt.Println(s.DebugTree.Sprint(2))
-	s.OutOfTime = false
-	return Some((*moves)[0]), NilError
+	return helper.Search()
 }
