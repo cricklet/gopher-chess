@@ -16,8 +16,8 @@ type GameState struct {
 	EnPassantTarget              Optional[FileRank]
 	HalfMoveClock                int
 	FullMoveClock                int
-	History                      []Move
-	zobristHash                  Optional[uint64]
+
+	zobristHash Optional[uint64]
 }
 
 func (g *GameState) ZobristHash() uint64 {
@@ -192,8 +192,6 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) Er
 
 	g.Player = g.Player.Other()
 
-	g.History = append(g.History, move)
-
 	g.zobristHash = Some(zobrist.UpdateHash(prevZobristHash, update, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget))
 
 	return NilError
@@ -244,7 +242,6 @@ func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) Error {
 	g.EnPassantTarget = update.PrevEnPassantTarget
 	g.FullMoveClock = update.PrevFullMoveClock
 	g.HalfMoveClock = update.PrevHalfMoveClock
-	g.History = g.History[:len(g.History)-1]
 
 	for i := update.Num - 1; i >= 0; i-- {
 		index := update.Indices[i]

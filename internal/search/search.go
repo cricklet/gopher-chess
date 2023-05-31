@@ -68,6 +68,26 @@ maximize(board, depth) -> principle-variation, score
 minimize(board, depth) -> principle-variation, score
 */
 
+func performMoveAndCall[T any](g *GameState, b *Bitboards, move Move, callback func(move Move) (T, Error)) (T, Error) {
+	var result T
+	var update BoardUpdate
+	err := g.PerformMove(move, &update, b)
+	if !err.IsNil() {
+		return result, err
+	}
+
+	if !KingIsInCheck(b, g.Enemy()) {
+		result, err = callback(move) // move is legal, run the callback
+	}
+
+	if !err.IsNil() {
+		return result, err
+	}
+
+	err = g.UndoUpdate(&update, b)
+	return result, err
+}
+
 type LoopResult int
 
 const (
@@ -76,7 +96,7 @@ const (
 )
 
 type MoveGen interface {
-	forEachMove(errs *ErrorRef, callback func(move Move) LoopResult)
+	performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error
 	searchingAllLegalMoves() bool
 }
 
@@ -84,7 +104,13 @@ type DefaultMoveGenerator struct {
 	*GameState
 	*Bitboards
 	onlyCaptures bool
+
+	sortedVariations [][]Move
+	currentVariation []Move
+	currentDepth     int
 }
+
+var _ MoveGen = (*DefaultMoveGenerator)(nil)
 
 func (gen DefaultMoveGenerator) searchingAllLegalMoves() bool {
 	if gen.onlyCaptures {
@@ -94,13 +120,7 @@ func (gen DefaultMoveGenerator) searchingAllLegalMoves() bool {
 	}
 }
 
-var _ MoveGen = (*DefaultMoveGenerator)(nil)
-
-func (gen DefaultMoveGenerator) forEachMove(errs *ErrorRef, callback func(move Move) LoopResult) {
-	if errs.HasError() {
-		return
-	}
-
+func (gen DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error {
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
@@ -114,28 +134,29 @@ func (gen DefaultMoveGenerator) forEachMove(errs *ErrorRef, callback func(move M
 		}, gen.Bitboards, gen.GameState)
 	}
 
+	if gen.currentDepth == 0 {
+		// sort moves in the order of sortedVariations
+	} else if gen.currentDepth < len(gen.currentVariation) {
+		// we are currently in a variation -- prioritize the next move in it
+	} else {
+	}
+
+	// NEXT
+
 	for _, move := range *moves {
-		result := LoopContinue
-		func() {
-			var update BoardUpdate
-			errs.Add(
-				gen.GameState.PerformMove(move, &update, gen.Bitboards))
+		gen.currentDepth += 1
+		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, move, callback)
+		gen.currentDepth -= 1
 
-			defer func() {
-				errs.Add(
-					gen.GameState.UndoUpdate(&update, gen.Bitboards))
-			}()
-
-			if errs.HasError() {
-				result = LoopBreak
-			} else if !KingIsInCheck(gen.Bitboards, gen.GameState.Enemy()) {
-				result = callback(move) // move is legal
-			}
-		}()
+		if !err.IsNil() {
+			return err
+		}
 		if result == LoopBreak {
 			break
 		}
 	}
+
+	return NilError
 }
 
 type SearchTreeMoveGenerator struct {
@@ -155,51 +176,37 @@ func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
 	}
 }
 
-func (gen *SearchTreeMoveGenerator) forEachMove(errs *ErrorRef, callback func(move Move) LoopResult) {
-	if errs.HasError() {
-		return
-	}
-
+func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error {
 	if gen.currentlySearching == nil {
 		gen.currentlySearching = &gen.SearchTree
 	}
 
 	if gen.currentlySearching.continueSearching {
-		DefaultMoveGenerator{gen.GameState, gen.Bitboards, false}.forEachMove(errs, callback)
-		return
+		return DefaultMoveGenerator{gen.GameState, gen.Bitboards, false}.performEachMoveAndCall(callback)
 	}
 
 	prevSearchTree := gen.currentlySearching
-	for nextMove, nextSearchTree := range gen.currentlySearching.moves {
-		result := LoopContinue
-		func() {
-			gen.currentlySearching = nextSearchTree
-			move := gen.GameState.MoveFromString(nextMove)
+	for nextMoveStr, nextSearchTree := range gen.currentlySearching.moves {
+		gen.currentlySearching = nextSearchTree
 
-			var update BoardUpdate
-			errs.Add(
-				gen.GameState.PerformMove(move, &update, gen.Bitboards))
+		nextMove := gen.GameState.MoveFromString(nextMoveStr)
+		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, nextMove, callback)
 
-			defer func() {
-				gen.currentlySearching = prevSearchTree
-				errs.Add(
-					gen.GameState.UndoUpdate(&update, gen.Bitboards))
-			}()
+		gen.currentlySearching = prevSearchTree
 
-			if errs.HasError() {
-				result = LoopBreak
-			} else if !KingIsInCheck(gen.Bitboards, gen.GameState.Enemy()) {
-				result = callback(move) // move is legal
-			}
-		}()
+		if !err.IsNil() {
+			return err
+		}
 		if result == LoopBreak {
 			break
 		}
 	}
+
+	return NilError
 }
 
 type Evaluator interface {
-	evaluate(errRef *ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int)
+	evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int, Error)
 }
 
 type BasicEvaluator struct {
@@ -207,8 +214,8 @@ type BasicEvaluator struct {
 
 var _ Evaluator = (*BasicEvaluator)(nil)
 
-func (e BasicEvaluator) evaluate(errRef *ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
-	return []Move{}, Evaluate(helper.Bitboards, player)
+func (e BasicEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int, Error) {
+	return []Move{}, Evaluate(helper.Bitboards, player), NilError
 }
 
 type QuiescenceEvaluator struct {
@@ -216,11 +223,7 @@ type QuiescenceEvaluator struct {
 
 var _ Evaluator = (*QuiescenceEvaluator)(nil)
 
-func (e QuiescenceEvaluator) evaluate(errRef *ErrorRef, helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int) {
-	if errRef.HasError() {
-		return []Move{}, alpha
-	}
-
+func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int, Error) {
 	captureGenerator := DefaultMoveGenerator{helper.GameState, helper.Bitboards, true /*onlyCaptures*/}
 	quiescenceHelper := SearchHelper{
 		captureGenerator,
@@ -234,11 +237,8 @@ func (e QuiescenceEvaluator) evaluate(errRef *ErrorRef, helper *SearchHelper, pl
 		currentDepth + 6, // allow deep capture searching
 	}
 
-	// NEXT always calculate stand-pat when performing quiescence alpha-beta
-	// give SearchHelper an option for calculating stand pat that's only on
-	//   during capture searching
-	moves, score := quiescenceHelper.alphaBeta(errRef, alpha, beta, currentDepth)
-	return moves, score
+	moves, score, err := quiescenceHelper.alphaBeta(alpha, beta, currentDepth)
+	return moves, score, err
 }
 
 type SearchHelper struct {
@@ -262,13 +262,9 @@ func (helper SearchHelper) inCheck() bool {
 	return KingIsInCheck(helper.Bitboards, helper.GameState.Player)
 }
 
-func (helper *SearchHelper) alphaBeta(errs *ErrorRef, alpha int, beta int, currentDepth int) ([]Move, int) {
+func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int) ([]Move, int, Error) {
 	if currentDepth >= helper.MaxDepth {
-		return helper.Evaluator.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
-	}
-
-	if errs.HasError() {
-		return []Move{}, alpha
+		return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth)
 	}
 
 	if helper.CheckStandPat {
@@ -280,13 +276,13 @@ func (helper *SearchHelper) alphaBeta(errs *ErrorRef, alpha int, beta int, curre
 		//   but we can also update alpha
 		//   because the future capture must beat standing pat in order for us to choose it
 		// if it's bad for us, we need to search captures
-		_, standPat := BasicEvaluator{}.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
-		if errs.HasError() {
-			return []Move{}, alpha
+		_, standPat, err := BasicEvaluator{}.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth)
+		if err.HasError() {
+			return []Move{}, alpha, err
 		}
 
 		if standPat >= beta {
-			return []Move{}, beta
+			return []Move{}, beta, NilError
 		} else if standPat > alpha {
 			alpha = standPat
 		}
@@ -296,17 +292,20 @@ func (helper *SearchHelper) alphaBeta(errs *ErrorRef, alpha int, beta int, curre
 
 	foundMove := false
 
-	helper.MoveGen.forEachMove(errs, func(move Move) LoopResult {
+	err := helper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
 		foundMove = true
 		helper.Debug.Println(strings.Repeat(" ", currentDepth), "?", move.DebugString())
 
-		variation, enemyScore := helper.alphaBeta(errs, -beta, -alpha, currentDepth+1)
+		variation, enemyScore, err := helper.alphaBeta(-beta, -alpha, currentDepth+1)
+		if err.HasError() {
+			return LoopBreak, err
+		}
 
 		score := -enemyScore
 		if score >= beta {
 			alpha = beta // fail hard beta-cutoff
 			helper.Debug.Println(strings.Repeat(" ", currentDepth), ">", score, move.DebugString(), "beta cutoff")
-			return LoopBreak
+			return LoopBreak, NilError
 		} else if score > alpha {
 			alpha = score
 			principleVariation = append([]Move{move}, variation...)
@@ -314,11 +313,11 @@ func (helper *SearchHelper) alphaBeta(errs *ErrorRef, alpha int, beta int, curre
 		} else {
 			helper.Debug.Println(strings.Repeat(" ", currentDepth), ">", score, move.DebugString(), "skip")
 		}
-		return LoopContinue
+		return LoopContinue, NilError
 	})
 
-	if errs.HasError() {
-		return []Move{}, alpha
+	if err.HasError() {
+		return []Move{}, alpha, err
 	}
 
 	if !foundMove {
@@ -330,19 +329,18 @@ func (helper *SearchHelper) alphaBeta(errs *ErrorRef, alpha int, beta int, curre
 				alpha = 0
 			}
 		} else {
-			return helper.Evaluator.evaluate(errs, helper, helper.GameState.Player, alpha, beta, currentDepth)
+			return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth)
 		}
 	}
 
-	return principleVariation, alpha
+	return principleVariation, alpha, NilError
 }
 
 func (helper *SearchHelper) Search() ([]Move, int, Error) {
-	errRef := ErrorRef{}
-
 	availableMoves := []Pair[int, []Move]{}
 
 	// NEXT: iterative search, searching the best variations first
+	// NEXT: split the generator from the move sorter. give move sort information about previous principle variations
 	// NEXT: to do this, give the generator more info
 
 	/*
@@ -373,36 +371,40 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 		in order for MoveSort to correctly sort the moves based on the previous principle variations...
 			we similarly need to know where we are in the search history
 			we need info about the previous principle variations to be passed in
+
+		hmm, it is nice to have the move generator apply the moves directly
+			that makes it easy for it to store some stateful information about where we are in the traversal
+
+		i can get that too if you can pass a sorting function into the generator
 	*/
 
 	// moves := GetMovesBuffer()
 	// defer ReleaseMovesBuffer(moves)
 	// helper.MoveGen.generateMoves([]Move{}, moves)
 
-	helper.MoveGen.forEachMove(&errRef, func(move Move) LoopResult {
+	err := helper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
 		if helper.OutOfTime != nil && *helper.OutOfTime {
-			return LoopBreak
+			return LoopBreak, NilError
 		}
 
-		if errRef.HasError() {
-			return LoopBreak
-		}
-
-		variation, enemyScore := findPrincipleVariation(
-			&errRef,
+		variation, enemyScore, err := findPrincipleVariation(
 			*helper,
 			// current depth is 1 (0 would be before we applied `move`)
 			1)
-		if errRef.HasError() {
-			return LoopBreak
+		if err.HasError() {
+			return LoopBreak, err
 		}
 
 		score := -enemyScore
 		availableMoves = append(availableMoves, Pair[int, []Move]{
 			First: score, Second: append([]Move{move}, variation...)})
 
-		return LoopContinue
+		return LoopContinue, NilError
 	})
+
+	if err.HasError() {
+		return []Move{}, 0, err
+	}
 
 	SortMaxFirst(&availableMoves, func(t Pair[int, []Move]) int {
 		return t.First
@@ -413,15 +415,15 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 	}
 
 	if len(availableMoves) == 0 {
-		return []Move{}, 0, errRef.Error()
+		return []Move{}, 0, NilError
 	}
 
 	bestMove := availableMoves[0]
-	return bestMove.Second, bestMove.First, errRef.Error()
+	return bestMove.Second, bestMove.First, NilError
 }
 
-func findPrincipleVariation(errRef *ErrorRef, helper SearchHelper, currentDepth int) ([]Move, int) {
-	return helper.alphaBeta(errRef, -Inf-1, Inf+1, currentDepth)
+func findPrincipleVariation(helper SearchHelper, currentDepth int) ([]Move, int, Error) {
+	return helper.alphaBeta(-Inf-1, Inf+1, currentDepth)
 }
 
 type SearchOption interface {

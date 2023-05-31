@@ -12,41 +12,8 @@ func (e *Error) IsNil() bool {
 	return IsNil(e)
 }
 
-type ErrorRef struct {
-	// only hold a single value so the internal accumulated value isn't copied
-	// when ErrorAccumulator is passed by value
-	reference []Error
-}
-
-func (e *ErrorRef) NumErrors() int {
-	if e.IsNil() {
-		return 0
-	}
-	return e.reference[0].NumErrors()
-}
-
-func (e *ErrorRef) Add(err Error) {
-	if e.reference == nil {
-		e.reference = []Error{err}
-	} else {
-		e.reference[0] = Join(e.reference[0], err)
-	}
-}
-
-func (e *ErrorRef) IsNil() bool {
-	return e.reference == nil || IsNil(e.reference[0])
-}
-
-func (e *ErrorRef) HasError() bool {
-	return !e.IsNil()
-}
-
-func (e *ErrorRef) Error() Error {
-	if e.reference == nil {
-		return NilError
-	} else {
-		return e.reference[0]
-	}
+func (e *Error) HasError() bool {
+	return !IsNil(e)
 }
 
 var NilError = Error{nil}
