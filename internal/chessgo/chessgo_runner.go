@@ -2,7 +2,6 @@ package chessgo
 
 import (
 	"fmt"
-	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
@@ -238,10 +237,10 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 
 	*r.outOfTime = false
 
-	go func() {
-		time.Sleep(1000 * time.Millisecond)
-		*r.outOfTime = true
-	}()
+	// go func() {
+	// 	time.Sleep(1000 * time.Millisecond)
+	// 	*r.outOfTime = true
+	// }()
 
 	moves, _, err = r.Searcher().Search()
 	if !IsNil(err) {

@@ -100,20 +100,35 @@ type MoveGen interface {
 	searchingAllLegalMoves() bool
 }
 
+type MoveGenerationMode int
+
+const (
+	AllMoves MoveGenerationMode = iota
+	OnlyCaptures
+)
+
 type DefaultMoveGenerator struct {
 	*GameState
 	*Bitboards
-	onlyCaptures bool
+	mode MoveGenerationMode
 
 	sortedVariations [][]Move
 	currentVariation []Move
-	currentDepth     int
+	inVariation      bool
+}
+
+func NewDefaultMoveGenerator(g *GameState, b *Bitboards, mode MoveGenerationMode) DefaultMoveGenerator {
+	return DefaultMoveGenerator{
+		GameState: g,
+		Bitboards: b,
+		mode:      mode,
+	}
 }
 
 var _ MoveGen = (*DefaultMoveGenerator)(nil)
 
 func (gen DefaultMoveGenerator) searchingAllLegalMoves() bool {
-	if gen.onlyCaptures {
+	if gen.mode == OnlyCaptures {
 		return false
 	} else {
 		return true
@@ -121,10 +136,32 @@ func (gen DefaultMoveGenerator) searchingAllLegalMoves() bool {
 }
 
 func (gen DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error {
+	if len(gen.sortedVariations) > 0 && !gen.inVariation {
+		for _, variation := range gen.sortedVariations {
+			if len(variation) == 0 {
+				return Errorf("variation has no moves")
+			}
+
+			gen.currentVariation = variation[1:]
+
+			gen.inVariation = true
+			result, err := performMoveAndCall(gen.GameState, gen.Bitboards, variation[0], callback)
+			gen.inVariation = false
+
+			if !err.IsNil() {
+				return err
+			}
+			if result == LoopBreak {
+				break
+			}
+		}
+		return NilError
+	}
+
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	if gen.onlyCaptures {
+	if gen.mode == OnlyCaptures {
 		GeneratePseudoCaptures(func(m Move) {
 			*moves = append(*moves, m)
 		}, gen.Bitboards, gen.GameState)
@@ -134,19 +171,25 @@ func (gen DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move) 
 		}, gen.Bitboards, gen.GameState)
 	}
 
-	if gen.currentDepth == 0 {
-		// sort moves in the order of sortedVariations
-	} else if gen.currentDepth < len(gen.currentVariation) {
-		// we are currently in a variation -- prioritize the next move in it
-	} else {
+	if gen.currentVariation != nil {
+		// Move the previously calculated best move to the front
+		for i, move := range *moves {
+			if move == gen.currentVariation[0] {
+				(*moves)[i] = (*moves)[0]
+				(*moves)[0] = move
+				break
+			}
+		}
+
+		previousCurrentVariation := gen.currentVariation
+		gen.currentVariation = gen.currentVariation[1:]
+		defer func() {
+			gen.currentVariation = previousCurrentVariation
+		}()
 	}
 
-	// NEXT
-
 	for _, move := range *moves {
-		gen.currentDepth += 1
 		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, move, callback)
-		gen.currentDepth -= 1
 
 		if !err.IsNil() {
 			return err
@@ -182,7 +225,7 @@ func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(callback func(move Mo
 	}
 
 	if gen.currentlySearching.continueSearching {
-		return DefaultMoveGenerator{gen.GameState, gen.Bitboards, false}.performEachMoveAndCall(callback)
+		return NewDefaultMoveGenerator(gen.GameState, gen.Bitboards, AllMoves).performEachMoveAndCall(callback)
 	}
 
 	prevSearchTree := gen.currentlySearching
@@ -224,7 +267,7 @@ type QuiescenceEvaluator struct {
 var _ Evaluator = (*QuiescenceEvaluator)(nil)
 
 func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int, Error) {
-	captureGenerator := DefaultMoveGenerator{helper.GameState, helper.Bitboards, true /*onlyCaptures*/}
+	captureGenerator := NewDefaultMoveGenerator(helper.GameState, helper.Bitboards, OnlyCaptures)
 	quiescenceHelper := SearchHelper{
 		captureGenerator,
 		BasicEvaluator{},
@@ -339,9 +382,8 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int) ([]
 func (helper *SearchHelper) Search() ([]Move, int, Error) {
 	availableMoves := []Pair[int, []Move]{}
 
+	// NEXT: give generator information about previous principle variations so it can sort those first
 	// NEXT: iterative search, searching the best variations first
-	// NEXT: split the generator from the move sorter. give move sort information about previous principle variations
-	// NEXT: to do this, give the generator more info
 
 	/*
 		record scores for all variations
@@ -522,11 +564,10 @@ func (o WithOutOfTime) apply(helper *SearchHelper) {
 }
 
 func Searcher(game *GameState, b *Bitboards, opts ...SearchOption) *SearchHelper {
-	defaultMoveGenerator := DefaultMoveGenerator{
+	defaultMoveGenerator := NewDefaultMoveGenerator(
 		game,
 		b,
-		false,
-	}
+		AllMoves)
 	quiescenceEvaluator := QuiescenceEvaluator{}
 	helper := SearchHelper{
 		MoveGen:       defaultMoveGenerator,
@@ -537,7 +578,7 @@ func Searcher(game *GameState, b *Bitboards, opts ...SearchOption) *SearchHelper
 		CheckStandPat: false,
 		Logger:        &SilentLogger,
 		Debug:         &SilentLogger,
-		MaxDepth:      4,
+		MaxDepth:      5,
 	}
 
 	for _, opt := range opts {

@@ -295,3 +295,8 @@ func TestCrash3(t *testing.T) {
 	assert.True(t, result != nil)
 	fmt.Println(score, result)
 }
+
+// NEXT write some tests comparing time to search to a specified depth
+// and the number of nodes searched
+// this will help determine whether the iterative depth / move ordering
+// via principle variations helps!
