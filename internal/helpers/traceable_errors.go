@@ -18,11 +18,11 @@ type ErrorRef struct {
 	reference []Error
 }
 
-func (errRef *ErrorRef) NumErrors() int {
-	if errRef.IsNil() {
+func (e *ErrorRef) NumErrors() int {
+	if e.IsNil() {
 		return 0
 	}
-	return errRef.reference[0].NumErrors()
+	return e.reference[0].NumErrors()
 }
 
 func (e *ErrorRef) Add(err Error) {

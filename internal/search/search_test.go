@@ -124,17 +124,19 @@ func TestOpeningCaptureWithQuiescence(t *testing.T) {
 	assert.True(t, IsNil(err))
 
 	// we should see the trades because of quiescence
-	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4})
+	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithDebugLogging{})
 	assert.True(t, IsNil(err), err)
-	fmt.Println(result, score)
+	fmt.Println(score, ConcatStringify(result))
+
 	assert.Greater(t, score, 0)
 	assert.Equal(t,
-		"e2e4, f7f5, b1c3, f5e4",
+		"e2e4, f7f5, b1c3, f5e4, c3e4",
 		ConcatStringify(result))
 
 	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5})
 	assert.True(t, IsNil(err), err)
-	fmt.Println(result, score)
+	fmt.Println(score, ConcatStringify(result))
+
 	assert.Greater(t, score, 0)
 	assert.Equal(t,
 		"e2e4, f7f5, b1c3, f5e4, c3e4",
