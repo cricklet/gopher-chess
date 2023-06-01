@@ -3,6 +3,7 @@ package search
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -300,3 +301,43 @@ func TestCrash3(t *testing.T) {
 // and the number of nodes searched
 // this will help determine whether the iterative depth / move ordering
 // via principle variations helps!
+
+func TestSearchDepthTime(t *testing.T) {
+	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{}, WithoutIterativeDeepening{})
+		elapsed := time.Now().Sub(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("without quiescence, without iterative", elapsed)
+	}
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{3}, WithoutIterativeDeepening{})
+		elapsed := time.Now().Sub(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("with quiescence, without iterative", elapsed)
+	}
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
+		elapsed := time.Now().Sub(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("without quiescence", elapsed)
+	}
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{3})
+		elapsed := time.Now().Sub(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("with quiescence", elapsed)
+	}
+}
