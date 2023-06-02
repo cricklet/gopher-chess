@@ -16,7 +16,7 @@ func TestOpeningWithoutQuiescence(t *testing.T) {
 	result, score, err := Search(fen, WithMaxDepth{5}, WithoutQuiescence{})
 	assert.True(t, IsNil(err), err)
 
-	fmt.Println(score, result)
+	fmt.Println("searching depth 5", score, result)
 
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
 	assert.True(t, expectedOpenings[result[0].String()])
@@ -24,8 +24,10 @@ func TestOpeningWithoutQuiescence(t *testing.T) {
 	// Note that searching an even depth will cause us to play overly cautiously
 	// because we don't have quiescence turned on so we can't see that we are
 	// able to trade when an emeny captures a piece after us
-	result, _, err = Search(fen, WithMaxDepth{4})
+	result, _, err = Search(fen, WithMaxDepth{4}, WithoutQuiescence{})
 	assert.True(t, IsNil(err), err)
+
+	fmt.Println("searching depth 4", score, result)
 
 	assert.False(t, expectedOpenings[result[0].String()])
 }
@@ -297,47 +299,42 @@ func TestCrash3(t *testing.T) {
 	fmt.Println(score, result)
 }
 
-// NEXT write some tests comparing time to search to a specified depth
-// and the number of nodes searched
-// this will help determine whether the iterative depth / move ordering
-// via principle variations helps!
-
 func TestSearchDepthTime(t *testing.T) {
 	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
 
 	{
 		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{}, WithoutIterativeDeepening{})
+		_, _, err := Search(fen, WithMaxDepth{2}, WithoutQuiescence{}, WithoutIterativeDeepening{})
 		elapsed := time.Now().Sub(start)
 		assert.True(t, IsNil(err), err)
 
-		fmt.Println("without quiescence, without iterative", elapsed)
+		fmt.Println("NO quiescence, NO iterative", elapsed.Milliseconds(), "ms")
 	}
 
 	{
 		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{3}, WithoutIterativeDeepening{})
+		_, _, err := Search(fen, WithMaxDepth{2}, WithoutQuiescence{})
 		elapsed := time.Now().Sub(start)
 		assert.True(t, IsNil(err), err)
 
-		fmt.Println("with quiescence, without iterative", elapsed)
+		fmt.Println("NO quiescence, WITH iterative", elapsed.Milliseconds(), "ms")
 	}
 
 	{
 		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
+		_, _, err := Search(fen, WithMaxDepth{2}, WithoutIterativeDeepening{})
 		elapsed := time.Now().Sub(start)
 		assert.True(t, IsNil(err), err)
 
-		fmt.Println("without quiescence", elapsed)
+		fmt.Println("WITH quiescence, NO iterative", elapsed.Milliseconds(), "ms")
 	}
 
 	{
 		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{3})
+		_, _, err := Search(fen, WithMaxDepth{2})
 		elapsed := time.Now().Sub(start)
 		assert.True(t, IsNil(err), err)
 
-		fmt.Println("with quiescence", elapsed)
+		fmt.Println("WITH quiescence, WITH iterative", elapsed.Milliseconds(), "ms")
 	}
 }

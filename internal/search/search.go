@@ -187,7 +187,7 @@ func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move)
 		}, gen.Bitboards, gen.GameState)
 	}
 
-	if gen.currentVariation != nil {
+	if gen.currentVariation != nil && len(gen.currentVariation) > 0 {
 		// Move the previously calculated best move to the front
 		for i, move := range *moves {
 			if move == gen.currentVariation[0] {
@@ -297,11 +297,13 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		CheckStandPat:             true,
 		Logger:                    helper.Logger,
 		Debug:                     &SilentLogger,
-		MaxDepth:                  currentDepth + helper.MaxDepth, // allow deep capture searching
+		IterativeDeepeningDepth:   helper.IterativeDeepeningDepth,
 		WithoutIterativeDeepening: false,
 	}
 
-	moves, score, err := quiescenceHelper.alphaBeta(alpha, beta, currentDepth)
+	moves, score, err := quiescenceHelper.alphaBeta(alpha, beta, currentDepth,
+		// Search up to 10 more moves
+		10)
 	return moves, score, err
 }
 
@@ -315,7 +317,7 @@ type SearchHelper struct {
 	CheckStandPat bool
 	Logger
 	Debug                     Logger
-	MaxDepth                  int
+	IterativeDeepeningDepth   int
 	WithoutIterativeDeepening bool
 }
 
@@ -327,8 +329,8 @@ func (helper SearchHelper) inCheck() bool {
 	return KingIsInCheck(helper.Bitboards, helper.GameState.Player)
 }
 
-func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int) ([]Move, int, Error) {
-	if currentDepth >= helper.MaxDepth {
+func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, depthRemaining int) ([]Move, int, Error) {
+	if depthRemaining <= 0 {
 		return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth)
 	}
 
@@ -361,7 +363,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int) ([]
 		foundMove = true
 		helper.Debug.Println(strings.Repeat(" ", currentDepth), "?", move.DebugString())
 
-		variation, enemyScore, err := helper.alphaBeta(-beta, -alpha, currentDepth+1)
+		variation, enemyScore, err := helper.alphaBeta(-beta, -alpha, currentDepth+1, depthRemaining-1)
 		if err.HasError() {
 			return LoopBreak, err
 		}
@@ -404,7 +406,14 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int) ([]
 func (helper *SearchHelper) Search() ([]Move, int, Error) {
 	principleVariations := []Pair[int, []Move]{}
 
-	for depth := 0; depth < helper.MaxDepth; depth++ {
+	depthIncrement := 1
+
+	startDepthRemaining := 1
+	if helper.WithoutIterativeDeepening {
+		startDepthRemaining = helper.IterativeDeepeningDepth
+	}
+
+	for depthRemaining := startDepthRemaining; depthRemaining <= helper.IterativeDeepeningDepth; depthRemaining += depthIncrement {
 		// The generator will prioritize trying the principle variations first
 		helper.MoveGen.updatePrincipleVariations(principleVariations)
 
@@ -420,7 +429,9 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 			// Traverse past the first generated move
 			variation, enemyScore, err := helper.alphaBeta(-Inf-1, Inf+1,
 				// current depth is 1 (0 would be before we applied `move`)
-				1)
+				1,
+				// we've already searched one move, so decrement depth remaining
+				depthRemaining-1)
 
 			if err.HasError() {
 				return LoopBreak, err
@@ -438,7 +449,7 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 		})
 
 		for _, move := range principleVariations {
-			helper.Println(depth, ">", move.First, move.Second)
+			helper.Println("(", depthRemaining, ")", ">", move.First, move.Second)
 		}
 	}
 
@@ -484,7 +495,7 @@ type WithMaxDepth struct {
 }
 
 func (o WithMaxDepth) apply(helper *SearchHelper) {
-	helper.MaxDepth = o.MaxDepth
+	helper.IterativeDeepeningDepth = o.MaxDepth
 }
 
 type WithoutIterativeDeepening struct {
@@ -559,15 +570,15 @@ func Searcher(game *GameState, b *Bitboards, opts ...SearchOption) *SearchHelper
 		AllMoves)
 	quiescenceEvaluator := QuiescenceEvaluator{}
 	helper := SearchHelper{
-		MoveGen:       &defaultMoveGenerator,
-		Evaluator:     quiescenceEvaluator,
-		GameState:     game,
-		Bitboards:     b,
-		OutOfTime:     nil,
-		CheckStandPat: false,
-		Logger:        &SilentLogger,
-		Debug:         &SilentLogger,
-		MaxDepth:      3,
+		MoveGen:                 &defaultMoveGenerator,
+		Evaluator:               quiescenceEvaluator,
+		GameState:               game,
+		Bitboards:               b,
+		OutOfTime:               nil,
+		CheckStandPat:           false,
+		Logger:                  &SilentLogger,
+		Debug:                   &SilentLogger,
+		IterativeDeepeningDepth: 3,
 	}
 
 	for _, opt := range opts {
