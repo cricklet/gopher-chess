@@ -99,6 +99,7 @@ type MoveGen interface {
 	performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error
 	searchingAllLegalMoves() bool
 	updatePrincipleVariations(variations []Pair[int, []Move])
+	setGenerationMode(mode MoveGenerationMode)
 }
 
 type MoveGenerationMode int
@@ -127,6 +128,10 @@ func NewDefaultMoveGenerator(g *GameState, b *Bitboards, mode MoveGenerationMode
 }
 
 var _ MoveGen = (*DefaultMoveGenerator)(nil)
+
+func (gen *DefaultMoveGenerator) setGenerationMode(mode MoveGenerationMode) {
+	gen.mode = mode
+}
 
 func (gen *DefaultMoveGenerator) updatePrincipleVariations(variations []Pair[int, []Move]) {
 	gen.sortedVariations = [][]Move{}
@@ -223,11 +228,17 @@ type SearchTreeMoveGenerator struct {
 	*GameState
 	*Bitboards
 	currentlySearching *SearchTree
+
+	mode MoveGenerationMode
 }
 
 var _ MoveGen = (*SearchTreeMoveGenerator)(nil)
 
 func (gen *SearchTreeMoveGenerator) updatePrincipleVariations(variations []Pair[int, []Move]) {
+}
+
+func (gen *SearchTreeMoveGenerator) setGenerationMode(mode MoveGenerationMode) {
+	gen.mode = mode
 }
 
 func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
@@ -244,7 +255,7 @@ func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(callback func(move Mo
 	}
 
 	if gen.currentlySearching.continueSearching {
-		continueGen := NewDefaultMoveGenerator(gen.GameState, gen.Bitboards, AllMoves)
+		continueGen := NewDefaultMoveGenerator(gen.GameState, gen.Bitboards, gen.mode)
 		return (&continueGen).performEachMoveAndCall(callback)
 	}
 
@@ -253,6 +264,10 @@ func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(callback func(move Mo
 		gen.currentlySearching = nextSearchTree
 
 		nextMove := gen.GameState.MoveFromString(nextMoveStr)
+		if gen.mode == OnlyCaptures && !nextMove.MoveType.Captures() {
+			return Errorf("expected capture move")
+		}
+
 		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, nextMove, callback)
 
 		gen.currentlySearching = prevSearchTree
@@ -552,6 +567,7 @@ func (o WithSearch) apply(helper *SearchHelper) {
 		helper.GameState,
 		helper.Bitboards,
 		nil,
+		AllMoves,
 	}
 }
 

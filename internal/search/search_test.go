@@ -304,7 +304,7 @@ func TestSearchDepthTime(t *testing.T) {
 
 	{
 		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{2}, WithoutQuiescence{}, WithoutIterativeDeepening{})
+		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{}, WithoutIterativeDeepening{})
 		elapsed := time.Now().Sub(start)
 		assert.True(t, IsNil(err), err)
 
@@ -313,7 +313,7 @@ func TestSearchDepthTime(t *testing.T) {
 
 	{
 		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{2}, WithoutQuiescence{})
+		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
 		elapsed := time.Now().Sub(start)
 		assert.True(t, IsNil(err), err)
 
@@ -322,7 +322,7 @@ func TestSearchDepthTime(t *testing.T) {
 
 	{
 		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{2}, WithoutIterativeDeepening{})
+		_, _, err := Search(fen, WithMaxDepth{3}, WithoutIterativeDeepening{})
 		elapsed := time.Now().Sub(start)
 		assert.True(t, IsNil(err), err)
 
@@ -331,7 +331,7 @@ func TestSearchDepthTime(t *testing.T) {
 
 	{
 		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{2})
+		_, _, err := Search(fen, WithMaxDepth{3})
 		elapsed := time.Now().Sub(start)
 		assert.True(t, IsNil(err), err)
 
