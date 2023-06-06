@@ -296,7 +296,11 @@ func PrintMemUsage() {
 func PrintColumns(values []string, sizes []int, separator string) string {
 	result := ""
 	for i, v := range values {
-		result += fmt.Sprintf("%-"+strconv.Itoa(sizes[i])+"s", v)
+		if i < len(sizes) {
+			result += fmt.Sprintf("%-"+strconv.Itoa(sizes[i])+"s", v)
+		} else {
+			result += v
+		}
 		if i < len(values)-1 {
 			result += separator
 		}

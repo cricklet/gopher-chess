@@ -99,7 +99,7 @@ const (
 type MoveGen interface {
 	performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error
 	searchingAllLegalMoves() bool
-	updatePrincipleVariations(variations []Pair[int, []Move])
+	updatePrincipleVariations(variations []Pair[int, []SearchMove])
 
 	getGenerationMode() MoveGenerationMode
 	setGenerationMode(mode MoveGenerationMode)
@@ -117,8 +117,8 @@ type DefaultMoveGenerator struct {
 	*Bitboards
 	mode MoveGenerationMode
 
-	sortedVariations [][]Move
-	currentVariation []Move
+	sortedVariations [][]SearchMove
+	currentVariation []SearchMove
 	inVariation      bool
 }
 
@@ -140,10 +140,10 @@ func (gen *DefaultMoveGenerator) setGenerationMode(mode MoveGenerationMode) {
 	gen.mode = mode
 }
 
-func (gen *DefaultMoveGenerator) updatePrincipleVariations(variations []Pair[int, []Move]) {
-	gen.sortedVariations = [][]Move{}
+func (gen *DefaultMoveGenerator) updatePrincipleVariations(variations []Pair[int, []SearchMove]) {
+	gen.sortedVariations = [][]SearchMove{}
 
-	SortMaxFirst(&variations, func(t Pair[int, []Move]) int {
+	SortMaxFirst(&variations, func(t Pair[int, []SearchMove]) int {
 		return t.First
 	})
 
@@ -173,7 +173,7 @@ func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move)
 			gen.currentVariation = variation[1:]
 
 			gen.inVariation = true
-			result, err := performMoveAndCall(gen.GameState, gen.Bitboards, variation[0], callback)
+			result, err := performMoveAndCall(gen.GameState, gen.Bitboards, variation[0].Move, callback)
 			gen.inVariation = false
 
 			if !err.IsNil() {
@@ -202,7 +202,7 @@ func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move)
 	if gen.currentVariation != nil && len(gen.currentVariation) > 0 {
 		// Move the previously calculated best move to the front
 		for i, move := range *moves {
-			if move == gen.currentVariation[0] {
+			if move == gen.currentVariation[0].Move {
 				(*moves)[i] = (*moves)[0]
 				(*moves)[0] = move
 				break
@@ -241,7 +241,7 @@ type SearchTreeMoveGenerator struct {
 
 var _ MoveGen = (*SearchTreeMoveGenerator)(nil)
 
-func (gen *SearchTreeMoveGenerator) updatePrincipleVariations(variations []Pair[int, []Move]) {
+func (gen *SearchTreeMoveGenerator) updatePrincipleVariations(variations []Pair[int, []SearchMove]) {
 }
 
 func (gen *SearchTreeMoveGenerator) getGenerationMode() MoveGenerationMode {
@@ -298,7 +298,7 @@ func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(callback func(move Mo
 }
 
 type Evaluator interface {
-	evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int, Error)
+	evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error)
 }
 
 type BasicEvaluator struct {
@@ -306,8 +306,8 @@ type BasicEvaluator struct {
 
 var _ Evaluator = (*BasicEvaluator)(nil)
 
-func (e BasicEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int, Error) {
-	return []Move{}, Evaluate(helper.Bitboards, player), NilError
+func (e BasicEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error) {
+	return nil, Evaluate(helper.Bitboards, player), NilError
 }
 
 type QuiescenceEvaluator struct {
@@ -315,7 +315,7 @@ type QuiescenceEvaluator struct {
 
 var _ Evaluator = (*QuiescenceEvaluator)(nil)
 
-func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int) ([]Move, int, Error) {
+func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error) {
 	// captureGenerator := NewDefaultMoveGenerator(helper.GameState, helper.Bitboards, OnlyCaptures)
 
 	prevGenerationMode := helper.MoveGen.getGenerationMode()
@@ -331,11 +331,12 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		GameState:                 helper.GameState,
 		Bitboards:                 helper.Bitboards,
 		OutOfTime:                 nil,
-		CheckStandPat:             true,
+		InQuiescence:              true,
 		Logger:                    helper.Logger,
-		Debug:                     &SilentLogger,
+		Debug:                     helper.Debug,
 		IterativeDeepeningDepth:   helper.IterativeDeepeningDepth,
-		WithoutIterativeDeepening: false,
+		WithoutIterativeDeepening: helper.WithoutIterativeDeepening,
+		WithoutCheckStandPat:      helper.WithoutCheckStandPat,
 	}
 
 	// NEXT: include past history for nicer printing
@@ -343,7 +344,7 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 	moves, score, err := quiescenceHelper.alphaBeta(alpha, beta, currentDepth,
 		// Search up to 10 more moves
 		10,
-		[]Move{},
+		pastMoves,
 	)
 	return moves, score, err
 
@@ -372,15 +373,16 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 type SearchHelper struct {
 	MoveGen MoveGen
 	// MoveSorter MoveSorter
-	Evaluator     Evaluator
-	GameState     *GameState
-	Bitboards     *Bitboards
-	OutOfTime     *bool
-	CheckStandPat bool
+	Evaluator    Evaluator
+	GameState    *GameState
+	Bitboards    *Bitboards
+	OutOfTime    *bool
+	InQuiescence bool
 	Logger
 	Debug                     Logger
 	IterativeDeepeningDepth   int
 	WithoutIterativeDeepening bool
+	WithoutCheckStandPat      bool
 }
 
 func (helper SearchHelper) String() string {
@@ -395,33 +397,87 @@ func (helper SearchHelper) inCheck() bool {
 
 var LABEL_COL int = 7
 var SCORE_COL int = 5
-var MOVES_COL int = 50
 
-func (helper *SearchHelper) PrintlnVariation(logger Logger, pastMoves []Move, currentMove Move, nextMoves []Move, label string, score Optional[int]) {
-	if logger == &SilentLogger {
-		return
+type SearchMove struct {
+	Move
+	inQuiescence bool
+}
+
+func VariationDebugString(searchMoves []SearchMove, currentIndex int, label string, score Optional[int]) string {
+	allMoves := ""
+	inQuiescence := false
+	for i, move := range searchMoves {
+		prefix := ""
+		postfix := ""
+
+		if move.inQuiescence && !inQuiescence {
+			prefix += "<"
+			inQuiescence = true
+		}
+		if i == currentIndex {
+			prefix += "["
+			postfix += "]"
+		}
+		if i == len(searchMoves)-1 && move.inQuiescence {
+			postfix += ">"
+		}
+
+		allMoves += fmt.Sprintf("%2s%-7s", prefix, fmt.Sprint(move.DebugString(), postfix))
 	}
-	result := PrintColumns(
+
+	return PrintColumns(
 		[]string{
 			label,
 			MapOptional(score, func(s int) string {
-				return strconv.Itoa(s)
+				if s < 0 {
+					return strconv.Itoa(s)
+				} else {
+					return " " + strconv.Itoa(s)
+				}
 			}).ValueOr(""),
-			DebugStringForMoves(append(
-				append(pastMoves, currentMove), nextMoves...)),
+			allMoves,
 		},
-		[]int{LABEL_COL, SCORE_COL, MOVES_COL},
+		[]int{LABEL_COL, SCORE_COL},
 		"",
 	)
+}
+
+func (helper *SearchHelper) PrintlnVariation(logger Logger,
+	past []SearchMove,
+	current Optional[SearchMove],
+	future []SearchMove,
+	label string,
+	score Optional[int],
+) {
+	if logger == &SilentLogger {
+		return
+	}
+
+	fullVariation := []SearchMove{}
+	fullVariation = append(fullVariation, past...)
+
+	currentIndex := Inf
+	if current.HasValue() {
+		currentIndex = len(fullVariation)
+		fullVariation = append(fullVariation, current.Value())
+	}
+	fullVariation = append(fullVariation, future...)
+
+	result := VariationDebugString(fullVariation, currentIndex, label, score)
+	if current.IsEmpty() {
+		result += " [****]"
+	}
 	logger.Println(result)
 }
 
-func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, depthRemaining int, past []Move) ([]Move, int, Error) {
+func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, depthRemaining int, past []SearchMove) ([]SearchMove, int, Error) {
 	if depthRemaining <= 0 {
-		return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth)
+		future, score, err := helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth, past)
+		helper.PrintlnVariation(helper.Debug, past, Empty[SearchMove](), future, "eval", Some(score))
+		return future, score, err
 	}
 
-	if helper.CheckStandPat {
+	if helper.InQuiescence && !helper.WithoutCheckStandPat {
 		// if we decide not to not take (eg make a neutral move / stand-pat)
 		// and that's really good for us (eg other player will have prevented this path)
 		//   we can return early
@@ -430,26 +486,32 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 		//   but we can also update alpha
 		//   because the future capture must beat standing pat in order for us to choose it
 		// if it's bad for us, we need to search captures
-		_, standPat, err := BasicEvaluator{}.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth)
+		_, standPat, err := BasicEvaluator{}.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth, past)
 		if err.HasError() {
-			return []Move{}, alpha, err
+			return nil, alpha, err
 		}
 
 		if standPat >= beta {
-			return []Move{}, beta, NilError
+			helper.PrintlnVariation(helper.Debug, past, Empty[SearchMove](), nil, "sp-b-cut", Some(standPat))
+			return nil, beta, NilError
 		} else if standPat > alpha {
+			helper.PrintlnVariation(helper.Debug, past, Empty[SearchMove](), nil, "sp-alpha", Some(standPat))
 			alpha = standPat
 		}
 	}
 
-	principleVariation := []Move{}
+	var principleVariation []SearchMove = nil
 
 	foundMove := false
 
 	err := helper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
 		foundMove = true
 
-		variation, enemyScore, err := helper.alphaBeta(-beta, -alpha, currentDepth+1, depthRemaining-1, principleVariation)
+		searchMove := SearchMove{move, helper.InQuiescence}
+
+		helper.PrintlnVariation(helper.Debug, past, Some(searchMove), nil, "???", Empty[int]())
+
+		future, enemyScore, err := helper.alphaBeta(-beta, -alpha, currentDepth+1, depthRemaining-1, append(past, searchMove))
 		if err.HasError() {
 			return LoopBreak, err
 		}
@@ -457,24 +519,24 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 		score := -enemyScore
 		if score >= beta {
 			alpha = beta // fail hard beta-cutoff
-			helper.PrintlnVariation(helper.Debug, past, move, variation, "b-cut", Some(score))
+			helper.PrintlnVariation(helper.Debug, past, Some(searchMove), future, "b-cut", Some(score))
 			return LoopBreak, NilError
 		} else if score > alpha {
 			alpha = score
-			helper.PrintlnVariation(helper.Debug, past, move, variation, "pv", Some(score))
-			principleVariation = append([]Move{move}, variation...)
+			helper.PrintlnVariation(helper.Debug, past, Some(searchMove), future, "pv", Some(score))
+			principleVariation = append([]SearchMove{searchMove}, future...)
 		} else {
-			helper.PrintlnVariation(helper.Debug, past, move, variation, "a-skip", Some(score))
+			helper.PrintlnVariation(helper.Debug, past, Some(searchMove), future, "a-skip", Some(score))
 		}
 		return LoopContinue, NilError
 	})
 
 	if err.HasError() {
-		return []Move{}, alpha, err
+		return nil, alpha, err
 	}
 
 	if !foundMove {
-		if helper.MoveGen.searchingAllLegalMoves() {
+		if helper.MoveGen.searchingAllLegalMoves() && helper.InQuiescence {
 			// If no legal moves exist, we're in stalemate or checkmate
 			if helper.inCheck() {
 				alpha = -Inf
@@ -482,7 +544,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 				alpha = 0
 			}
 		} else {
-			return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth)
+			return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth, past)
 		}
 	}
 
@@ -490,7 +552,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 }
 
 func (helper *SearchHelper) Search() ([]Move, int, Error) {
-	principleVariations := []Pair[int, []Move]{}
+	principleVariations := []Pair[int, []SearchMove]{}
 
 	depthIncrement := 1
 
@@ -504,7 +566,7 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 		helper.MoveGen.updatePrincipleVariations(principleVariations)
 
 		// The next set of principle variations will go here
-		principleVariations = []Pair[int, []Move]{}
+		principleVariations = []Pair[int, []SearchMove]{}
 
 		// Loop through & perform the first generated moves
 		err := helper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
@@ -518,49 +580,47 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 				1,
 				// we've already searched one move, so decrement depth remaining
 				depthRemaining-1,
-				[]Move{move})
+				[]SearchMove{{move, false}})
 
 			if err.HasError() {
 				return LoopBreak, err
 			}
 
 			score := -enemyScore
-			principleVariations = append(principleVariations, Pair[int, []Move]{
-				First: score, Second: append([]Move{move}, variation...)})
+			principleVariations = append(principleVariations, Pair[int, []SearchMove]{
+				First: score, Second: append([]SearchMove{{move, false}}, variation...)})
 
 			return LoopContinue, NilError
 		})
 
 		if err.HasError() {
-			return []Move{}, 0, err
+			return nil, 0, err
 		}
 
-		SortMaxFirst(&principleVariations, func(t Pair[int, []Move]) int {
+		SortMaxFirst(&principleVariations, func(t Pair[int, []SearchMove]) int {
 			return t.First
 		})
 
 		for _, move := range principleVariations {
-			helper.Println(
-				PrintColumns(
-					[]string{
-						fmt.Sprint(depthRemaining, " ===> "),
-						strconv.Itoa(move.First),
-						DebugStringForMoves(move.Second),
-					},
-					[]int{LABEL_COL, SCORE_COL, MOVES_COL},
-					"",
-				),
-			)
+			helper.Logger.Println(
+				VariationDebugString(
+					move.Second,
+					0,
+					fmt.Sprint("done(", depthRemaining, ")"),
+					Some(move.First),
+				))
 			helper.Debug.Println()
 		}
 	}
 
 	if len(principleVariations) == 0 {
-		return []Move{}, 0, NilError
+		return nil, 0, NilError
 	}
 
 	bestMove := principleVariations[0]
-	return bestMove.Second, bestMove.First, NilError
+	return MapSlice(bestMove.Second, func(m SearchMove) Move {
+		return m.Move
+	}), bestMove.First, NilError
 }
 
 type SearchOption interface {
@@ -605,6 +665,13 @@ type WithoutIterativeDeepening struct {
 
 func (o WithoutIterativeDeepening) apply(helper *SearchHelper) {
 	helper.WithoutIterativeDeepening = true
+}
+
+type WithoutCheckStandPat struct {
+}
+
+func (o WithoutCheckStandPat) apply(helper *SearchHelper) {
+	helper.WithoutCheckStandPat = true
 }
 
 type SearchTree struct {
@@ -678,7 +745,6 @@ func Searcher(game *GameState, b *Bitboards, opts ...SearchOption) *SearchHelper
 		GameState:               game,
 		Bitboards:               b,
 		OutOfTime:               nil,
-		CheckStandPat:           false,
 		Logger:                  &SilentLogger,
 		Debug:                   &SilentLogger,
 		IterativeDeepeningDepth: 3,

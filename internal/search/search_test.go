@@ -112,7 +112,7 @@ func TestOpeningCaptureWithoutQuiescence(t *testing.T) {
 		ConcatStringify(result))
 }
 
-func TestOpeningCaptureWithQuiescence(t *testing.T) {
+func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 	searchMoves, err := SearchTreeFromLines(
@@ -126,19 +126,27 @@ func TestOpeningCaptureWithQuiescence(t *testing.T) {
 	)
 	assert.True(t, IsNil(err))
 
+	{
+		fen := "rnbqkbnr/ppppp1pp/8/8/4N3/8/PPPP1PPP/R1BQKBNR b KQkq - 0 3"
+		game, err := game.GamestateFromFenString(fen)
+		assert.True(t, IsNil(err), err)
+
+		bitboards := game.CreateBitboards()
+		expectedScore := Evaluate(&bitboards, White, 0)
+		assert.Greater(t, expectedScore, 0)
+	}
+
 	// we should see the trades because of quiescence
-	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithDebugLogging{})
+	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithoutCheckStandPat{}, WithDebugLogging{})
 	assert.True(t, IsNil(err), err)
-	fmt.Println(score, ConcatStringify(result))
 
 	assert.Greater(t, score, 0)
 	assert.Equal(t,
 		"e2e4, f7f5, b1c3, f5e4, c3e4",
 		ConcatStringify(result))
 
-	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5}, WithDebugLogging{})
+	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5}, WithoutCheckStandPat{}, WithDebugLogging{})
 	assert.True(t, IsNil(err), err)
-	fmt.Println(score, ConcatStringify(result))
 
 	assert.Greater(t, score, 0)
 	assert.Equal(t,
@@ -305,7 +313,7 @@ func TestSearchDepthTime(t *testing.T) {
 	{
 		start := time.Now()
 		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{}, WithoutIterativeDeepening{})
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		assert.True(t, IsNil(err), err)
 
 		fmt.Println("NO quiescence, NO iterative", elapsed.Milliseconds(), "ms")
@@ -314,7 +322,7 @@ func TestSearchDepthTime(t *testing.T) {
 	{
 		start := time.Now()
 		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		assert.True(t, IsNil(err), err)
 
 		fmt.Println("NO quiescence, WITH iterative", elapsed.Milliseconds(), "ms")
@@ -323,7 +331,7 @@ func TestSearchDepthTime(t *testing.T) {
 	{
 		start := time.Now()
 		_, _, err := Search(fen, WithMaxDepth{3}, WithoutIterativeDeepening{})
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		assert.True(t, IsNil(err), err)
 
 		fmt.Println("WITH quiescence, NO iterative", elapsed.Milliseconds(), "ms")
@@ -332,7 +340,7 @@ func TestSearchDepthTime(t *testing.T) {
 	{
 		start := time.Now()
 		_, _, err := Search(fen, WithMaxDepth{3})
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		assert.True(t, IsNil(err), err)
 
 		fmt.Println("WITH quiescence, WITH iterative", elapsed.Milliseconds(), "ms")
