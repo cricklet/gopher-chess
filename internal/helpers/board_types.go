@@ -1,6 +1,9 @@
 package helpers
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type File uint
 type Rank uint
@@ -484,6 +487,13 @@ func (m Move) String() string {
 		return StringFromBoardIndex(m.StartIndex) + StringFromBoardIndex(m.EndIndex) + m.PromotionPiece.Value().String()
 	}
 	return StringFromBoardIndex(m.StartIndex) + StringFromBoardIndex(m.EndIndex)
+}
+
+func DebugStringForMoves(moves []Move) string {
+	return strings.Join(MapSlice(moves,
+		func(m Move) string {
+			return fmt.Sprintf("%-5s", m.DebugString())
+		}), " ")
 }
 
 func (m Move) DebugString() string {

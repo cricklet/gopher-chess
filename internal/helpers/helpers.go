@@ -292,3 +292,14 @@ func PrintMemUsage() {
 	log.Printf("\tSys = %v KB\n", bToKb(m.Sys))
 	log.Printf("\tNumGC = %v\n", m.NumGC)
 }
+
+func PrintColumns(values []string, sizes []int, separator string) string {
+	result := ""
+	for i, v := range values {
+		result += fmt.Sprintf("%-"+strconv.Itoa(sizes[i])+"s", v)
+		if i < len(values)-1 {
+			result += separator
+		}
+	}
+	return result
+}

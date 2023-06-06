@@ -15,3 +15,12 @@ func TestSlice(t *testing.T) {
 	assert.Equal(t, []int{4, 5, 6, 4}, b)
 	assert.Equal(t, []int{4, 5, 6}, c)
 }
+
+func TestPrintColumns(t *testing.T) {
+	result := PrintColumns(
+		[]string{"012", "01234", "0"},
+		[]int{4, 10, 4},
+		"",
+	)
+	assert.Equal(t, "012 01234     0   ", result)
+}

@@ -1,7 +1,8 @@
 package search
 
 import (
-	"strings"
+	"fmt"
+	"strconv"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
@@ -337,6 +338,8 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		WithoutIterativeDeepening: false,
 	}
 
+	// NEXT: include past history for nicer printing
+
 	moves, score, err := quiescenceHelper.alphaBeta(alpha, beta, currentDepth,
 		// Search up to 10 more moves
 		10,
@@ -388,7 +391,32 @@ func (helper SearchHelper) inCheck() bool {
 	return KingIsInCheck(helper.Bitboards, helper.GameState.Player)
 }
 
-func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, depthRemaining int, pastMovesForDebugging []Move) ([]Move, int, Error) {
+// NEXT: also include if we're in quiescence
+
+var LABEL_COL int = 7
+var SCORE_COL int = 5
+var MOVES_COL int = 50
+
+func (helper *SearchHelper) PrintlnVariation(logger Logger, pastMoves []Move, currentMove Move, nextMoves []Move, label string, score Optional[int]) {
+	if logger == &SilentLogger {
+		return
+	}
+	result := PrintColumns(
+		[]string{
+			label,
+			MapOptional(score, func(s int) string {
+				return strconv.Itoa(s)
+			}).ValueOr(""),
+			DebugStringForMoves(append(
+				append(pastMoves, currentMove), nextMoves...)),
+		},
+		[]int{LABEL_COL, SCORE_COL, MOVES_COL},
+		"",
+	)
+	logger.Println(result)
+}
+
+func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, depthRemaining int, past []Move) ([]Move, int, Error) {
 	if depthRemaining <= 0 {
 		return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth)
 	}
@@ -420,26 +448,23 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 
 	err := helper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
 		foundMove = true
-		helper.Debug.Println(strings.Repeat(" ", currentDepth), "?", pastMovesForDebugging, move.DebugString())
 
 		variation, enemyScore, err := helper.alphaBeta(-beta, -alpha, currentDepth+1, depthRemaining-1, principleVariation)
 		if err.HasError() {
 			return LoopBreak, err
 		}
 
-		// NEXT make the printing of history nicer
-
 		score := -enemyScore
 		if score >= beta {
 			alpha = beta // fail hard beta-cutoff
-			helper.Debug.Println(strings.Repeat(" ", currentDepth), ">", score, pastMovesForDebugging, move.DebugString(), "beta cutoff")
+			helper.PrintlnVariation(helper.Debug, past, move, variation, "b-cut", Some(score))
 			return LoopBreak, NilError
 		} else if score > alpha {
 			alpha = score
+			helper.PrintlnVariation(helper.Debug, past, move, variation, "pv", Some(score))
 			principleVariation = append([]Move{move}, variation...)
-			helper.Debug.Println(strings.Repeat(" ", currentDepth), ">", score, pastMovesForDebugging, move.DebugString(), principleVariation[1:], "principle variation")
 		} else {
-			helper.Debug.Println(strings.Repeat(" ", currentDepth), ">", score, pastMovesForDebugging, move.DebugString(), "skip")
+			helper.PrintlnVariation(helper.Debug, past, move, variation, "a-skip", Some(score))
 		}
 		return LoopContinue, NilError
 	})
@@ -515,7 +540,18 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 		})
 
 		for _, move := range principleVariations {
-			helper.Println("(", depthRemaining, ")", ">", move.First, move.Second)
+			helper.Println(
+				PrintColumns(
+					[]string{
+						fmt.Sprint(depthRemaining, " ===> "),
+						strconv.Itoa(move.First),
+						DebugStringForMoves(move.Second),
+					},
+					[]int{LABEL_COL, SCORE_COL, MOVES_COL},
+					"",
+				),
+			)
+			helper.Debug.Println()
 		}
 	}
 
