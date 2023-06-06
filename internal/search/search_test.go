@@ -122,7 +122,7 @@ func TestOpeningCaptureWithQuiescence(t *testing.T) {
 				"e2e4", "f7f5", "b1c3", "f5e4", "c3e4",
 			},
 		},
-		false, // only search the specified line
+		true,
 	)
 	assert.True(t, IsNil(err))
 
@@ -136,7 +136,7 @@ func TestOpeningCaptureWithQuiescence(t *testing.T) {
 		"e2e4, f7f5, b1c3, f5e4, c3e4",
 		ConcatStringify(result))
 
-	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5})
+	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5}, WithDebugLogging{})
 	assert.True(t, IsNil(err), err)
 	fmt.Println(score, ConcatStringify(result))
 
