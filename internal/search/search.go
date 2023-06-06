@@ -252,7 +252,9 @@ func (gen *SearchTreeMoveGenerator) setGenerationMode(mode MoveGenerationMode) {
 }
 
 func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
-	if gen.currentlySearching.continueSearching {
+	if gen.mode == OnlyCaptures {
+		return false
+	} else if gen.currentlySearching.continueSearching {
 		return true
 	} else {
 		return false
@@ -339,8 +341,6 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		WithoutCheckStandPat:      helper.WithoutCheckStandPat,
 	}
 
-	// NEXT: include past history for nicer printing
-
 	moves, score, err := quiescenceHelper.alphaBeta(alpha, beta, currentDepth,
 		// Search up to 10 more moves
 		10,
@@ -392,8 +392,6 @@ func (helper SearchHelper) String() string {
 func (helper SearchHelper) inCheck() bool {
 	return KingIsInCheck(helper.Bitboards, helper.GameState.Player)
 }
-
-// NEXT: also include if we're in quiescence
 
 var LABEL_COL int = 7
 var SCORE_COL int = 5
@@ -455,13 +453,15 @@ func (helper *SearchHelper) PrintlnVariation(logger Logger,
 
 	fullVariation := []SearchMove{}
 	fullVariation = append(fullVariation, past...)
-
-	currentIndex := Inf
 	if current.HasValue() {
-		currentIndex = len(fullVariation)
 		fullVariation = append(fullVariation, current.Value())
 	}
 	fullVariation = append(fullVariation, future...)
+
+	currentIndex := Inf
+	if len(future) > 0 || current.HasValue() {
+		currentIndex = len(past)
+	}
 
 	result := VariationDebugString(fullVariation, currentIndex, label, score)
 	if current.IsEmpty() {
@@ -473,7 +473,7 @@ func (helper *SearchHelper) PrintlnVariation(logger Logger,
 func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, depthRemaining int, past []SearchMove) ([]SearchMove, int, Error) {
 	if depthRemaining <= 0 {
 		future, score, err := helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth, past)
-		helper.PrintlnVariation(helper.Debug, past, Empty[SearchMove](), future, "eval", Some(score))
+		// helper.PrintlnVariation(helper.Debug, past, Empty[SearchMove](), future, "eval", Some(score))
 		return future, score, err
 	}
 
@@ -536,7 +536,10 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 	}
 
 	if !foundMove {
-		if helper.MoveGen.searchingAllLegalMoves() && helper.InQuiescence {
+		if helper.MoveGen.searchingAllLegalMoves() {
+			if helper.InQuiescence {
+				return nil, alpha, Errorf("bug in move-gen: quiescence should not search all legal moves")
+			}
 			// If no legal moves exist, we're in stalemate or checkmate
 			if helper.inCheck() {
 				alpha = -Inf
