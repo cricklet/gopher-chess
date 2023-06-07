@@ -97,12 +97,9 @@ const (
 )
 
 type MoveGen interface {
-	performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error
+	performEachMoveAndCall(mode MoveGenerationMode, callback func(move Move) (LoopResult, Error)) Error
 	searchingAllLegalMoves() bool
 	updatePrincipleVariations(variations []Pair[int, []SearchMove])
-
-	getGenerationMode() MoveGenerationMode
-	setGenerationMode(mode MoveGenerationMode)
 }
 
 // NEXT try to refactor away MoveGenerationMode
@@ -116,7 +113,6 @@ const (
 type DefaultMoveGenerator struct {
 	*GameState
 	*Bitboards
-	mode MoveGenerationMode
 
 	sortedVariations [][]SearchMove
 	currentVariation []SearchMove
@@ -127,19 +123,10 @@ func NewDefaultMoveGenerator(g *GameState, b *Bitboards, mode MoveGenerationMode
 	return DefaultMoveGenerator{
 		GameState: g,
 		Bitboards: b,
-		mode:      mode,
 	}
 }
 
 var _ MoveGen = (*DefaultMoveGenerator)(nil)
-
-func (gen *DefaultMoveGenerator) getGenerationMode() MoveGenerationMode {
-	return gen.mode
-}
-
-func (gen *DefaultMoveGenerator) setGenerationMode(mode MoveGenerationMode) {
-	gen.mode = mode
-}
 
 func (gen *DefaultMoveGenerator) updatePrincipleVariations(variations []Pair[int, []SearchMove]) {
 	gen.sortedVariations = [][]SearchMove{}
@@ -157,14 +144,10 @@ func (gen *DefaultMoveGenerator) updatePrincipleVariations(variations []Pair[int
 }
 
 func (gen *DefaultMoveGenerator) searchingAllLegalMoves() bool {
-	if gen.mode == OnlyCaptures {
-		return false
-	} else {
-		return true
-	}
+	return true
 }
 
-func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error {
+func (gen *DefaultMoveGenerator) performEachMoveAndCall(mode MoveGenerationMode, callback func(move Move) (LoopResult, Error)) Error {
 	if len(gen.sortedVariations) > 0 && !gen.inVariation {
 		// We can reuse the first moves stored in the variation rather than recalculating the
 		// moves below.
@@ -192,7 +175,7 @@ func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move)
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
-	if gen.mode == OnlyCaptures {
+	if mode == OnlyCaptures {
 		GeneratePseudoCaptures(func(m Move) {
 			*moves = append(*moves, m)
 		}, gen.Bitboards, gen.GameState)
@@ -255,13 +238,6 @@ var _ MoveGen = (*SearchTreeMoveGenerator)(nil)
 func (gen *SearchTreeMoveGenerator) updatePrincipleVariations(variations []Pair[int, []SearchMove]) {
 }
 
-func (gen *SearchTreeMoveGenerator) getGenerationMode() MoveGenerationMode {
-	return gen.mode
-}
-func (gen *SearchTreeMoveGenerator) setGenerationMode(mode MoveGenerationMode) {
-	gen.mode = mode
-}
-
 func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
 	if gen.mode == OnlyCaptures {
 		return false
@@ -272,14 +248,14 @@ func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
 	}
 }
 
-func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error {
+func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(mode MoveGenerationMode, callback func(move Move) (LoopResult, Error)) Error {
 	if gen.currentlySearching == nil {
 		gen.currentlySearching = &gen.SearchTree
 	}
 
 	if gen.currentlySearching.continueSearching {
 		continueGen := NewDefaultMoveGenerator(gen.GameState, gen.Bitboards, gen.mode)
-		return (&continueGen).performEachMoveAndCall(callback)
+		return (&continueGen).performEachMoveAndCall(mode, callback)
 	}
 
 	prevSearchTree := gen.currentlySearching
@@ -329,13 +305,6 @@ type QuiescenceEvaluator struct {
 var _ Evaluator = (*QuiescenceEvaluator)(nil)
 
 func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error) {
-	prevGenerationMode := helper.MoveGen.getGenerationMode()
-	helper.MoveGen.setGenerationMode(OnlyCaptures)
-
-	defer func() {
-		helper.MoveGen.setGenerationMode(prevGenerationMode)
-	}()
-
 	quiescenceHelper := SearchHelper{
 		MoveGen:                   helper.MoveGen,
 		Evaluator:                 BasicEvaluator{},
@@ -556,9 +525,14 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 
 	var principleVariation []SearchMove = nil
 
+	mode := AllMoves
+	if helper.InQuiescence {
+		mode = OnlyCaptures
+	}
+
 	foundMove := false
 
-	err := helper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
+	err := helper.MoveGen.performEachMoveAndCall(mode, func(move Move) (LoopResult, Error) {
 		foundMove = true
 
 		searchMove := SearchMove{move, helper.InQuiescence}
@@ -590,10 +564,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 	}
 
 	if !foundMove {
-		if helper.MoveGen.searchingAllLegalMoves() {
-			if helper.InQuiescence {
-				return nil, alpha, Errorf("bug in move-gen: quiescence should not search all legal moves")
-			}
+		if helper.MoveGen.searchingAllLegalMoves() && !helper.InQuiescence {
 			// If no legal moves exist, we're in stalemate or checkmate
 			if helper.inCheck() {
 				alpha = -Inf
@@ -618,6 +589,8 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 		startDepthRemaining = helper.IterativeDeepeningDepth
 	}
 
+	mode := AllMoves
+
 	for depthRemaining := startDepthRemaining; depthRemaining <= helper.IterativeDeepeningDepth; depthRemaining += depthIncrement {
 		// The generator will prioritize trying the principle variations first
 		helper.MoveGen.updatePrincipleVariations(principleVariations)
@@ -626,7 +599,7 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 		principleVariations = []Pair[int, []SearchMove]{}
 
 		// Loop through & perform the first generated moves
-		err := helper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
+		err := helper.MoveGen.performEachMoveAndCall(mode, func(move Move) (LoopResult, Error) {
 			if helper.OutOfTime != nil && *helper.OutOfTime {
 				return LoopBreak, NilError
 			}
