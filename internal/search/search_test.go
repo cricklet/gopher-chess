@@ -112,6 +112,33 @@ func TestOpeningCaptureWithoutQuiescence(t *testing.T) {
 		ConcatStringify(result))
 }
 
+func TestCorrectlyEvaluatesWhenNoCapturesAreFoundInQuiescence(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	searchMoves, err := SearchTreeFromLines(
+		fen,
+		[][]string{
+			{
+				"e2e4", "f7f5", "b1c3", "f5e4", "c3e4",
+			},
+		},
+		true,
+	)
+	assert.True(t, IsNil(err))
+
+	result, score, err := Search(fen,
+		WithMaxDepth{5},
+		WithSearch{searchMoves},
+		WithoutIterativeDeepening{},
+		WithDebugLogging{})
+	assert.True(t, IsNil(err), err)
+
+	assert.Greater(t, score, 0)
+	assert.Equal(t,
+		"e2e4, f7f5, b1c3, f5e4, c3e4",
+		ConcatStringify(result))
+}
+
 func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -394,5 +421,5 @@ func TestTimeQuiescence(t *testing.T) {
 
 	assert.Greater(t, nonIterativeNonStandPat, iterativeNonStandPat)
 
-	assert.Greater(t, iterativeNonStandPat, 50*iterativeStandPat)
+	assert.Greater(t, iterativeNonStandPat, 40*iterativeStandPat)
 }

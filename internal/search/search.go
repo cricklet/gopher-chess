@@ -337,15 +337,9 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		pastMoves,
 	)
 	return moves, score, err
-	// prevGenerationMode := helper.MoveGen.getGenerationMode()
-	// helper.MoveGen.setGenerationMode(OnlyCaptures)
-
-	// defer func() {
-	// 	helper.MoveGen.setGenerationMode(prevGenerationMode)
-	// }()
 
 	// quiescenceHelper := SearchHelper{
-	// 	MoveGen:                   helper.MoveGen,
+	// 	MoveGen:                   helper.MoveGen.copy(),
 	// 	Evaluator:                 BasicEvaluator{},
 	// 	GameState:                 helper.GameState,
 	// 	Bitboards:                 helper.Bitboards,
@@ -365,15 +359,16 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 	// principleVariations := []Pair[int, []SearchMove]{}
 
 	// // Loop through & perform first generated moves
-	// for depthRemaining := 1; depthRemaining <= 10; depthRemaining += 1 {
-	// 	err := quiescenceHelper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
+	// for depthRemaining := 1; depthRemaining <= 5; depthRemaining += 1 {
+	// 	// NEXT only continue down the depth if we are still succesfully searching
+	// 	err := quiescenceHelper.MoveGen.performEachMoveAndCall(OnlyCaptures, func(move Move) (LoopResult, Error) {
 	// 		// Traverse past the first generated move
-	// 		variation, enemyScore, err := helper.alphaBeta(-Inf-1, Inf+1,
-	// 			// current depth is 1 (0 would be before we applied `move`)
-	// 			1,
-	// 			// we've already searched one move, so decrement depth remaining
+	// 		variation, enemyScore, err := quiescenceHelper.alphaBeta(
+	// 			alpha, beta,
+	// 			currentDepth,
 	// 			depthRemaining-1,
-	// 			[]SearchMove{{move, false}})
+	// 			pastMoves,
+	// 		)
 
 	// 		if err.HasError() {
 	// 			return LoopBreak, err
@@ -395,11 +390,11 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 	// 	})
 
 	// 	// Prioritize the newly discovered principle variations first
-	// 	helper.MoveGen.updatePrincipleVariations(principleVariations)
+	// 	quiescenceHelper.MoveGen.updatePrincipleVariations(principleVariations)
 	// }
 
 	// if len(principleVariations) == 0 {
-	// 	return nil, 0, NilError
+	// 	return quiescenceHelper.Evaluator.evaluate(helper, player, alpha, beta, currentDepth, pastMoves)
 	// }
 
 	// bestMove := principleVariations[0]
@@ -577,15 +572,15 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 	}
 
 	if !foundMove {
-		if helper.MoveGen.searchingAllLegalMoves() && !helper.InQuiescence {
+		if helper.InQuiescence || !helper.MoveGen.searchingAllLegalMoves() {
+			return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth, past)
+		} else {
 			// If no legal moves exist, we're in stalemate or checkmate
 			if helper.inCheck() {
 				alpha = -Inf
 			} else {
 				alpha = 0
 			}
-		} else {
-			return helper.Evaluator.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth, past)
 		}
 	}
 
