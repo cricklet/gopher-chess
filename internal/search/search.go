@@ -165,6 +165,8 @@ func (gen *DefaultMoveGenerator) searchingAllLegalMoves() bool {
 
 func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error {
 	if len(gen.sortedVariations) > 0 && !gen.inVariation {
+		// We can reuse the first moves stored in the variation rather than recalculating the
+		// moves below.
 		for _, variation := range gen.sortedVariations {
 			if len(variation) == 0 {
 				return Errorf("variation has no moves")
@@ -340,6 +342,26 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		WithoutIterativeDeepening: helper.WithoutIterativeDeepening,
 		WithoutCheckStandPat:      helper.WithoutCheckStandPat,
 	}
+
+	// NEXT iterative deepening during quiescence
+	/*
+		the move generator has two modes
+		if we have variations from a previous search:
+			if we haven't yet performed the first move,
+				we simply apply the first move of each variation
+			if we have performed the first move,
+				we search available moves while prioritizing the
+				variation we are in
+		if this is the first depth of the search
+			we search available moves
+
+		want i want to do this time is...
+		if this is the first depth of the search
+			prioritize searching the variation we are in if necessary
+			otherwise search
+		if this is the nth depth of the search
+			... search as though this is our root
+	*/
 
 	moves, score, err := quiescenceHelper.alphaBeta(alpha, beta, currentDepth,
 		// Search up to 10 more moves

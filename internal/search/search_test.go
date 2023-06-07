@@ -307,26 +307,8 @@ func TestCrash3(t *testing.T) {
 	fmt.Println(score, result)
 }
 
-func TestSearchDepthTime(t *testing.T) {
+func TestTimeStandPat(t *testing.T) {
 	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
-
-	{
-		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{}, WithoutIterativeDeepening{})
-		elapsed := time.Since(start)
-		assert.True(t, IsNil(err), err)
-
-		fmt.Println("NO quiescence, NO iterative", elapsed.Milliseconds(), "ms")
-	}
-
-	{
-		start := time.Now()
-		_, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
-		elapsed := time.Since(start)
-		assert.True(t, IsNil(err), err)
-
-		fmt.Println("NO quiescence, WITH iterative", elapsed.Milliseconds(), "ms")
-	}
 
 	{
 		start := time.Now()
@@ -334,7 +316,7 @@ func TestSearchDepthTime(t *testing.T) {
 		elapsed := time.Since(start)
 		assert.True(t, IsNil(err), err)
 
-		fmt.Println("WITH quiescence, NO iterative", elapsed.Milliseconds(), "ms")
+		fmt.Println("depth 3 - non-iterative", elapsed.Milliseconds(), "ms")
 	}
 
 	{
@@ -343,6 +325,69 @@ func TestSearchDepthTime(t *testing.T) {
 		elapsed := time.Since(start)
 		assert.True(t, IsNil(err), err)
 
-		fmt.Println("WITH quiescence, WITH iterative", elapsed.Milliseconds(), "ms")
+		fmt.Println("depth 3 - iterative", elapsed.Milliseconds(), "ms")
 	}
+
+}
+
+func TestTimeNoQuiescence(t *testing.T) {
+	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{4}, WithoutQuiescence{}, WithoutIterativeDeepening{})
+		elapsed := time.Since(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("depth 4 - non-iterative", elapsed.Milliseconds(), "ms")
+	}
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{4}, WithoutQuiescence{})
+		elapsed := time.Since(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("depth 4 - iterative", elapsed.Milliseconds(), "ms")
+	}
+}
+
+func TestTimeQuiescence(t *testing.T) {
+	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{2}, WithoutIterativeDeepening{})
+		elapsed := time.Since(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("depth 2 - non-iterative, stand-pat", elapsed.Milliseconds(), "ms")
+	}
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{2}, WithoutIterativeDeepening{})
+		elapsed := time.Since(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("depth 2 - iterative, stand-pat", elapsed.Milliseconds(), "ms")
+	}
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{2}, WithoutIterativeDeepening{}, WithoutCheckStandPat{})
+		elapsed := time.Since(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("depth 2 - non-iterative, no-stand-pat", elapsed.Milliseconds(), "ms")
+	}
+
+	{
+		start := time.Now()
+		_, _, err := Search(fen, WithMaxDepth{2}, WithoutCheckStandPat{})
+		elapsed := time.Since(start)
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("depth 2 - iterative, no-stand-pat", elapsed.Milliseconds(), "ms")
+	}
+
 }
