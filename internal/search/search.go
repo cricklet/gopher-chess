@@ -119,7 +119,7 @@ type DefaultMoveGenerator struct {
 
 	sortedVariations [][]SearchMove
 	currentVariation []SearchMove
-	inVariation      bool
+	searchDepth      int
 }
 
 func NewDefaultMoveGenerator(g *GameState, b *Bitboards, mode MoveGenerationMode) DefaultMoveGenerator {
@@ -152,7 +152,6 @@ func (gen *DefaultMoveGenerator) updatePrincipleVariations(variations []Pair[int
 	}
 
 	gen.currentVariation = nil
-	gen.inVariation = false
 }
 
 func (gen *DefaultMoveGenerator) searchingAllLegalMoves() bool {
@@ -164,30 +163,6 @@ func (gen *DefaultMoveGenerator) searchingAllLegalMoves() bool {
 }
 
 func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move) (LoopResult, Error)) Error {
-	if len(gen.sortedVariations) > 0 && !gen.inVariation {
-		// We can reuse the first moves stored in the variation rather than recalculating the
-		// moves below.
-		for _, variation := range gen.sortedVariations {
-			if len(variation) == 0 {
-				return Errorf("variation has no moves")
-			}
-
-			gen.currentVariation = variation[1:]
-
-			gen.inVariation = true
-			result, err := performMoveAndCall(gen.GameState, gen.Bitboards, variation[0].Move, callback)
-			gen.inVariation = false
-
-			if !err.IsNil() {
-				return err
-			}
-			if result == LoopBreak {
-				break
-			}
-		}
-		return NilError
-	}
-
 	moves := GetMovesBuffer()
 	defer ReleaseMovesBuffer(moves)
 
@@ -201,25 +176,61 @@ func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move)
 		}, gen.Bitboards, gen.GameState)
 	}
 
-	if gen.currentVariation != nil && len(gen.currentVariation) > 0 {
-		// Move the previously calculated best move to the front
-		for i, move := range *moves {
-			if move == gen.currentVariation[0].Move {
-				(*moves)[i] = (*moves)[0]
-				(*moves)[0] = move
-				break
+	appliedMoves := map[Move]bool{}
+
+	if len(gen.sortedVariations) > 0 && gen.searchDepth == 0 {
+		for _, variation := range gen.sortedVariations {
+			if len(variation) == 0 {
+				return Errorf("variation has no moves")
+			}
+
+			move := variation[0].Move
+
+			gen.currentVariation = variation[1:]
+			gen.searchDepth++
+
+			appliedMoves[move] = true
+			result, err := performMoveAndCall(gen.GameState, gen.Bitboards, move, callback)
+
+			gen.searchDepth--
+			gen.currentVariation = nil
+
+			if !err.IsNil() {
+				return err
+			}
+			if result == LoopBreak {
+				return NilError
 			}
 		}
+	} else if gen.searchDepth > 0 && gen.currentVariation != nil && len(gen.currentVariation) > 0 {
+		move := gen.currentVariation[0].Move
 
 		previousCurrentVariation := gen.currentVariation
 		gen.currentVariation = gen.currentVariation[1:]
-		defer func() {
-			gen.currentVariation = previousCurrentVariation
-		}()
+		gen.searchDepth++
+
+		appliedMoves[move] = true
+		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, move, callback)
+
+		gen.searchDepth--
+		gen.currentVariation = previousCurrentVariation
+
+		if !err.IsNil() {
+			return err
+		}
+		if result == LoopBreak {
+			return NilError
+		}
 	}
 
 	for _, move := range *moves {
+		if appliedMoves[move] {
+			continue
+		}
+
+		gen.searchDepth++
 		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, move, callback)
+		gen.searchDepth--
 
 		if !err.IsNil() {
 			return err
