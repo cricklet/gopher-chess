@@ -99,6 +99,8 @@ const (
 type MoveGen interface {
 	performEachMoveAndCall(mode MoveGenerationMode, callback func(move Move) (LoopResult, Error)) Error
 	searchingAllLegalMoves() bool
+
+	copy() MoveGen
 	updatePrincipleVariations(variations []Pair[int, []SearchMove])
 }
 
@@ -119,14 +121,17 @@ type DefaultMoveGenerator struct {
 	inVariation      bool
 }
 
-func NewDefaultMoveGenerator(g *GameState, b *Bitboards, mode MoveGenerationMode) DefaultMoveGenerator {
-	return DefaultMoveGenerator{
-		GameState: g,
-		Bitboards: b,
+var _ MoveGen = (*DefaultMoveGenerator)(nil)
+
+func (gen *DefaultMoveGenerator) copy() MoveGen {
+	return &DefaultMoveGenerator{
+		GameState:        gen.GameState,
+		Bitboards:        gen.Bitboards,
+		sortedVariations: gen.sortedVariations,
+		currentVariation: gen.currentVariation,
+		inVariation:      gen.inVariation,
 	}
 }
-
-var _ MoveGen = (*DefaultMoveGenerator)(nil)
 
 func (gen *DefaultMoveGenerator) updatePrincipleVariations(variations []Pair[int, []SearchMove]) {
 	gen.sortedVariations = [][]SearchMove{}
@@ -229,19 +234,24 @@ type SearchTreeMoveGenerator struct {
 	*GameState
 	*Bitboards
 	currentlySearching *SearchTree
-
-	mode MoveGenerationMode
 }
 
 var _ MoveGen = (*SearchTreeMoveGenerator)(nil)
+
+func (gen *SearchTreeMoveGenerator) copy() MoveGen {
+	return &SearchTreeMoveGenerator{
+		SearchTree:         gen.SearchTree,
+		GameState:          gen.GameState,
+		Bitboards:          gen.Bitboards,
+		currentlySearching: gen.currentlySearching,
+	}
+}
 
 func (gen *SearchTreeMoveGenerator) updatePrincipleVariations(variations []Pair[int, []SearchMove]) {
 }
 
 func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
-	if gen.mode == OnlyCaptures {
-		return false
-	} else if gen.currentlySearching.continueSearching {
+	if gen.currentlySearching.continueSearching {
 		return true
 	} else {
 		return false
@@ -254,7 +264,10 @@ func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(mode MoveGenerationMo
 	}
 
 	if gen.currentlySearching.continueSearching {
-		continueGen := NewDefaultMoveGenerator(gen.GameState, gen.Bitboards, gen.mode)
+		continueGen := DefaultMoveGenerator{
+			GameState: gen.GameState,
+			Bitboards: gen.Bitboards,
+		}
 		return (&continueGen).performEachMoveAndCall(mode, callback)
 	}
 
@@ -263,7 +276,7 @@ func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(mode MoveGenerationMo
 		gen.currentlySearching = nextSearchTree
 
 		nextMove := gen.GameState.MoveFromString(nextMoveStr)
-		if gen.mode == OnlyCaptures && !nextMove.MoveType.Captures() {
+		if mode == OnlyCaptures && !nextMove.MoveType.Captures() {
 			// If we're in quiescence, don't search non-capture moves.
 			// Note, this isn't an error because we could be hitting
 			// quiescence early due to iterative deepening (eg searching
@@ -751,7 +764,6 @@ func (o WithSearch) apply(helper *SearchHelper) {
 		helper.GameState,
 		helper.Bitboards,
 		nil,
-		AllMoves,
 	}
 }
 
@@ -764,10 +776,10 @@ func (o WithOutOfTime) apply(helper *SearchHelper) {
 }
 
 func Searcher(game *GameState, b *Bitboards, opts ...SearchOption) *SearchHelper {
-	defaultMoveGenerator := NewDefaultMoveGenerator(
-		game,
-		b,
-		AllMoves)
+	defaultMoveGenerator := DefaultMoveGenerator{
+		GameState: game,
+		Bitboards: b,
+	}
 	quiescenceEvaluator := QuiescenceEvaluator{}
 	helper := SearchHelper{
 		MoveGen:                 &defaultMoveGenerator,
