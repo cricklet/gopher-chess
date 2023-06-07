@@ -370,7 +370,7 @@ func TestTimeQuiescence(t *testing.T) {
 	nonIterativeStandPat := timeSearch(t, fen, "depth 2 - non-iterative, stand-pat", WithMaxDepth{2}, WithoutIterativeDeepening{})
 	iterativeStandPat := timeSearch(t, fen, "depth 2 - iterative, stand-pat", WithMaxDepth{2})
 
-	assert.Greater(t, nonIterativeStandPat, 3*iterativeStandPat)
+	assert.Greater(t, nonIterativeStandPat, 5*iterativeStandPat)
 
 	nonIterativeNonStandPat := timeSearch(t, fen, "depth 2 - non-iterative, no-stand-pat", WithMaxDepth{2}, WithoutIterativeDeepening{}, WithoutCheckStandPat{})
 	iterativeNonStandPat := timeSearch(t, fen, "depth 2 - iterative, no-stand-pat", WithMaxDepth{2}, WithoutCheckStandPat{})
