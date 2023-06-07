@@ -201,24 +201,32 @@ func (gen *DefaultMoveGenerator) performEachMoveAndCall(callback func(move Move)
 		}, gen.Bitboards, gen.GameState)
 	}
 
+	var alreadyAppliedMove Optional[Move]
+
 	if gen.currentVariation != nil && len(gen.currentVariation) > 0 {
-		// Move the previously calculated best move to the front
-		for i, move := range *moves {
-			if move == gen.currentVariation[0].Move {
-				(*moves)[i] = (*moves)[0]
-				(*moves)[0] = move
-				break
-			}
-		}
+		move := gen.currentVariation[0].Move
+		alreadyAppliedMove = Some(move)
 
 		previousCurrentVariation := gen.currentVariation
 		gen.currentVariation = gen.currentVariation[1:]
-		defer func() {
-			gen.currentVariation = previousCurrentVariation
-		}()
+
+		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, move, callback)
+
+		if !err.IsNil() {
+			return err
+		}
+		if result == LoopBreak {
+			return NilError
+		}
+
+		gen.currentVariation = previousCurrentVariation
 	}
 
 	for _, move := range *moves {
+		if alreadyAppliedMove.HasValue() && alreadyAppliedMove.Value() == move {
+			continue
+		}
+
 		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, move, callback)
 
 		if !err.IsNil() {
