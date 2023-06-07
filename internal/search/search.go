@@ -105,6 +105,7 @@ type MoveGen interface {
 	setGenerationMode(mode MoveGenerationMode)
 }
 
+// NEXT try to refactor away MoveGenerationMode
 type MoveGenerationMode int
 
 const (
@@ -328,8 +329,6 @@ type QuiescenceEvaluator struct {
 var _ Evaluator = (*QuiescenceEvaluator)(nil)
 
 func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error) {
-	// captureGenerator := NewDefaultMoveGenerator(helper.GameState, helper.Bitboards, OnlyCaptures)
-
 	prevGenerationMode := helper.MoveGen.getGenerationMode()
 	helper.MoveGen.setGenerationMode(OnlyCaptures)
 
@@ -350,54 +349,79 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		WithoutIterativeDeepening: helper.WithoutIterativeDeepening,
 		WithoutCheckStandPat:      helper.WithoutCheckStandPat,
 	}
-
-	// NEXT iterative deepening during quiescence
-	/*
-		the move generator has two modes
-		if we have variations from a previous search:
-			if we haven't yet performed the first move,
-				we simply apply the first move of each variation
-			if we have performed the first move,
-				we search available moves while prioritizing the
-				variation we are in
-		if this is the first depth of the search
-			we search available moves
-
-		want i want to do this time is...
-		if this is the first depth of the search
-			prioritize searching the variation we are in if necessary
-			otherwise search
-		if this is the nth depth of the search
-			... search as though this is our root
-	*/
-
 	moves, score, err := quiescenceHelper.alphaBeta(alpha, beta, currentDepth,
 		// Search up to 10 more moves
 		10,
 		pastMoves,
 	)
 	return moves, score, err
-
 	// prevGenerationMode := helper.MoveGen.getGenerationMode()
-	// prevCheckStandPat := helper.CheckStandPat
-	// prevDebugLogger := helper.Debug
-	// prevEvaluator := helper.Evaluator
-
 	// helper.MoveGen.setGenerationMode(OnlyCaptures)
-	// helper.CheckStandPat = true
-	// helper.Debug = &SilentLogger
-	// helper.Evaluator = BasicEvaluator{}
 
 	// defer func() {
 	// 	helper.MoveGen.setGenerationMode(prevGenerationMode)
-	// 	helper.CheckStandPat = prevCheckStandPat
-	// 	helper.Debug = prevDebugLogger
-	// 	helper.Evaluator = prevEvaluator
 	// }()
 
-	// return helper.alphaBeta(alpha, beta, currentDepth,
-	// 	// Search up to 10 more moves
-	// 	10)
+	// quiescenceHelper := SearchHelper{
+	// 	MoveGen:                   helper.MoveGen,
+	// 	Evaluator:                 BasicEvaluator{},
+	// 	GameState:                 helper.GameState,
+	// 	Bitboards:                 helper.Bitboards,
+	// 	OutOfTime:                 nil,
+	// 	InQuiescence:              true,
+	// 	Logger:                    helper.Logger,
+	// 	Debug:                     helper.Debug,
+	// 	IterativeDeepeningDepth:   helper.IterativeDeepeningDepth,
+	// 	WithoutIterativeDeepening: helper.WithoutIterativeDeepening,
+	// 	WithoutCheckStandPat:      helper.WithoutCheckStandPat,
+	// }
+
+	// // NEXT iterative deepening during quiescence
+	// // NEXT we need a way to reset the move gen to the original state
+	// // or a way to copy the move gen so we don't modify the original one
+
+	// principleVariations := []Pair[int, []SearchMove]{}
+
+	// // Loop through & perform first generated moves
+	// for depthRemaining := 1; depthRemaining <= 10; depthRemaining += 1 {
+	// 	err := quiescenceHelper.MoveGen.performEachMoveAndCall(func(move Move) (LoopResult, Error) {
+	// 		// Traverse past the first generated move
+	// 		variation, enemyScore, err := helper.alphaBeta(-Inf-1, Inf+1,
+	// 			// current depth is 1 (0 would be before we applied `move`)
+	// 			1,
+	// 			// we've already searched one move, so decrement depth remaining
+	// 			depthRemaining-1,
+	// 			[]SearchMove{{move, false}})
+
+	// 		if err.HasError() {
+	// 			return LoopBreak, err
+	// 		}
+
+	// 		score := -enemyScore
+	// 		principleVariations = append(principleVariations, Pair[int, []SearchMove]{
+	// 			First: score, Second: append([]SearchMove{{move, false}}, variation...)})
+
+	// 		return LoopContinue, NilError
+	// 	})
+
+	// 	if err.HasError() {
+	// 		return nil, 0, err
+	// 	}
+
+	// 	SortMaxFirst(&principleVariations, func(t Pair[int, []SearchMove]) int {
+	// 		return t.First
+	// 	})
+
+	// 	// Prioritize the newly discovered principle variations first
+	// 	helper.MoveGen.updatePrincipleVariations(principleVariations)
+	// }
+
+	// if len(principleVariations) == 0 {
+	// 	return nil, 0, NilError
+	// }
+
+	// bestMove := principleVariations[0]
+	// return bestMove.Second, bestMove.First, NilError
 }
 
 type SearchHelper struct {
