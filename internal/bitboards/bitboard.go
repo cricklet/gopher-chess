@@ -18,6 +18,8 @@ type PlayerBitboards struct {
 type Bitboards struct {
 	Occupied Bitboard
 	Players  [2]PlayerBitboards
+
+	noCopy NoCopy
 }
 
 type IndicesBuffer []int

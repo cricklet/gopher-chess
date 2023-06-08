@@ -96,6 +96,19 @@ func FindInSlice[T any](ts []T, f func(T) bool) Optional[T] {
 	}
 	return Empty[T]()
 }
+func PopOptional[T any](ts []T) (Optional[T], []T) {
+	if len(ts) == 0 {
+		return Empty[T](), ts
+	}
+	return Some(ts[len(ts)-1]), ts[:len(ts)-1]
+}
+func PopPtr[T any](ts []*T) (*T, []*T) {
+	if len(ts) == 0 {
+		return nil, ts
+	}
+	return ts[len(ts)-1], ts[:len(ts)-1]
+}
+
 func Contains[T comparable](ts []T, t T) bool {
 	return FindInSlice(ts, func(v T) bool {
 		return v == t
@@ -307,3 +320,8 @@ func PrintColumns(values []string, sizes []int, separator string) string {
 	}
 	return result
 }
+
+type NoCopy struct{}
+
+func (*NoCopy) Lock()   {}
+func (*NoCopy) Unlock() {}

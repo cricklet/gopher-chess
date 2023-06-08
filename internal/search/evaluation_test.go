@@ -26,8 +26,8 @@ func TestEvaluation(t *testing.T) {
 		"    K   ",
 	}, "\n"), g.Board.String())
 
-	assert.Equal(t, EvaluateDevelopment(&bitboards, White), 2*_developmentScale)
-	assert.Equal(t, EvaluateDevelopment(&bitboards, Black), 0*_developmentScale)
+	assert.Equal(t, EvaluateDevelopment(bitboards, White), 2*_developmentScale)
+	assert.Equal(t, EvaluateDevelopment(bitboards, Black), 0*_developmentScale)
 }
 
 func EvaluateFen(t *testing.T, s string, args ...EvaluationOption) int {
@@ -35,7 +35,7 @@ func EvaluateFen(t *testing.T, s string, args ...EvaluationOption) int {
 	assert.True(t, IsNil(err))
 
 	bitboards := g.CreateBitboards()
-	return Evaluate(&bitboards, g.Player, args...)
+	return Evaluate(bitboards, g.Player, args...)
 }
 
 func TestEvaluationEndgame(t *testing.T) {

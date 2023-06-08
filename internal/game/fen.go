@@ -83,10 +83,10 @@ func FenStringForGame(g *GameState) string {
 	return s
 }
 
-func GamestateFromFenString(s string) (GameState, Error) {
+func GamestateFromFenString(s string) (*GameState, Error) {
 	ss := strings.Fields(s)
 	if len(ss) != 6 && len(ss) != 4 && len(ss) != 2 {
-		return GameState{}, Errorf("wrong num %v of fields in str '%v'", len(ss), s)
+		return &GameState{}, Errorf("wrong num %v of fields in str '%v'", len(ss), s)
 	}
 
 	game := GameState{}
@@ -98,7 +98,7 @@ func GamestateFromFenString(s string) (GameState, Error) {
 	for _, c := range boardStr {
 		if c == '/' {
 			if fileIndex != 8 {
-				return GameState{}, Errorf("not enough squares in rank, '%v'", s)
+				return &GameState{}, Errorf("not enough squares in rank, '%v'", s)
 			}
 			rankIndex--
 			fileIndex = 0
@@ -109,14 +109,14 @@ func GamestateFromFenString(s string) (GameState, Error) {
 			game.Board[IndexFromFileRank(FileRank{File: fileIndex, Rank: rankIndex})] = p
 			fileIndex++
 		} else {
-			return GameState{}, Errorf("unknown character '%v' in '%v'", c, s)
+			return &GameState{}, Errorf("unknown character '%v' in '%v'", c, s)
 		}
 	}
 
 	if player, err := PlayerFromString(playerString); IsNil(err) {
 		game.Player = player
 	} else {
-		return GameState{}, Errorf("invalid player '%v' in '%v'", playerString, s)
+		return &GameState{}, Errorf("invalid player '%v' in '%v'", playerString, s)
 	}
 
 	castlingRightsString, enPassantTargetString := "-", "-"
@@ -149,22 +149,22 @@ func GamestateFromFenString(s string) (GameState, Error) {
 	} else if enPassantTarget, err := FileRankFromString(enPassantTargetString); IsNil(err) {
 		game.EnPassantTarget = Some(enPassantTarget)
 	} else {
-		return GameState{}, Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)
+		return &GameState{}, Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)
 	}
 
 	if halfMoveClock, err := strconv.ParseInt(string(halfMoveClockString), 10, 0); IsNil(err) {
 		game.HalfMoveClock = int(halfMoveClock)
 	} else {
-		return GameState{}, Errorf("invalid half move clock '%v' in '%v'", halfMoveClockString, s)
+		return &GameState{}, Errorf("invalid half move clock '%v' in '%v'", halfMoveClockString, s)
 	}
 
 	if fullMoveClock, err := strconv.ParseInt(string(fullMoveClockString), 10, 0); IsNil(err) {
 		game.FullMoveClock = int(fullMoveClock)
 	} else {
-		return GameState{}, Errorf("invalid full move clock '%v' in '%v'", fullMoveClockString, s)
+		return &GameState{}, Errorf("invalid full move clock '%v' in '%v'", fullMoveClockString, s)
 	}
 
 	game.ZobristHash()
 
-	return game, NilError
+	return &game, NilError
 }

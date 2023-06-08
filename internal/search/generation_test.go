@@ -285,20 +285,20 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 
 	for _, move := range initialState.moves {
 		update := BoardUpdate{}
-		err := g.PerformMove(g.MoveFromString(move), &update, &b)
+		err := g.PerformMove(g.MoveFromString(move), &update, b)
 		if !IsNil(err) {
-			t.Error(Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
+			t.Error(Errorf("perform %v => %v: %w", FenStringForGame(g), move, err))
 		}
 	}
 
 	if len(initialState.fenPerMove) == 0 {
-		assert.True(t, strings.HasPrefix(FenStringForGame(&g), initialState.startingFen))
+		assert.True(t, strings.HasPrefix(FenStringForGame(g), initialState.startingFen))
 	} else {
-		assert.True(t, strings.HasPrefix(FenStringForGame(&g), Last(initialState.fenPerMove)))
+		assert.True(t, strings.HasPrefix(FenStringForGame(g), Last(initialState.fenPerMove)))
 	}
 
 	for i := 1; i <= maxDepth; i++ {
-		perftIssueMap := findPerftDiscrepancies(t, &g, &b, i)
+		perftIssueMap := findPerftDiscrepancies(t, g, b, i)
 		for k, m := range perftIssueMap {
 			perftIssueMap[k] = PerftDiscrepancy{
 				startingFen: initialState.startingFen,
@@ -328,27 +328,27 @@ func findSpecificInvalidMoves(t *testing.T, initialState InitialState, maxDepth 
 			move := g.MoveFromString(search.move)
 
 			update := BoardUpdate{}
-			err := g.PerformMove(move, &update, &b)
+			err := g.PerformMove(move, &update, b)
 			if !IsNil(err) {
-				t.Error(Errorf("perform %v => %v: %w", FenStringForGame(&g), move, err))
+				t.Error(Errorf("perform %v => %v: %w", FenStringForGame(g), move, err))
 			}
 
 			findSpecificInvalidMoves(t,
 				InitialState{
 					initialState.startingFen,
 					append(initialState.moves, move.String()),
-					append(initialState.fenPerMove, FenStringForGame(&g)),
+					append(initialState.fenPerMove, FenStringForGame(g)),
 				}, maxDepth-1)
 
-			err = g.UndoUpdate(&update, &b)
+			err = g.UndoUpdate(&update, b)
 			if !IsNil(err) {
-				t.Error(Errorf("undo %v => %v: %w", FenStringForGame(&g), move, err))
+				t.Error(Errorf("undo %v => %v: %w", FenStringForGame(g), move, err))
 			}
 		}
 	}
 
 	if len(result) == 0 && len(invalidMovesToSearch) > 0 && totalInvalidMoves < MAX_TOTAL_INVALID_MOVES {
-		t.Error(Errorf("couldn't find '%v' => %v", FenStringForGame(&g), PrettyPrint(invalidMovesToSearch)))
+		t.Error(Errorf("couldn't find '%v' => %v", FenStringForGame(g), PrettyPrint(invalidMovesToSearch)))
 	}
 }
 
@@ -372,7 +372,7 @@ func assertPerftCountsMatch(t *testing.T, s string, expectedCount []int) {
 		g, err := GamestateFromFenString(s)
 		assert.True(t, IsNil(err))
 		b := g.CreateBitboards()
-		actualPerft, _ := CountAndPerftForDepthWithProgress(t, &g, &b, depth, expectedCount)
+		actualPerft, _ := CountAndPerftForDepthWithProgress(t, g, b, depth, expectedCount)
 
 		assert.Equal(t, expectedCount, actualPerft.leaves)
 	}
@@ -429,10 +429,10 @@ func TestPosition2KingCheck(t *testing.T) {
 
 	b := g.CreateBitboards()
 	update := BoardUpdate{}
-	err = g.PerformMove(g.MoveFromString("a1b1"), &update, &b)
+	err = g.PerformMove(g.MoveFromString("a1b1"), &update, b)
 	assert.True(t, IsNil(err))
 
-	assert.True(t, KingIsInCheck(&b, g.Enemy()))
+	assert.True(t, KingIsInCheck(b, g.Enemy()))
 }
 
 func TestPosition3(t *testing.T) {
@@ -458,7 +458,7 @@ func TestPositionPromotion(t *testing.T) {
 		moves := []Move{}
 		GeneratePseudoMovesWithAllPromotions(func(m Move) {
 			moves = append(moves, m)
-		}, &b, &g)
+		}, b, g)
 
 		expectedMoves := []string{
 			"h2h1q",
@@ -480,7 +480,7 @@ func TestPositionPromotion(t *testing.T) {
 		moves := []Move{}
 		GeneratePseudoMoves(func(m Move) {
 			moves = append(moves, m)
-		}, &b, &g)
+		}, b, g)
 
 		expectedMoves := []string{
 			"h2h1q",
@@ -502,14 +502,14 @@ func TestPosition4F1F2(t *testing.T) {
 
 	b := g.CreateBitboards()
 
-	err = g.PerformMove(g.MoveFromString("f1f2"), &BoardUpdate{}, &b)
+	err = g.PerformMove(g.MoveFromString("f1f2"), &BoardUpdate{}, b)
 	assert.True(t, IsNil(err))
-	err = g.PerformMove(g.MoveFromString("b2a1r"), &BoardUpdate{}, &b)
+	err = g.PerformMove(g.MoveFromString("b2a1r"), &BoardUpdate{}, b)
 	assert.True(t, IsNil(err))
 
 	expectedFen := "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/P2P1RPP/r2Q2K1 w kq - 0 2"
 
-	assert.Equal(t, expectedFen, FenStringForGame(&g))
+	assert.Equal(t, expectedFen, FenStringForGame(g))
 
 }
 
@@ -546,13 +546,13 @@ func TestPosition5QueenPin(t *testing.T) {
 	b := g.CreateBitboards()
 	update := BoardUpdate{}
 
-	err = g.PerformMove(g.MoveFromString("d7c8q"), &update, &b)
+	err = g.PerformMove(g.MoveFromString("d7c8q"), &update, b)
 	assert.True(t, IsNil(err))
 
-	err = g.PerformMove(g.MoveFromString("d8d6"), &update, &b)
+	err = g.PerformMove(g.MoveFromString("d8d6"), &update, b)
 	assert.True(t, IsNil(err))
 
-	assert.True(t, KingIsInCheck(&b, g.Enemy()))
+	assert.True(t, KingIsInCheck(b, g.Enemy()))
 }
 
 func TestPosition6(t *testing.T) {
@@ -575,10 +575,10 @@ func TestPosition5QueenRetreat(t *testing.T) {
 
 	b := g.CreateBitboards()
 
-	err = g.PerformMove(g.MoveFromString("d1d4"), &BoardUpdate{}, &b)
+	err = g.PerformMove(g.MoveFromString("d1d4"), &BoardUpdate{}, b)
 	assert.True(t, IsNil(err))
 
-	err = g.PerformMove(g.MoveFromString("f2e4"), &BoardUpdate{}, &b)
+	err = g.PerformMove(g.MoveFromString("f2e4"), &BoardUpdate{}, b)
 	assert.True(t, IsNil(err))
 
 	expectedBoardString := []string{
@@ -609,7 +609,7 @@ func TestPosition5QueenRetreat(t *testing.T) {
 	moves := []Move{}
 	GeneratePseudoMovesWithAllPromotions(func(m Move) {
 		moves = append(moves, m)
-	}, &b, &g)
+	}, b, g)
 	moveStrings := MapSlice(moves, func(m Move) string { return m.String() })
 
 	numExpectedMoves := 55

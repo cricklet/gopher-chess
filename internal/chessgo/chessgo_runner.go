@@ -17,8 +17,9 @@ type ChessGoRunner struct {
 	s         *search.SearchHelper
 	outOfTime *bool
 
-	StartFen string
-	history  []HistoryValue
+	StartFen            string
+	history             []HistoryValue
+	unregisterCallbacks []func()
 }
 
 var _ Runner = (*ChessGoRunner)(nil)
@@ -27,14 +28,24 @@ type ChessGoOption func(*ChessGoRunner)
 
 func (r *ChessGoRunner) Searcher() *search.SearchHelper {
 	if r.s == nil {
-		r.s = search.Searcher(r.g, r.b,
+		unregister, searcher := search.NewSearchHelper(r.g, r.b,
 			search.WithLogger{Logger: r.Logger},
 			search.WithOutOfTime{OutOfTime: r.outOfTime},
 		)
+
+		r.s = searcher
+		r.unregisterCallbacks = append(r.unregisterCallbacks, unregister)
+
 		PrintMemUsage()
 	}
 
 	return r.s
+}
+
+func (r *ChessGoRunner) Unregister() {
+	for _, f := range r.unregisterCallbacks {
+		f()
+	}
 }
 
 func WithLogger(l Logger) ChessGoOption {
@@ -151,10 +162,10 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	if !IsNil(err) {
 		return Errorf("couldn't create game from %v, %w", position, err)
 	}
-	r.g = &game
+	r.g = game
 
 	bitboards := r.g.CreateBitboards()
-	r.b = &bitboards
+	r.b = bitboards
 
 	r.StartFen = position.Fen
 

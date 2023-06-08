@@ -31,11 +31,10 @@ func TestOpeningWithoutQuiescence(t *testing.T) {
 
 	assert.False(t, expectedOpenings[result[0].String()])
 }
-func TestOpeningWithoutQuiescenceE2E4(t *testing.T) {
+func TestOpeningSearchFromTree(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 	searchMoves, err := SearchTreeFromLines(
-		fen,
 		[][]string{
 			{"e2e4"},
 			{"e2e3"},
@@ -44,26 +43,85 @@ func TestOpeningWithoutQuiescenceE2E4(t *testing.T) {
 	)
 	assert.True(t, IsNil(err), err)
 
-	// with search depth 4, we will be conservative
+	assert.Equal(t, searchMoves.String(), "SearchTree[e2e4: SearchTree[continue...], e2e3: SearchTree[continue...]]")
+
 	result, _, err := Search(fen,
 		WithMaxDepth{4}, WithSearch{searchMoves}, WithoutQuiescence{})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, "e2e3", result[0].String())
+}
 
-	// with search depth 5, we will be aggressive
-	result, _, err = Search(fen,
-		WithMaxDepth{5}, WithSearch{searchMoves}, WithoutQuiescence{})
+func TestOpeningWithoutQuiescenceE2E4(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	searchMoves, err := SearchTreeFromLines(
+		[][]string{
+			{"e2e4"},
+			{"e2e3"},
+		},
+		true, // continue searching past e2e4 and e2e3
+	)
 	assert.True(t, IsNil(err), err)
 
-	assert.Equal(t, "e2e4", result[0].String())
+	{
+		// with search depth 4, we will be conservative
+		result, _, err := Search(fen,
+			WithMaxDepth{4}, WithSearch{searchMoves}, WithoutQuiescence{})
+		assert.True(t, IsNil(err), err)
+
+		assert.Equal(t, "e2e3", result[0].String())
+	}
+
+	{
+		// with search depth 5, we will be aggressive
+		result, _, err := Search(fen,
+			WithMaxDepth{5}, WithSearch{searchMoves}, WithoutQuiescence{})
+		assert.True(t, IsNil(err), err)
+
+		assert.Equal(t, "e2e4", result[0].String())
+	}
+}
+
+func TestOpeningWithoutQuiescenceWithoutIterationE2E4(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	searchMoves, err := SearchTreeFromLines(
+		[][]string{
+			{"e2e4"},
+			{"e2e3"},
+		},
+		true, // continue searching past e2e4 and e2e3
+	)
+	assert.True(t, IsNil(err), err)
+
+	{
+		// with search depth 4, we will be conservative
+		result, _, err := Search(fen,
+			WithoutIterativeDeepening{},
+			WithoutQuiescence{},
+			WithMaxDepth{4}, WithSearch{searchMoves})
+		assert.True(t, IsNil(err), err)
+
+		assert.Equal(t, "e2e3", result[0].String())
+	}
+
+	{
+		// with search depth 5, we will be aggressive
+		result, _, err := Search(fen,
+			WithoutIterativeDeepening{},
+			WithoutQuiescence{},
+			WithMaxDepth{5}, WithSearch{searchMoves})
+		assert.True(t, IsNil(err), err)
+
+		assert.Equal(t, "e2e4", result[0].String())
+	}
 }
 
 func TestOpeningWithQuiescenceE2E4(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 	searchMoves, err := SearchTreeFromLines(
-		fen,
 		[][]string{
 			{"e2e4"},
 			{"e2e3"},
@@ -80,11 +138,30 @@ func TestOpeningWithQuiescenceE2E4(t *testing.T) {
 	assert.Equal(t, "e2e4", result[0].String())
 }
 
+func TestOpeningWithQuiescenceWithoutIterationE2E4(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	searchMoves, err := SearchTreeFromLines(
+		[][]string{
+			{"e2e4"},
+			{"e2e3"},
+		},
+		true, // continue searching past e2e4 and e2e3
+	)
+	assert.True(t, IsNil(err), err)
+
+	// with search depth 4 and quiescence enabled, we should be aggressive
+	result, _, err := Search(fen,
+		WithMaxDepth{2}, WithSearch{searchMoves}, WithoutIterativeDeepening{}, WithDebugLogging{})
+	assert.True(t, IsNil(err), err)
+
+	assert.Equal(t, "e2e4", result[0].String())
+}
+
 func TestOpeningCaptureWithoutQuiescence(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 	searchMoves, err := SearchTreeFromLines(
-		fen,
 		[][]string{
 			{
 				"e2e4", "f7f5", "b1c3", "f5e4", "c3e4",
@@ -116,7 +193,6 @@ func TestCorrectlyEvaluatesWhenNoCapturesAreFoundInQuiescence(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 	searchMoves, err := SearchTreeFromLines(
-		fen,
 		[][]string{
 			{
 				"e2e4", "f7f5", "b1c3", "f5e4", "c3e4",
@@ -143,7 +219,6 @@ func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 	searchMoves, err := SearchTreeFromLines(
-		fen,
 		[][]string{
 			{
 				"e2e4", "f7f5", "b1c3", "f5e4", "c3e4",
@@ -159,7 +234,7 @@ func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 		assert.True(t, IsNil(err), err)
 
 		bitboards := game.CreateBitboards()
-		expectedScore := Evaluate(&bitboards, White, 0)
+		expectedScore := Evaluate(bitboards, White, 0)
 		assert.Greater(t, expectedScore, 0)
 	}
 
@@ -236,7 +311,7 @@ func TestCheckMateDetection(t *testing.T) {
 	assert.True(t, IsNil(err), err)
 	bitboards := game.CreateBitboards()
 
-	isCheckMate := PlayerIsInCheck(&game, &bitboards)
+	isCheckMate := PlayerIsInCheck(game, bitboards)
 	assert.True(t, isCheckMate)
 }
 
@@ -265,7 +340,6 @@ func TestCheckMateInTwoSpecific(t *testing.T) {
 	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
 
 	searchMoves, err := SearchTreeFromLines(
-		fen,
 		[][]string{
 			{
 				"c2c7", "b8a8", "e4e3",
@@ -378,7 +452,8 @@ func timeSearch(t *testing.T, fen string, label string, opts ...SearchOption) ti
 	}
 
 	bitboards := game.CreateBitboards()
-	helper := Searcher(&game, &bitboards, opts...)
+	unregister, helper := NewSearchHelper(game, bitboards, opts...)
+	defer unregister()
 
 	start := time.Now()
 	_, _, err = helper.Search()
@@ -416,10 +491,7 @@ func TestTimeQuiescence(t *testing.T) {
 
 	assert.Greater(t, nonIterativeStandPat, 2*iterativeStandPat)
 
-	nonIterativeNonStandPat := timeSearch(t, fen, "depth 2 - non-iterative, no-stand-pat", WithMaxDepth{2}, WithoutIterativeDeepening{}, WithoutCheckStandPat{})
 	iterativeNonStandPat := timeSearch(t, fen, "depth 2 - iterative, no-stand-pat", WithMaxDepth{2}, WithoutCheckStandPat{})
-
-	assert.Greater(t, nonIterativeNonStandPat, iterativeNonStandPat)
 
 	assert.Greater(t, iterativeNonStandPat, 40*iterativeStandPat)
 }

@@ -9,6 +9,11 @@ import (
 	"github.com/cricklet/chessgo/internal/zobrist"
 )
 
+type MoveListener interface {
+	AfterMove(move Move)
+	AfterUndo()
+}
+
 type GameState struct {
 	Board                        BoardArray
 	Player                       Player
@@ -18,6 +23,20 @@ type GameState struct {
 	FullMoveClock                int
 
 	zobristHash Optional[uint64]
+
+	moveListeners []MoveListener
+
+	noCopy NoCopy
+}
+
+func (g *GameState) RegisterListener(listener MoveListener) func() {
+	g.moveListeners = append(g.moveListeners, listener)
+
+	return func() {
+		g.moveListeners = FilterSlice(g.moveListeners, func(l MoveListener) bool {
+			return l != listener
+		})
+	}
 }
 
 func (g *GameState) ZobristHash() uint64 {
@@ -194,6 +213,10 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) Er
 
 	g.zobristHash = Some(zobrist.UpdateHash(prevZobristHash, update, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget))
 
+	for _, listener := range g.moveListeners {
+		listener.AfterMove(move)
+	}
+
 	return NilError
 }
 
@@ -250,6 +273,10 @@ func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) Error {
 		g.Board[index] = piece
 	}
 
+	for _, listener := range g.moveListeners {
+		listener.AfterUndo()
+	}
+
 	return NilError
 }
 
@@ -301,7 +328,7 @@ func (g *GameState) BlackCanCastleQueenside() bool {
 	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
 }
 
-func (g *GameState) CreateBitboards() Bitboards {
+func (g *GameState) CreateBitboards() *Bitboards {
 	result := Bitboards{}
 	for i, piece := range g.Board {
 		if piece == XX {
@@ -320,5 +347,5 @@ func (g *GameState) CreateBitboards() Bitboards {
 			result.Players[Black].Occupied |= SingleBitboard(i)
 		}
 	}
-	return result
+	return &result
 }
