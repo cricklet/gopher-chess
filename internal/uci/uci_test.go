@@ -15,7 +15,8 @@ import (
 )
 
 func TestUci(t *testing.T) {
-	runner := chessgo.NewChessGoRunner()
+	unregister, runner := chessgo.NewChessGoRunner()
+	defer unregister()
 	inputs := []string{
 		"isready",
 		"uci",
@@ -29,7 +30,8 @@ func TestUci(t *testing.T) {
 }
 
 func TestUciIndexBug2(t *testing.T) {
-	runner := chessgo.NewChessGoRunner()
+	unregister, runner := chessgo.NewChessGoRunner()
+	defer unregister()
 	r := uciRunner{runner}
 	for _, line := range []string{
 		"isready",
@@ -46,7 +48,8 @@ func TestUciIndexBug2(t *testing.T) {
 }
 
 func TestUciIndexBug3(t *testing.T) {
-	runner := chessgo.NewChessGoRunner()
+	unregister, runner := chessgo.NewChessGoRunner()
+	defer unregister()
 	r := uciRunner{runner}
 	for _, line := range []string{
 		"isready",
@@ -63,7 +66,8 @@ func TestUciIndexBug3(t *testing.T) {
 }
 
 func TestUciCastlingBug1(t *testing.T) {
-	runner := chessgo.NewChessGoRunner()
+	unregister, runner := chessgo.NewChessGoRunner()
+	defer unregister()
 	r := uciRunner{runner}
 	fen := "rn1qk2r/ppp3pp/3b1n2/3ppb2/8/2NPBNP1/PPP2PBP/R2QK2R b KQkq - 15 8"
 	moves := []string{

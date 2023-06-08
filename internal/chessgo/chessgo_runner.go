@@ -54,14 +54,14 @@ func WithLogger(l Logger) ChessGoOption {
 	}
 }
 
-func NewChessGoRunner(opts ...ChessGoOption) ChessGoRunner {
+func NewChessGoRunner(opts ...ChessGoOption) (func(), ChessGoRunner) {
 	r := ChessGoRunner{
 		outOfTime: new(bool),
 	}
 	for _, opt := range opts {
 		opt(&r)
 	}
-	return r
+	return func() { r.Unregister() }, r
 }
 
 type HistoryValue struct {

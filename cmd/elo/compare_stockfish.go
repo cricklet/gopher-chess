@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cricklet/chessgo/internal/binary"
+	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	elo "github.com/kortemy/elo-go"
@@ -188,7 +189,9 @@ func playGameBinaries(
 ) stockfishMatchResult {
 	var err Error
 
-	runner := NewChessGoRunner()
+	unregister, runner := chessgo.NewChessGoRunner()
+	defer unregister()
+
 	err = runner.SetupPosition(Position{
 		Fen:   fen,
 		Moves: []string{},

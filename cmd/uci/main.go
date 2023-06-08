@@ -27,12 +27,15 @@ func main() {
 		defer p.Stop()
 	}
 
-	r := uci.NewUciRunner(chessgo.NewChessGoRunner(
+	unregister, runner := chessgo.NewChessGoRunner(
 		chessgo.WithLogger(FuncLogger(
 			func(s string) {
 				fmt.Print(s)
 			})),
-	))
+	)
+	defer unregister()
+
+	uciRunner := uci.NewUciRunner(runner)
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -42,7 +45,7 @@ func main() {
 		if input == "quit" {
 			break
 		}
-		result, err := r.HandleInput(input)
+		result, err := uciRunner.HandleInput(input)
 		if !IsNil(err) {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			time.Sleep(200 * time.Millisecond)
