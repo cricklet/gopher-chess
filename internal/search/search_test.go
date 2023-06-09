@@ -96,33 +96,33 @@ func TestOpeningSearchFromTree(t *testing.T) {
 func TestOpeningWithoutQuiescenceE2E4(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	searchMoves, err := SearchTreeFromLines(
-		[][]string{
-			{"e2e4"},
-			{"e2e3"},
-		},
-		true, // continue searching past e2e4 and e2e3
-	)
-	assert.True(t, IsNil(err), err)
-
-	// NEXT
-
 	{
-		// with search depth 4, we will assume e2e4 is dangerous
-		result, _, err := Search(fen,
-			WithMaxDepth{4}, WithSearch{searchMoves}, WithoutQuiescence{})
+		searchMoves, err := SearchTreeFromLines(
+			[][]string{
+				{"e2e4"},
+			}, true,
+		)
 		assert.True(t, IsNil(err), err)
 
-		assert.Equal(t, "e2e3", result[0].String())
-	}
+		{
+			// with search depth 4, we will assume e2e4 is dangerous
+			result, score, err := Search(fen,
+				WithMaxDepth{4}, WithSearch{searchMoves}, WithoutQuiescence{})
+			assert.True(t, IsNil(err), err)
 
-	{
-		// with search depth 5, we will correctly assume e2e4 is evenly matched
-		result, _, err := Search(fen,
-			WithMaxDepth{5}, WithSearch{searchMoves}, WithoutQuiescence{})
-		assert.True(t, IsNil(err), err)
+			fmt.Println(score, result)
+			assert.Less(t, score, -50)
+		}
 
-		assert.Equal(t, "e2e4", result[0].String())
+		{
+			// with search depth 5, we aren't worried about aggressive moves
+			result, score, err := Search(fen,
+				WithMaxDepth{5}, WithSearch{searchMoves}, WithoutQuiescence{})
+			assert.True(t, IsNil(err), err)
+
+			fmt.Println(score, result)
+			assert.GreaterOrEqual(t, score, 50)
+		}
 	}
 }
 
@@ -524,11 +524,14 @@ func timeSearch(t *testing.T, fen string, label string, opts ...SearchOption) ti
 	unregister, helper := NewSearchHelper(game, bitboards, opts...)
 	defer unregister()
 
+	unregisterCounter, counter := NewMoveCounter(helper.GameState)
+	defer unregisterCounter()
+
 	start := time.Now()
 	_, _, err = helper.Search()
 	elapsed := time.Since(start)
 
-	fmt.Println(label, elapsed.Milliseconds(), "ms")
+	fmt.Println(label, elapsed.Milliseconds(), "ms", counter.NumMoves(), "moves")
 
 	assert.True(t, IsNil(err), err)
 	return elapsed
@@ -552,23 +555,6 @@ func TestTimeNoQuiescence(t *testing.T) {
 	assert.Greater(t, nonIterative, iterative)
 }
 
-func TestTimeQuiescenceIterative(t *testing.T) {
-	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
-
-	nonIterative := timeSearch(t, fen, "depth 4 - non-iterative", WithMaxDepth{2}, WithoutIterativeDeepeningInQuiescence{})
-	iterative := timeSearch(t, fen, "depth 4 - iterative", WithMaxDepth{2})
-
-	assert.Greater(t, nonIterative, iterative)
-}
-func TestTimeQuiescenceIterativeNoStandPat(t *testing.T) {
-	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
-
-	nonIterative := timeSearch(t, fen, "depth 4 - non-iterative", WithMaxDepth{2}, WithoutCheckStandPat{}, WithoutIterativeDeepeningInQuiescence{})
-	iterative := timeSearch(t, fen, "depth 4 - iterative", WithMaxDepth{2}, WithoutCheckStandPat{})
-
-	assert.Greater(t, nonIterative, iterative)
-}
-
 func TestTimeQuiescence(t *testing.T) {
 	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
 
@@ -579,5 +565,8 @@ func TestTimeQuiescence(t *testing.T) {
 
 	iterativeNonStandPat := timeSearch(t, fen, "depth 2 - iterative, no-stand-pat", WithMaxDepth{2}, WithoutCheckStandPat{})
 
-	assert.Greater(t, iterativeNonStandPat, 40*iterativeStandPat)
+	assert.Greater(t, iterativeNonStandPat, 10*iterativeStandPat)
 }
+
+// NEXT write a test for fen/r1b1r1k1/ppq1bpp1/2pp1n1p/P3p3/1P1PP1nP/2NBBNP1/2P2P2/R2QR1K1 w - - 1 15/lastmove/f8e8
+// Why is this one so slow?

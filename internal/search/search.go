@@ -170,98 +170,104 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		helper.MoveSorter = prevSorter
 	}()
 
-	if helper.WithoutIterativeDeepeningInQuiescence {
-		moves, score, err := helper.alphaBeta(alpha, beta, currentDepth,
-			// Search up to 10 more moves
-			10,
-			pastMoves,
-		)
-		return moves, score, err
-	}
+	quiescenceDepth := helper.IterativeDeepeningDepth * 4
+	// quiescenceDepth := 10
 
-	principleVariations := []Pair[int, []SearchMove]{}
-	mode := OnlyCaptures
+	moves, score, err := helper.alphaBeta(alpha, beta, currentDepth,
+		quiescenceDepth,
+		pastMoves,
+	)
+	return moves, score, err
 
-	unregisterCounter, counter := NewMoveCounter(helper.GameState)
-	defer unregisterCounter()
+	/*
+	   if helper.WithoutIterativeDeepeningInQuiescence {
+	   }
 
-	lastCount := Empty[int]()
+	   principleVariations := []Pair[int, []SearchMove]{}
+	   mode := OnlyCaptures
 
-	cleanup, result, moves, err := helper.MoveGen.generateMoves(mode)
-	defer cleanup()
+	   unregisterCounter, counter := NewMoveCounter(helper.GameState)
+	   defer unregisterCounter()
 
-	if result != SomeLegalMoves {
-		return nil, alpha, Errorf("quiescence should only search captures")
-	}
+	   lastCount := Empty[int]()
 
-	if err.HasError() {
-		return nil, alpha, err
-	}
+	   cleanup, result, moves, err := helper.MoveGen.generateMoves(mode)
+	   defer cleanup()
 
-	// Loop through & perform first generated moves
-	for depthRemaining := 1; depthRemaining <= 10; depthRemaining += 2 {
-		if lastCount.HasValue() {
-			if counter.NumMoves() == lastCount.Value() {
-				break
-			}
-		}
+	   	if result != SomeLegalMoves {
+	   		return nil, alpha, Errorf("quiescence should only search captures")
+	   	}
 
-		err = helper.MoveSorter.sortMoves(moves)
-		if err.HasError() {
-			return nil, alpha, err
-		}
+	   	if err.HasError() {
+	   		return nil, alpha, err
+	   	}
 
-		for _, move := range *moves {
-			undo, legal, err := performMoveAndReturnLegality(helper.GameState, helper.Bitboards, move)
-			if err.HasError() {
-				return nil, alpha, err
-			}
+	   // Loop through & perform first generated moves
 
-			if legal {
-				// Traverse past the first generated move
-				variation, enemyScore, err := helper.alphaBeta(
-					alpha, beta,
-					currentDepth,
-					depthRemaining-1,
-					pastMoves,
-				)
+	   	for depthRemaining := quiescenceDepth; depthRemaining <= quiescenceDepth; depthRemaining += 1 {
+	   		if lastCount.HasValue() {
+	   			if counter.NumMoves() == lastCount.Value() {
+	   				break
+	   			}
+	   		}
 
-				if err.HasError() {
-					return nil, alpha, err
-				}
+	   		err = helper.MoveSorter.sortMoves(moves)
+	   		if err.HasError() {
+	   			return nil, alpha, err
+	   		}
 
-				score := -enemyScore
-				principleVariations = append(principleVariations, Pair[int, []SearchMove]{
-					First: score, Second: append([]SearchMove{{move, false}}, variation...)})
-			}
+	   		for _, move := range *moves {
+	   			undo, legal, err := performMoveAndReturnLegality(helper.GameState, helper.Bitboards, move)
+	   			if err.HasError() {
+	   				return nil, alpha, err
+	   			}
 
-			err = undo()
-			if err.HasError() {
-				return nil, alpha, err
-			}
-		}
+	   			if legal {
+	   				// Traverse past the first generated move
+	   				variation, enemyScore, err := helper.alphaBeta(
+	   					alpha, beta,
+	   					currentDepth,
+	   					depthRemaining-1,
+	   					pastMoves,
+	   				)
 
-		if err.HasError() {
-			return nil, 0, err
-		}
+	   				if err.HasError() {
+	   					return nil, alpha, err
+	   				}
 
-		if len(principleVariations) == 0 {
-			return helper.Evaluator.evaluate(helper, player, alpha, beta, currentDepth, pastMoves)
-		}
+	   				score := -enemyScore
+	   				principleVariations = append(principleVariations, Pair[int, []SearchMove]{
+	   					First: score, Second: append([]SearchMove{{move, false}}, variation...)})
+	   			}
 
-		SortMaxFirst(&principleVariations, func(t Pair[int, []SearchMove]) int {
-			return t.First
-		})
+	   			err = undo()
+	   			if err.HasError() {
+	   				return nil, alpha, err
+	   			}
+	   		}
 
-		// Prioritize the newly discovered principle variations first
-		helper.MoveSorter.reset(principleVariations)
+	   		if err.HasError() {
+	   			return nil, 0, err
+	   		}
 
-		lastCount = Some(counter.NumMoves())
-		counter.Reset()
-	}
+	   		if len(principleVariations) == 0 {
+	   			return helper.Evaluator.evaluate(helper, player, alpha, beta, currentDepth, pastMoves)
+	   		}
 
-	bestMove := principleVariations[0]
-	return bestMove.Second, bestMove.First, NilError
+	   		SortMaxFirst(&principleVariations, func(t Pair[int, []SearchMove]) int {
+	   			return t.First
+	   		})
+
+	   		// Prioritize the newly discovered principle variations first
+	   		helper.MoveSorter.reset(principleVariations)
+
+	   		lastCount = Some(counter.NumMoves())
+	   		counter.Reset()
+	   	}
+
+	   bestMove := principleVariations[0]
+	   return bestMove.Second, bestMove.First, NilError
+	*/
 }
 
 type SearchHelper struct {
@@ -273,11 +279,10 @@ type SearchHelper struct {
 	OutOfTime    *bool
 	InQuiescence bool
 	Logger
-	Debug                                 Logger
-	IterativeDeepeningDepth               int
-	WithoutIterativeDeepening             bool
-	WithoutIterativeDeepeningInQuiescence bool
-	WithoutCheckStandPat                  bool
+	Debug                     Logger
+	IterativeDeepeningDepth   int
+	WithoutIterativeDeepening bool
+	WithoutCheckStandPat      bool
 
 	noCopy NoCopy
 }
@@ -526,6 +531,8 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 			}
 
 			for _, move := range *moves {
+				// NEXT: get out-of-time checking to work. Right now it will often return zero moves
+				// because it doesn't know to rely on the previous depth calculations
 				if helper.OutOfTime != nil && *helper.OutOfTime {
 					break
 				}
@@ -645,15 +652,6 @@ type WithoutIterativeDeepening struct {
 
 func (o WithoutIterativeDeepening) apply(helper *SearchHelper) Optional[func()] {
 	helper.WithoutIterativeDeepening = true
-	helper.WithoutIterativeDeepeningInQuiescence = true
-	return Empty[func()]()
-}
-
-type WithoutIterativeDeepeningInQuiescence struct {
-}
-
-func (o WithoutIterativeDeepeningInQuiescence) apply(helper *SearchHelper) Optional[func()] {
-	helper.WithoutIterativeDeepeningInQuiescence = true
 	return Empty[func()]()
 }
 
