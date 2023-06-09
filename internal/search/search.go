@@ -357,6 +357,10 @@ type SearchMove struct {
 	inQuiescence bool
 }
 
+func (move SearchMove) String() string {
+	return move.DebugString()
+}
+
 func VariationDebugString(searchMoves []SearchMove, currentIndex int, label string, score Optional[int]) string {
 	allMoves := ""
 	inQuiescence := false

@@ -96,6 +96,12 @@ func FindInSlice[T any](ts []T, f func(T) bool) Optional[T] {
 	}
 	return Empty[T]()
 }
+func PopValue[T any](ts []T, d T) (T, []T) {
+	if len(ts) == 0 {
+		return d, ts
+	}
+	return ts[len(ts)-1], ts[:len(ts)-1]
+}
 func PopOptional[T any](ts []T) (Optional[T], []T) {
 	if len(ts) == 0 {
 		return Empty[T](), ts
@@ -107,6 +113,15 @@ func PopPtr[T any](ts []*T) (*T, []*T) {
 		return nil, ts
 	}
 	return ts[len(ts)-1], ts[:len(ts)-1]
+}
+
+func IndexOf[T any](ts []T, f func(T) bool) Optional[int] {
+	for i := range ts {
+		if f(ts[i]) {
+			return Some(i)
+		}
+	}
+	return Empty[int]()
 }
 
 func Contains[T comparable](ts []T, t T) bool {
