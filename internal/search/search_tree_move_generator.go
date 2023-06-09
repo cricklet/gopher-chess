@@ -111,11 +111,14 @@ func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
 	}
 }
 
-func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(mode MoveGenerationMode, callback func(move Move) (LoopResult, Error)) Error {
+func (gen *SearchTreeMoveGenerator) generateMoves(mode MoveGenerationMode) (func(), MoveGenerationResult, *[]Move, Error) {
 	moves := GetMovesBuffer()
-	defer ReleaseMovesBuffer(moves)
+	cleanup := func() { ReleaseMovesBuffer(moves) }
+
+	result := AllLegalMoves
 
 	if mode == OnlyCaptures {
+		result = SomeLegalMoves
 		GeneratePseudoCaptures(func(m Move) {
 			*moves = append(*moves, m)
 		}, gen.Bitboards, gen.GameState)
@@ -127,42 +130,18 @@ func (gen *SearchTreeMoveGenerator) performEachMoveAndCall(mode MoveGenerationMo
 
 	if gen.current != nil && gen.current.continueSearching {
 		// Perform all moves
-		for _, move := range *moves {
-			result, err := performMoveAndCall(gen.GameState, gen.Bitboards, move, callback)
-
-			if !err.IsNil() {
-				return err
-			}
-			if result == LoopBreak {
-				break
-			}
-		}
-		return NilError
+		return cleanup, result, moves, NilError
 	}
 
-	for nextMoveStr := range gen.current.moves {
-		nextMove := gen.GameState.MoveFromString(nextMoveStr)
-		if mode == OnlyCaptures && !nextMove.MoveType.Captures() {
-			// If we're in quiescence, don't search non-capture moves.
-			// Note, this isn't an error because we could be hitting
-			// quiescence early due to iterative deepening (eg searching
-			// depth 1 or 2)
-			continue
+	*moves = FilterSlice(*moves, func(m Move) bool {
+		_, contains := gen.current.moves[m.String()]
+		if !contains {
+			result = SomeLegalMoves
+			return false
 		}
 
-		if !Contains(*moves, nextMove) {
-			return Errorf("move %s not found", nextMove.DebugString())
-		}
+		return true
+	})
 
-		result, err := performMoveAndCall(gen.GameState, gen.Bitboards, nextMove, callback)
-
-		if !err.IsNil() {
-			return err
-		}
-		if result == LoopBreak {
-			break
-		}
-	}
-
-	return NilError
+	return cleanup, result, moves, NilError
 }

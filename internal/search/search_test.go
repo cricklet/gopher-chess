@@ -10,27 +10,68 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestOpeningWithoutQuiescence(t *testing.T) {
+func TestShallowOpeningWithoutQuiescence(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	result, score, err := Search(fen, WithMaxDepth{5}, WithoutQuiescence{})
+	result, score, err := Search(fen, WithMaxDepth{1}, WithoutQuiescence{})
 	assert.True(t, IsNil(err), err)
 
-	fmt.Println("searching depth 5", score, result)
+	assert.Greater(t, score, 0)
 
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
 	assert.True(t, expectedOpenings[result[0].String()])
+}
 
-	// Note that searching an even depth will cause us to play overly cautiously
-	// because we don't have quiescence turned on so we can't see that we are
-	// able to trade when an emeny captures a piece after us
-	result, _, err = Search(fen, WithMaxDepth{4}, WithoutQuiescence{})
+func TestShallow2OpeningWithoutQuiescence(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	result, score, err := Search(fen, WithMaxDepth{2}, WithoutQuiescence{})
 	assert.True(t, IsNil(err), err)
 
-	fmt.Println("searching depth 4", score, result)
+	assert.Equal(t, score, 0)
 
-	assert.False(t, expectedOpenings[result[0].String()])
+	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
+	assert.True(t, expectedOpenings[result[0].String()])
 }
+
+func TestShallow3OpeningWithoutQuiescence(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+	result, score, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
+	assert.True(t, IsNil(err), err)
+
+	assert.Greater(t, score, 0)
+
+	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
+	assert.True(t, expectedOpenings[result[0].String()])
+}
+
+func TestOpeningWithoutQuiescence(t *testing.T) {
+	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
+
+	{
+		result, score, err := Search(fen, WithMaxDepth{5}, WithoutQuiescence{})
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("searching depth 5", score, result)
+
+		assert.True(t, expectedOpenings[result[0].String()])
+	}
+
+	{
+		// Note that searching an even depth will cause us to play overly cautiously
+		// because we don't have quiescence turned on so we can't see that we are
+		// able to trade when an emeny captures a piece after us
+		result, score, err := Search(fen, WithMaxDepth{4}, WithoutQuiescence{})
+		assert.True(t, IsNil(err), err)
+
+		fmt.Println("searching depth 4", score, result)
+
+		assert.False(t, expectedOpenings[result[0].String()])
+	}
+}
+
 func TestOpeningSearchFromTree(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -132,7 +173,7 @@ func TestOpeningWithQuiescenceE2E4(t *testing.T) {
 
 	// with search depth 4 and quiescence enabled, we should be aggressive
 	result, _, err := Search(fen,
-		WithMaxDepth{4}, WithSearch{searchMoves})
+		WithMaxDepth{4}, WithSearch{searchMoves}, WithDebugLogging{})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, "e2e4", result[0].String())
@@ -152,7 +193,7 @@ func TestOpeningWithQuiescenceWithoutIterationE2E4(t *testing.T) {
 
 	// with search depth 4 and quiescence enabled, we should be aggressive
 	result, _, err := Search(fen,
-		WithMaxDepth{2}, WithSearch{searchMoves}, WithoutIterativeDeepening{}, WithDebugLogging{})
+		WithMaxDepth{2}, WithSearch{searchMoves}, WithoutIterativeDeepening{})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, "e2e4", result[0].String())
@@ -239,7 +280,7 @@ func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 	}
 
 	// we should see the trades because of quiescence
-	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithoutCheckStandPat{}, WithDebugLogging{})
+	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithoutCheckStandPat{})
 	assert.True(t, IsNil(err), err)
 
 	assert.Greater(t, score, 0)
@@ -247,7 +288,7 @@ func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 		"e2e4, f7f5, b1c3, f5e4, c3e4",
 		ConcatStringify(result))
 
-	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5}, WithoutCheckStandPat{}, WithDebugLogging{})
+	result, score, err = Search(fen, WithSearch{searchMoves}, WithMaxDepth{5}, WithoutCheckStandPat{})
 	assert.True(t, IsNil(err), err)
 
 	assert.Greater(t, score, 0)
@@ -315,7 +356,7 @@ func TestCheckMateDetection(t *testing.T) {
 	assert.True(t, isCheckMate)
 }
 
-func TestCheckMateInTwo(t *testing.T) {
+func TestCheckMateInFour(t *testing.T) {
 	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
 
 	// searching 3 ahead doesn't see the checkmate because we aren't able
@@ -336,7 +377,7 @@ func TestCheckMateInTwo(t *testing.T) {
 	assert.Greater(t, score, 9999)
 	assert.True(t, checkMateMoves[result[0].String()], result[0].String())
 }
-func TestCheckMateInTwoSpecific(t *testing.T) {
+func TestCheckMateInFourSpecific(t *testing.T) {
 	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
 
 	searchMoves, err := SearchTreeFromLines(
@@ -353,6 +394,32 @@ func TestCheckMateInTwoSpecific(t *testing.T) {
 	assert.True(t, IsNil(err))
 
 	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithoutQuiescence{})
+	assert.True(t, IsNil(err))
+	assert.Greater(t, score, 9999)
+	assert.Equal(t,
+		"c2c7, b8a8, c7a7",
+		ConcatStringify(result))
+}
+
+func TestCheckMateInFourSpecificWithoutIteration(t *testing.T) {
+	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
+
+	searchMoves, err := SearchTreeFromLines(
+		[][]string{
+			{
+				"c2c7", "b8a8", "e4e3",
+			},
+			{
+				"c2c7", "b8a8", "c7a7",
+			},
+		},
+		true, // search everything past these two lines
+	)
+	assert.True(t, IsNil(err))
+
+	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4},
+		WithoutIterativeDeepening{}, WithoutQuiescence{},
+		WithDebugLogging{})
 	assert.True(t, IsNil(err))
 	assert.Greater(t, score, 9999)
 	assert.Equal(t,
