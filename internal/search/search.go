@@ -182,19 +182,28 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 	principleVariations := []Pair[int, []SearchMove]{}
 	mode := OnlyCaptures
 
+	unregisterCounter, counter := NewMoveCounter(helper.GameState)
+	defer unregisterCounter()
+
+	lastCount := Empty[int]()
+
+	cleanup, result, moves, err := helper.MoveGen.generateMoves(mode)
+	defer cleanup()
+
+	if result != SomeLegalMoves {
+		return nil, alpha, Errorf("quiescence should only search captures")
+	}
+
+	if err.HasError() {
+		return nil, alpha, err
+	}
+
 	// Loop through & perform first generated moves
-	for depthRemaining := 1; depthRemaining <= 4; depthRemaining += 1 {
-		// NEXT only continue down the depth if we are still succesfully searching
-
-		cleanup, result, moves, err := helper.MoveGen.generateMoves(mode)
-		defer cleanup()
-
-		if result != SomeLegalMoves {
-			return nil, alpha, Errorf("quiescence should only search captures")
-		}
-
-		if err.HasError() {
-			return nil, alpha, err
+	for depthRemaining := 1; depthRemaining <= 10; depthRemaining += 2 {
+		if lastCount.HasValue() {
+			if counter.NumMoves() == lastCount.Value() {
+				break
+			}
 		}
 
 		err = helper.MoveSorter.sortMoves(moves)
@@ -246,6 +255,9 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 
 		// Prioritize the newly discovered principle variations first
 		helper.MoveSorter.reset(principleVariations)
+
+		lastCount = Some(counter.NumMoves())
+		counter.Reset()
 	}
 
 	bestMove := principleVariations[0]

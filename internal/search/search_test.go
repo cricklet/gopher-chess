@@ -552,6 +552,23 @@ func TestTimeNoQuiescence(t *testing.T) {
 	assert.Greater(t, nonIterative, iterative)
 }
 
+func TestTimeQuiescenceIterative(t *testing.T) {
+	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
+
+	nonIterative := timeSearch(t, fen, "depth 4 - non-iterative", WithMaxDepth{2}, WithoutIterativeDeepeningInQuiescence{})
+	iterative := timeSearch(t, fen, "depth 4 - iterative", WithMaxDepth{2})
+
+	assert.Greater(t, nonIterative, iterative)
+}
+func TestTimeQuiescenceIterativeNoStandPat(t *testing.T) {
+	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
+
+	nonIterative := timeSearch(t, fen, "depth 4 - non-iterative", WithMaxDepth{2}, WithoutCheckStandPat{}, WithoutIterativeDeepeningInQuiescence{})
+	iterative := timeSearch(t, fen, "depth 4 - iterative", WithMaxDepth{2}, WithoutCheckStandPat{})
+
+	assert.Greater(t, nonIterative, iterative)
+}
+
 func TestTimeQuiescence(t *testing.T) {
 	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
 
