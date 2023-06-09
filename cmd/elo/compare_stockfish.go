@@ -189,8 +189,7 @@ func playGameBinaries(
 ) stockfishMatchResult {
 	var err Error
 
-	unregister, runner := chessgo.NewChessGoRunner()
-	defer unregister()
+	runner := chessgo.NewChessGoRunner()
 
 	err = runner.SetupPosition(Position{
 		Fen:   fen,

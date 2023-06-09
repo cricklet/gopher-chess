@@ -27,13 +27,12 @@ func main() {
 		defer p.Stop()
 	}
 
-	unregister, runner := chessgo.NewChessGoRunner(
+	runner := chessgo.NewChessGoRunner(
 		chessgo.WithLogger(FuncLogger(
 			func(s string) {
 				fmt.Print(s)
 			})),
 	)
-	defer unregister()
 
 	uciRunner := uci.NewUciRunner(runner)
 

@@ -17,36 +17,13 @@ type ChessGoRunner struct {
 	s         *search.SearchHelper
 	outOfTime *bool
 
-	StartFen            string
-	history             []HistoryValue
-	unregisterCallbacks []func()
+	StartFen string
+	history  []HistoryValue
 }
 
 var _ Runner = (*ChessGoRunner)(nil)
 
 type ChessGoOption func(*ChessGoRunner)
-
-func (r *ChessGoRunner) Searcher() *search.SearchHelper {
-	if r.s == nil {
-		unregister, searcher := search.NewSearchHelper(r.g, r.b,
-			search.WithLogger{Logger: r.Logger},
-			search.WithOutOfTime{OutOfTime: r.outOfTime},
-		)
-
-		r.s = searcher
-		r.unregisterCallbacks = append(r.unregisterCallbacks, unregister)
-
-		PrintMemUsage()
-	}
-
-	return r.s
-}
-
-func (r *ChessGoRunner) Unregister() {
-	for _, f := range r.unregisterCallbacks {
-		f()
-	}
-}
 
 func WithLogger(l Logger) ChessGoOption {
 	return func(r *ChessGoRunner) {
@@ -54,14 +31,14 @@ func WithLogger(l Logger) ChessGoOption {
 	}
 }
 
-func NewChessGoRunner(opts ...ChessGoOption) (func(), ChessGoRunner) {
+func NewChessGoRunner(opts ...ChessGoOption) ChessGoRunner {
 	r := ChessGoRunner{
 		outOfTime: new(bool),
 	}
 	for _, opt := range opts {
 		opt(&r)
 	}
-	return func() { r.Unregister() }, r
+	return r
 }
 
 type HistoryValue struct {
@@ -72,6 +49,7 @@ type HistoryValue struct {
 func (r *ChessGoRunner) Reset() {
 	r.g = nil
 	r.b = nil
+	r.s = nil
 	r.StartFen = ""
 	r.history = []HistoryValue{}
 }
@@ -167,6 +145,15 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	bitboards := r.g.CreateBitboards()
 	r.b = bitboards
 
+	// We don't need to be careful about unregistering searcher because it
+	// has the same lifecycle as GameState above. eg, the garbage collector
+	// will clean up both at the same time
+	_, searcher := search.NewSearchHelper(r.g, r.b,
+		search.WithLogger{Logger: r.Logger},
+		search.WithOutOfTime{OutOfTime: r.outOfTime},
+	)
+	r.s = searcher
+
 	r.StartFen = position.Fen
 
 	for _, m := range position.Moves {
@@ -175,6 +162,8 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 			return err
 		}
 	}
+
+	PrintMemUsage()
 
 	return NilError
 }
@@ -253,7 +242,11 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 	// 	*r.outOfTime = true
 	// }()
 
-	moves, _, err = r.Searcher().Search()
+	if r.s == nil {
+		return Empty[string](), Errorf("position not setup")
+	}
+
+	moves, _, err = r.s.Search()
 	if !IsNil(err) {
 		return Empty[string](), err
 	}

@@ -12,8 +12,7 @@ import (
 )
 
 func TestIndexBug2(t *testing.T) {
-	unregister, r := NewChessGoRunner()
-	defer unregister()
+	r := NewChessGoRunner()
 	err := r.SetupPosition(Position{
 		Fen:   "2kr3r/p1p2ppp/2n1b3/2bqp3/Pp1p4/1P1P1N1P/2PBBPP1/R2Q1RK1 w - - 24 13",
 		Moves: []string{},
@@ -28,8 +27,7 @@ func TestIndexBug2(t *testing.T) {
 }
 
 func TestIndexBug3(t *testing.T) {
-	unregister, r := NewChessGoRunner()
-	defer unregister()
+	r := NewChessGoRunner()
 	err := r.SetupPosition(Position{
 		Fen:   "2k1r3/8/2np2p1/p1bq4/Pp2P1P1/1P1p4/2PBQ3/R4RK1 w - - 48 25",
 		Moves: []string{},
@@ -51,8 +49,8 @@ func TestCastlingBug1(t *testing.T) {
 	}
 
 	{
-		unregister, r := NewChessGoRunner()
-		defer unregister()
+		r := NewChessGoRunner()
+
 		err := r.SetupPosition(Position{
 			Fen:   fen,
 			Moves: []string{},
@@ -72,8 +70,8 @@ func TestCastlingBug1(t *testing.T) {
 		}
 	}
 	{
-		unregister, r := NewChessGoRunner()
-		defer unregister()
+		r := NewChessGoRunner()
+
 		err := r.SetupPosition(Position{
 			Fen:   fen,
 			Moves: moves,
@@ -98,8 +96,7 @@ type UciIteration struct {
 }
 
 func TestBattle(t *testing.T) {
-	unregister, chessgo := NewChessGoRunner()
-	defer unregister()
+	chessgo := NewChessGoRunner()
 	stockfish := stockfish.NewStockfishRunner()
 
 	// Setup both runners
@@ -145,11 +142,8 @@ func TestBattle(t *testing.T) {
 }
 
 func TestChessGoBattle(t *testing.T) {
-	unregister1, chessgo1 := NewChessGoRunner(WithLogger(&SilentLogger))
-	unregister2, chessgo2 := NewChessGoRunner(WithLogger(&SilentLogger))
-
-	defer unregister1()
-	defer unregister2()
+	chessgo1 := NewChessGoRunner(WithLogger(&SilentLogger))
+	chessgo2 := NewChessGoRunner(WithLogger(&SilentLogger))
 
 	// Setup both runners
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
