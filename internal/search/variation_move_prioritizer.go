@@ -20,6 +20,7 @@ type VariationMovePrioritizer struct {
 }
 
 var _ game.MoveListener = (*VariationMovePrioritizer)(nil)
+var _ MoveSorter = (*VariationMovePrioritizer)(nil)
 
 /*
 	SortMaxFirst(&variations, func(t Pair[int, []SearchMove]) int {
@@ -36,14 +37,8 @@ var _ game.MoveListener = (*VariationMovePrioritizer)(nil)
 
 func NewVariationMovePrioritizer(
 	g *game.GameState,
-	sortedVariations [][]SearchMove,
 ) (func(), *VariationMovePrioritizer) {
 	gen := &VariationMovePrioritizer{}
-	gen.sortedVariations = sortedVariations
-
-	gen.currentVariationIndex = Empty[int]()
-	gen.currentDepth = 0
-	gen.historyVariationIndex = []Optional[int]{}
 
 	unregister := g.RegisterListener(gen)
 	return unregister, gen
@@ -59,6 +54,10 @@ func (gen *VariationMovePrioritizer) reset(variations []Pair[int, []SearchMove])
 		sortedVariations = append(sortedVariations, variation.Second)
 	}
 
+	gen.resetSortedVariations(sortedVariations)
+}
+
+func (gen *VariationMovePrioritizer) resetSortedVariations(sortedVariations [][]SearchMove) {
 	gen.sortedVariations = sortedVariations
 	gen.currentVariationIndex = Empty[int]()
 	gen.currentDepth = 0
@@ -117,7 +116,7 @@ func (gen *VariationMovePrioritizer) String() string {
 	return fmt.Sprintf("VariationMovePrioritizer[empty]")
 }
 
-func (gen *VariationMovePrioritizer) SortMoves(moves *[]Move) {
+func (gen *VariationMovePrioritizer) sortMoves(moves *[]Move) Error {
 	moveScores := map[Move]int{}
 
 	if gen.currentDepth == 0 {
@@ -140,4 +139,6 @@ func (gen *VariationMovePrioritizer) SortMoves(moves *[]Move) {
 			return Inf
 		}
 	})
+
+	return NilError
 }

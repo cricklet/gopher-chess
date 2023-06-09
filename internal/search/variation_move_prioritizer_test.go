@@ -28,8 +28,10 @@ func TestVariationMovePrioritizer(t *testing.T) {
 		},
 	}
 
-	unregister, gen := NewVariationMovePrioritizer(g, variations)
+	unregister, gen := NewVariationMovePrioritizer(g)
 	defer unregister()
+
+	gen.resetSortedVariations(variations)
 
 	assert.Equal(t, "VariationMovePrioritizer[[e2e4, e7e5, g1f3], [d2d4, d7d5]]", gen.String())
 

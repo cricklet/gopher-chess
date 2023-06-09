@@ -636,15 +636,7 @@ func (o WithOutOfTime) apply(helper *SearchHelper) {
 }
 
 func NewSearchHelper(game *GameState, b *Bitboards, opts ...SearchOption) (func(), *SearchHelper) {
-	defaultMoveGenerator := DefaultMoveGenerator{
-		GameState: game,
-		Bitboards: b,
-	}
-	quiescenceEvaluator := QuiescenceEvaluator{}
 	helper := SearchHelper{
-		MoveGen:                 &defaultMoveGenerator,
-		MoveSorter:              &NoOpMoveSorter{},
-		Evaluator:               quiescenceEvaluator,
 		GameState:               game,
 		Bitboards:               b,
 		OutOfTime:               nil,
@@ -656,6 +648,25 @@ func NewSearchHelper(game *GameState, b *Bitboards, opts ...SearchOption) (func(
 	for _, opt := range opts {
 		opt.apply(&helper)
 	}
+
+	if helper.Evaluator == nil {
+		helper.Evaluator = QuiescenceEvaluator{}
+	}
+
+	if helper.MoveSorter == nil {
+		unregisterSorter, sorter := NewVariationMovePrioritizer(game)
+		helper.UnregisterCallbacks = append(helper.UnregisterCallbacks, unregisterSorter)
+		helper.MoveSorter = sorter
+	}
+
+	if helper.MoveGen == nil {
+		defaultMoveGenerator := DefaultMoveGenerator{
+			GameState: game,
+			Bitboards: b,
+		}
+		helper.MoveGen = &defaultMoveGenerator
+	}
+
 	return func() { helper.Unregister() }, &helper
 }
 

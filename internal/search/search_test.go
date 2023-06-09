@@ -105,8 +105,10 @@ func TestOpeningWithoutQuiescenceE2E4(t *testing.T) {
 	)
 	assert.True(t, IsNil(err), err)
 
+	// NEXT
+
 	{
-		// with search depth 4, we will be conservative
+		// with search depth 4, we will assume e2e4 is dangerous
 		result, _, err := Search(fen,
 			WithMaxDepth{4}, WithSearch{searchMoves}, WithoutQuiescence{})
 		assert.True(t, IsNil(err), err)
@@ -115,7 +117,7 @@ func TestOpeningWithoutQuiescenceE2E4(t *testing.T) {
 	}
 
 	{
-		// with search depth 5, we will be aggressive
+		// with search depth 5, we will correctly assume e2e4 is evenly matched
 		result, _, err := Search(fen,
 			WithMaxDepth{5}, WithSearch{searchMoves}, WithoutQuiescence{})
 		assert.True(t, IsNil(err), err)
