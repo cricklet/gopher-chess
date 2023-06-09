@@ -244,8 +244,6 @@ type SearchHelper struct {
 	WithoutIterativeDeepening bool
 	WithoutCheckStandPat      bool
 
-	UnregisterCallbacks []func()
-
 	noCopy NoCopy
 }
 
@@ -567,75 +565,84 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 }
 
 type SearchOption interface {
-	apply(helper *SearchHelper)
+	apply(helper *SearchHelper) Optional[func()]
 }
 
 type WithDebugLogging struct {
 }
 
-func (o WithDebugLogging) apply(helper *SearchHelper) {
+func (o WithDebugLogging) apply(helper *SearchHelper) Optional[func()] {
 	if helper.Logger == &SilentLogger {
 		helper.Logger = &DefaultLogger
 	}
 	helper.Debug = &DefaultLogger
+	return Empty[func()]()
 }
 
 type WithLogger struct {
 	Logger Logger
 }
 
-func (o WithLogger) apply(helper *SearchHelper) {
+func (o WithLogger) apply(helper *SearchHelper) Optional[func()] {
 	helper.Logger = o.Logger
+	return Empty[func()]()
 }
 
 type WithoutQuiescence struct {
 }
 
-func (o WithoutQuiescence) apply(helper *SearchHelper) {
+func (o WithoutQuiescence) apply(helper *SearchHelper) Optional[func()] {
 	helper.Evaluator = BasicEvaluator{}
+	return Empty[func()]()
 }
 
 type WithMaxDepth struct {
 	MaxDepth int
 }
 
-func (o WithMaxDepth) apply(helper *SearchHelper) {
+func (o WithMaxDepth) apply(helper *SearchHelper) Optional[func()] {
 	helper.IterativeDeepeningDepth = o.MaxDepth
+	return Empty[func()]()
 }
 
 type WithoutIterativeDeepening struct {
 }
 
-func (o WithoutIterativeDeepening) apply(helper *SearchHelper) {
+func (o WithoutIterativeDeepening) apply(helper *SearchHelper) Optional[func()] {
 	helper.WithoutIterativeDeepening = true
+	return Empty[func()]()
 }
 
 type WithoutCheckStandPat struct {
 }
 
-func (o WithoutCheckStandPat) apply(helper *SearchHelper) {
+func (o WithoutCheckStandPat) apply(helper *SearchHelper) Optional[func()] {
 	helper.WithoutCheckStandPat = true
+	return Empty[func()]()
 }
 
 type WithSearch struct {
 	search SearchTree
 }
 
-func (o WithSearch) apply(helper *SearchHelper) {
+func (o WithSearch) apply(helper *SearchHelper) Optional[func()] {
 	unregister, gen := NewSearchTreeMoveGenerator(o.search, helper.GameState, helper.Bitboards)
 	helper.MoveGen = gen
-	helper.UnregisterCallbacks = append(helper.UnregisterCallbacks, unregister)
+	return Some(unregister)
 }
 
 type WithOutOfTime struct {
 	OutOfTime *bool
 }
 
-func (o WithOutOfTime) apply(helper *SearchHelper) {
+func (o WithOutOfTime) apply(helper *SearchHelper) Optional[func()] {
 	helper.OutOfTime = o.OutOfTime
+	return Empty[func()]()
 }
 
 func NewSearchHelper(game *GameState, b *Bitboards, opts ...SearchOption) (func(), *SearchHelper) {
+	unregisterCallbacks := []func(){}
+
 	helper := SearchHelper{
 		GameState:               game,
 		Bitboards:               b,
@@ -646,7 +653,10 @@ func NewSearchHelper(game *GameState, b *Bitboards, opts ...SearchOption) (func(
 	}
 
 	for _, opt := range opts {
-		opt.apply(&helper)
+		unregister := opt.apply(&helper)
+		if unregister.HasValue() {
+			unregisterCallbacks = append(unregisterCallbacks, unregister.Value())
+		}
 	}
 
 	if helper.Evaluator == nil {
@@ -655,7 +665,8 @@ func NewSearchHelper(game *GameState, b *Bitboards, opts ...SearchOption) (func(
 
 	if helper.MoveSorter == nil {
 		unregisterSorter, sorter := NewVariationMovePrioritizer(game)
-		helper.UnregisterCallbacks = append(helper.UnregisterCallbacks, unregisterSorter)
+		unregisterCallbacks = append(unregisterCallbacks, unregisterSorter)
+
 		helper.MoveSorter = sorter
 	}
 
@@ -667,13 +678,11 @@ func NewSearchHelper(game *GameState, b *Bitboards, opts ...SearchOption) (func(
 		helper.MoveGen = &defaultMoveGenerator
 	}
 
-	return func() { helper.Unregister() }, &helper
-}
-
-func (helper *SearchHelper) Unregister() {
-	for _, unregister := range helper.UnregisterCallbacks {
-		unregister()
-	}
+	return func() {
+		for _, unregister := range unregisterCallbacks {
+			unregister()
+		}
+	}, &helper
 }
 
 func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
