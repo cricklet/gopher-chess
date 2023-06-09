@@ -150,7 +150,7 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	// will clean up both at the same time
 	_, searcher := search.NewSearchHelper(r.g, r.b,
 		search.WithLogger{Logger: r.Logger},
-		search.WithOutOfTime{OutOfTime: r.outOfTime},
+		search.WithTimer{OutOfTime: r.outOfTime},
 	)
 	r.s = searcher
 

@@ -114,18 +114,24 @@ type MoveGen interface {
 type MoveSorter interface {
 	sortMoves(moves *[]Move) Error
 	reset(variations []Pair[int, []SearchMove])
+	copy() MoveSorter
 }
 
 type NoOpMoveSorter struct {
+	noCopy NoCopy
 }
 
 var _ MoveSorter = (*NoOpMoveSorter)(nil)
 
-func (s NoOpMoveSorter) sortMoves(moves *[]Move) Error {
+func (s *NoOpMoveSorter) sortMoves(moves *[]Move) Error {
 	return NilError
 }
 
-func (s NoOpMoveSorter) reset(variations []Pair[int, []SearchMove]) {
+func (s *NoOpMoveSorter) reset(variations []Pair[int, []SearchMove]) {
+}
+
+func (s *NoOpMoveSorter) copy() MoveSorter {
+	return &NoOpMoveSorter{}
 }
 
 type Evaluator interface {
@@ -150,84 +156,100 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 	prevOutOfTime := helper.OutOfTime
 	prevInQuiescence := helper.InQuiescence
 	prevEvaluator := helper.Evaluator
+	prevSorter := helper.MoveSorter
 
 	helper.InQuiescence = true
 	helper.OutOfTime = nil
 	helper.Evaluator = BasicEvaluator{}
+	helper.MoveSorter = helper.MoveSorter.copy()
+
 	defer func() {
 		helper.InQuiescence = prevInQuiescence
 		helper.OutOfTime = prevOutOfTime
 		helper.Evaluator = prevEvaluator
+		helper.MoveSorter = prevSorter
 	}()
 
-	moves, score, err := helper.alphaBeta(alpha, beta, currentDepth,
-		// Search up to 10 more moves
-		10,
-		pastMoves,
-	)
-	return moves, score, err
+	if helper.WithoutIterativeDeepeningInQuiescence {
+		moves, score, err := helper.alphaBeta(alpha, beta, currentDepth,
+			// Search up to 10 more moves
+			10,
+			pastMoves,
+		)
+		return moves, score, err
+	}
 
-	// quiescenceHelper := SearchHelper{
-	// 	MoveGen:                   helper.MoveGen.copy(),
-	// 	Evaluator:                 BasicEvaluator{},
-	// 	GameState:                 helper.GameState,
-	// 	Bitboards:                 helper.Bitboards,
-	// 	OutOfTime:                 nil,
-	// 	InQuiescence:              true,
-	// 	Logger:                    helper.Logger,
-	// 	Debug:                     helper.Debug,
-	// 	IterativeDeepeningDepth:   helper.IterativeDeepeningDepth,
-	// 	WithoutIterativeDeepening: helper.WithoutIterativeDeepening,
-	// 	WithoutCheckStandPat:      helper.WithoutCheckStandPat,
-	// }
+	principleVariations := []Pair[int, []SearchMove]{}
+	mode := OnlyCaptures
 
-	// // NEXT iterative deepening during quiescence
-	// // NEXT we need a way to reset the move gen to the original state
-	// // or a way to copy the move gen so we don't modify the original one
+	// Loop through & perform first generated moves
+	for depthRemaining := 1; depthRemaining <= 4; depthRemaining += 1 {
+		// NEXT only continue down the depth if we are still succesfully searching
 
-	// principleVariations := []Pair[int, []SearchMove]{}
+		cleanup, result, moves, err := helper.MoveGen.generateMoves(mode)
+		defer cleanup()
 
-	// // Loop through & perform first generated moves
-	// for depthRemaining := 1; depthRemaining <= 5; depthRemaining += 1 {
-	// 	// NEXT only continue down the depth if we are still succesfully searching
-	// 	err := quiescenceHelper.MoveGen.performEachMoveAndCall(OnlyCaptures, func(move Move) (LoopResult, Error) {
-	// 		// Traverse past the first generated move
-	// 		variation, enemyScore, err := quiescenceHelper.alphaBeta(
-	// 			alpha, beta,
-	// 			currentDepth,
-	// 			depthRemaining-1,
-	// 			pastMoves,
-	// 		)
+		if result != SomeLegalMoves {
+			return nil, alpha, Errorf("quiescence should only search captures")
+		}
 
-	// 		if err.HasError() {
-	// 			return LoopBreak, err
-	// 		}
+		if err.HasError() {
+			return nil, alpha, err
+		}
 
-	// 		score := -enemyScore
-	// 		principleVariations = append(principleVariations, Pair[int, []SearchMove]{
-	// 			First: score, Second: append([]SearchMove{{move, false}}, variation...)})
+		err = helper.MoveSorter.sortMoves(moves)
+		if err.HasError() {
+			return nil, alpha, err
+		}
 
-	// 		return LoopContinue, NilError
-	// 	})
+		for _, move := range *moves {
+			undo, legal, err := performMoveAndReturnLegality(helper.GameState, helper.Bitboards, move)
+			if err.HasError() {
+				return nil, alpha, err
+			}
 
-	// 	if err.HasError() {
-	// 		return nil, 0, err
-	// 	}
+			if legal {
+				// Traverse past the first generated move
+				variation, enemyScore, err := helper.alphaBeta(
+					alpha, beta,
+					currentDepth,
+					depthRemaining-1,
+					pastMoves,
+				)
 
-	// 	SortMaxFirst(&principleVariations, func(t Pair[int, []SearchMove]) int {
-	// 		return t.First
-	// 	})
+				if err.HasError() {
+					return nil, alpha, err
+				}
 
-	// 	// Prioritize the newly discovered principle variations first
-	// 	quiescenceHelper.MoveGen.updatePrincipleVariations(principleVariations)
-	// }
+				score := -enemyScore
+				principleVariations = append(principleVariations, Pair[int, []SearchMove]{
+					First: score, Second: append([]SearchMove{{move, false}}, variation...)})
+			}
 
-	// if len(principleVariations) == 0 {
-	// 	return quiescenceHelper.Evaluator.evaluate(helper, player, alpha, beta, currentDepth, pastMoves)
-	// }
+			err = undo()
+			if err.HasError() {
+				return nil, alpha, err
+			}
+		}
 
-	// bestMove := principleVariations[0]
-	// return bestMove.Second, bestMove.First, NilError
+		if err.HasError() {
+			return nil, 0, err
+		}
+
+		if len(principleVariations) == 0 {
+			return helper.Evaluator.evaluate(helper, player, alpha, beta, currentDepth, pastMoves)
+		}
+
+		SortMaxFirst(&principleVariations, func(t Pair[int, []SearchMove]) int {
+			return t.First
+		})
+
+		// Prioritize the newly discovered principle variations first
+		helper.MoveSorter.reset(principleVariations)
+	}
+
+	bestMove := principleVariations[0]
+	return bestMove.Second, bestMove.First, NilError
 }
 
 type SearchHelper struct {
@@ -239,10 +261,11 @@ type SearchHelper struct {
 	OutOfTime    *bool
 	InQuiescence bool
 	Logger
-	Debug                     Logger
-	IterativeDeepeningDepth   int
-	WithoutIterativeDeepening bool
-	WithoutCheckStandPat      bool
+	Debug                                 Logger
+	IterativeDeepeningDepth               int
+	WithoutIterativeDeepening             bool
+	WithoutIterativeDeepeningInQuiescence bool
+	WithoutCheckStandPat                  bool
 
 	noCopy NoCopy
 }
@@ -610,6 +633,15 @@ type WithoutIterativeDeepening struct {
 
 func (o WithoutIterativeDeepening) apply(helper *SearchHelper) Optional[func()] {
 	helper.WithoutIterativeDeepening = true
+	helper.WithoutIterativeDeepeningInQuiescence = true
+	return Empty[func()]()
+}
+
+type WithoutIterativeDeepeningInQuiescence struct {
+}
+
+func (o WithoutIterativeDeepeningInQuiescence) apply(helper *SearchHelper) Optional[func()] {
+	helper.WithoutIterativeDeepeningInQuiescence = true
 	return Empty[func()]()
 }
 
@@ -631,11 +663,11 @@ func (o WithSearch) apply(helper *SearchHelper) Optional[func()] {
 	return Some(unregister)
 }
 
-type WithOutOfTime struct {
+type WithTimer struct {
 	OutOfTime *bool
 }
 
-func (o WithOutOfTime) apply(helper *SearchHelper) Optional[func()] {
+func (o WithTimer) apply(helper *SearchHelper) Optional[func()] {
 	helper.OutOfTime = o.OutOfTime
 	return Empty[func()]()
 }

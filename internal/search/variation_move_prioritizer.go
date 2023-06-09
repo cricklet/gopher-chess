@@ -22,19 +22,6 @@ type VariationMovePrioritizer struct {
 var _ game.MoveListener = (*VariationMovePrioritizer)(nil)
 var _ MoveSorter = (*VariationMovePrioritizer)(nil)
 
-/*
-	SortMaxFirst(&variations, func(t Pair[int, []SearchMove]) int {
-		return t.First
-	})
-
-	sortedVariations := [][]SearchMove{}
-	for _, variation := range variations {
-		sortedVariations = append(sortedVariations, variation.Second)
-	}
-
-	unregister, gen.prioritizer = NewVariationMovePrioritizer(g, sortedVariations)
-*/
-
 func NewVariationMovePrioritizer(
 	g *game.GameState,
 ) (func(), *VariationMovePrioritizer) {
@@ -42,6 +29,15 @@ func NewVariationMovePrioritizer(
 
 	unregister := g.RegisterListener(gen)
 	return unregister, gen
+}
+
+func (gen *VariationMovePrioritizer) copy() MoveSorter {
+	return &VariationMovePrioritizer{
+		sortedVariations:      gen.sortedVariations,
+		currentVariationIndex: gen.currentVariationIndex,
+		currentDepth:          gen.currentDepth,
+		historyVariationIndex: gen.historyVariationIndex,
+	}
 }
 
 func (gen *VariationMovePrioritizer) reset(variations []Pair[int, []SearchMove]) {

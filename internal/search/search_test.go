@@ -175,7 +175,7 @@ func TestOpeningWithQuiescenceE2E4(t *testing.T) {
 
 	// with search depth 4 and quiescence enabled, we should be aggressive
 	result, _, err := Search(fen,
-		WithMaxDepth{4}, WithSearch{searchMoves}, WithDebugLogging{})
+		WithMaxDepth{4}, WithSearch{searchMoves})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, "e2e4", result[0].String())
@@ -249,7 +249,7 @@ func TestCorrectlyEvaluatesWhenNoCapturesAreFoundInQuiescence(t *testing.T) {
 		WithMaxDepth{5},
 		WithSearch{searchMoves},
 		WithoutIterativeDeepening{},
-		WithDebugLogging{})
+	)
 	assert.True(t, IsNil(err), err)
 
 	assert.Greater(t, score, 0)
@@ -421,7 +421,7 @@ func TestCheckMateInFourSpecificWithoutIteration(t *testing.T) {
 
 	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4},
 		WithoutIterativeDeepening{}, WithoutQuiescence{},
-		WithDebugLogging{})
+	)
 	assert.True(t, IsNil(err))
 	assert.Greater(t, score, 9999)
 	assert.Equal(t,
