@@ -104,7 +104,7 @@ func GamestateFromFenString(s string) (*GameState, Error) {
 			fileIndex = 0
 		} else if indicesToSkip, err := strconv.ParseInt(string(c), 10, 0); IsNil(err) {
 			fileIndex += File(indicesToSkip)
-		} else if p, err := PieceFromString(c); IsNil(err) {
+		} else if p, err := PieceFromRune(c); IsNil(err) {
 			// note, we insert pieces into the board in inverse order so the 0th index refers to a1
 			game.Board[IndexFromFileRank(FileRank{File: fileIndex, Rank: rankIndex})] = p
 			fileIndex++

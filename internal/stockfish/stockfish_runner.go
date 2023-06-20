@@ -50,7 +50,10 @@ func (r *StockfishRunner) SetupPosition(position Position) Error {
 	var err Error
 
 	if r.binary == nil {
-		r.binary, err = binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, 1000*time.Millisecond)
+		r.binary, err = binary.SetupBinaryRunner(
+			"stockfish", "stockfish", []string{},
+			1000*time.Millisecond,
+			binary.WithLogger(r.logger))
 		if !IsNil(err) {
 			return err
 		}
@@ -147,33 +150,87 @@ func (r *StockfishRunner) Rewind(num int) Error {
 	return Errorf("not implemented")
 }
 
-func StockfishEvalFromGo(output []string) Optional[int] {
-	centipawnScores := FilterSlice(output, func(v string) bool {
-		return strings.Contains(v, "score cp ")
-	})
-	if len(centipawnScores) > 0 {
-		centipawnScoreStr := Last(centipawnScores)
-		centipawnScoreStr = strings.Split(
-			strings.Split(centipawnScoreStr, "score cp ")[1],
-			" ")[0]
-		centipawnScore, err := WrapReturn(strconv.Atoi(centipawnScoreStr))
-		if !IsNil(err) {
-			return Empty[int]()
-		}
-		return Some(centipawnScore)
+func (r *StockfishRunner) SetMultiPV() (func() Error, Error) {
+	err := r.binary.RunAsync("setoption name MultiPV value 80")
+	if !IsNil(err) {
+		return func() Error { return NilError }, err
 	}
-	return Empty[int]()
+	return func() Error {
+		return r.binary.RunAsync("setoption name MultiPV value 1")
+	}, NilError
 }
 
-func (r *StockfishRunner) Search() (Optional[string], Error) {
+func (r *StockfishRunner) SearchVerbose(duration time.Duration) (
+	map[string]int, []Pair[string, int], Error,
+) {
+	cleanup, err := r.SetMultiPV()
+	if !IsNil(err) {
+		return nil, nil, err
+	}
+
+	result, err := r.SearchRaw(duration)
+	if !IsNil(err) {
+		return nil, nil, err
+	}
+
+	moveToScore := map[string]int{}
+	for _, line := range result {
+		if strings.Contains(line, "score cp ") &&
+			strings.Contains(line, "pv ") {
+			scoreStr := strings.Split(
+				strings.Split(line, "score cp ")[1],
+				" ")[0]
+			moveStr := strings.Split(
+				strings.Split(line, " pv ")[1],
+				" ")[0]
+
+			score, err := WrapReturn(strconv.Atoi(scoreStr))
+			if !IsNil(err) {
+				break
+			}
+
+			moveToScore[moveStr] = score
+		}
+	}
+	if !IsNil(err) {
+		return nil, nil, err
+	}
+
+	err = cleanup()
+	if !IsNil(err) {
+		return nil, nil, err
+	}
+
+	moveAndScore := []Pair[string, int]{}
+	for move, score := range moveToScore {
+		moveAndScore = append(moveAndScore,
+			Pair[string, int]{First: move, Second: score})
+	}
+	SortMaxFirst(&moveAndScore, func(p Pair[string, int]) int {
+		return p.Second
+	})
+
+	return moveToScore, moveAndScore, NilError
+}
+
+func (r *StockfishRunner) SearchRaw(duration time.Duration) ([]string, Error) {
 	var err Error
 	var result []string
 	err = r.binary.RunAsync("go")
 	if !IsNil(err) {
-		return Empty[string](), err
+		return nil, err
 	}
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(duration)
 	result, err = r.binary.Run("stop", Some("bestmove"))
+	if !IsNil(err) {
+		return nil, err
+	}
+
+	return result, NilError
+}
+
+func (r *StockfishRunner) Search() (Optional[string], Error) {
+	result, err := r.SearchRaw(1000 * time.Millisecond)
 	if !IsNil(err) {
 		return Empty[string](), err
 	}

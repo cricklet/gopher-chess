@@ -2,6 +2,7 @@ package chessgo
 
 import (
 	"fmt"
+	"time"
 
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
@@ -149,6 +150,7 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	// has the same lifecycle as GameState above. eg, the garbage collector
 	// will clean up both at the same time
 	_, searcher := search.NewSearchHelper(r.g, r.b,
+		search.WithMaxDepth{MaxDepth: 10},
 		search.WithLogger{Logger: r.Logger},
 		search.WithTimer{OutOfTime: r.outOfTime},
 	)
@@ -237,10 +239,10 @@ func (r *ChessGoRunner) Search() (Optional[string], Error) {
 
 	*r.outOfTime = false
 
-	// go func() {
-	// 	time.Sleep(1000 * time.Millisecond)
-	// 	*r.outOfTime = true
-	// }()
+	go func() {
+		time.Sleep(1000 * time.Millisecond)
+		*r.outOfTime = true
+	}()
 
 	if r.s == nil {
 		return Empty[string](), Errorf("position not setup")

@@ -68,15 +68,27 @@ func PieceTypeFromString(s string) PieceType {
 	switch s {
 	case "r":
 		return Rook
+	case "R":
+		return Rook
 	case "n":
+		return Knight
+	case "N":
 		return Knight
 	case "b":
 		return Bishop
+	case "B":
+		return Bishop
 	case "k":
+		return King
+	case "K":
 		return King
 	case "q":
 		return Queen
+	case "Q":
+		return Queen
 	case "p":
+		return Pawn
+	case "P":
 		return Pawn
 	default:
 		return InvalidPiece
@@ -92,6 +104,13 @@ func (r Rank) String() string {
 	return [8]string{
 		"1", "2", "3", "4", "5", "6", "7", "8",
 	}[r]
+}
+
+func IsRank(c byte) bool {
+	return strings.Contains("12345678", string(c))
+}
+func IsFile(c byte) bool {
+	return strings.Contains("abcdefgh", string(c))
 }
 
 func RankFromChar(c byte) (Rank, Error) {
@@ -231,7 +250,14 @@ var PieceForPlayer [2][8]Piece = func() [2][8]Piece {
 // 	return PIECE_FOR_PLAYER[player][p]
 // }
 
-func PieceFromString(c rune) (Piece, Error) {
+func PieceFromString(s string) (Piece, Error) {
+	if len(s) != 1 {
+		return XX, Errorf("invalid piece %v", s)
+	}
+	return PieceFromRune(rune(s[0]))
+}
+
+func PieceFromRune(c rune) (Piece, Error) {
 	switch c {
 	case 'R':
 		return WR, NilError
@@ -258,7 +284,7 @@ func PieceFromString(c rune) (Piece, Error) {
 	case 'p':
 		return BP, NilError
 	default:
-		return XX, Errorf("invalid piece %v", c)
+		return XX, Errorf("invalid piece %v", string(c))
 	}
 }
 
@@ -404,6 +430,10 @@ func (b BoardArray) Unicode() string {
 
 func PieceAtFileRank(board BoardArray, location FileRank) Piece {
 	return board[IndexFromFileRank(location)]
+}
+
+func PieceAtIndex(board BoardArray, index int) Piece {
+	return board[index]
 }
 
 func IndexFromFileRank(location FileRank) int {
