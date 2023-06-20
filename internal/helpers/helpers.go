@@ -19,6 +19,19 @@ type Success bool
 func Ignore(t ...any) {
 }
 
+func Ellipses(s string, maxLength int) string {
+	if len(s) > maxLength {
+		for i := maxLength - 1; i >= 0; i-- {
+			if s[i] == ' ' {
+				return s[:i] + "..."
+			}
+		}
+
+		// return s[:maxLength-3] + "..."
+	}
+	return s
+}
+
 func GetWithDefault[K comparable, T any](m map[K]T, key K, d T) T {
 	if v, ok := m[key]; ok {
 		return v

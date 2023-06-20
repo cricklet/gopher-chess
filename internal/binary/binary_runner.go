@@ -12,15 +12,47 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
+type StdOutBuffer struct {
+	buffer  []string
+	updated chan bool
+	read    int
+
+	noCopy NoCopy
+}
+
+func (u *StdOutBuffer) Update(line string) {
+	u.buffer = append(u.buffer, line)
+	select {
+	case u.updated <- true:
+		{
+		}
+	default:
+		{
+		}
+	}
+}
+
+func (u *StdOutBuffer) Flush(callback func(line string)) {
+	for i := u.read; i < len(u.buffer); i++ {
+		callback(u.buffer[i])
+	}
+	u.read = len(u.buffer)
+}
+
+func (u *StdOutBuffer) Wait() chan bool {
+	return u.updated
+}
+
 type BinaryRunner struct {
 	cmdPath string
 	cmdName string
 	cmd     *exec.Cmd
 
-	stdin      ReadableWriter
-	stdoutChan chan string
+	stdin ReadableWriter
 
-	stdRecord []string
+	stdout StdOutBuffer
+
+	record []string
 
 	timeout time.Duration
 	Logger  Logger
@@ -43,7 +75,7 @@ func WithLogger(logger Logger) BinaryRunnerOption {
 }
 
 func (u *BinaryRunner) flush(indent string) string {
-	return Indent(strings.Join(u.stdRecord, "\n"), indent)
+	return Indent(strings.Join(u.record, "\n"), indent)
 }
 
 func (u *BinaryRunner) Flush() string {
@@ -100,19 +132,33 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time
 			for {
 				line := <-u.stdin.ReadChan
 				u.Logger.Println("stdin: ", line)
-				u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "in:  "+strings.TrimSpace(line))
+				u.record = AppendSafe(&recordLock, u.record, "in:  "+strings.TrimSpace(line))
 			}
 		}()
 
-		u.stdoutChan = make(chan string)
+		u.stdout = StdOutBuffer{
+			buffer:  []string{},
+			updated: make(chan bool),
+		}
+
+		avoidSpam := func(line string) bool {
+			if strings.Contains(line, "multipv") && !strings.Contains(line, "multipv 1 ") {
+				return true
+			}
+			return false
+		}
+
 		go func() {
 			stdoutScanner := bufio.NewScanner(bufio.NewReader(stdout))
 			for stdoutScanner.Scan() {
 				output := stdoutScanner.Text()
 				for _, line := range strings.Split(output, "\n") {
-					u.Logger.Println("stdout: ", line)
-					u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "out: "+line)
-					u.stdoutChan <- line
+					if !avoidSpam(line) {
+						u.Logger.Println("stdout: ", line)
+					}
+
+					u.record = AppendSafe(&recordLock, u.record, "out: "+line)
+					u.stdout.Update(line)
 				}
 			}
 		}()
@@ -121,7 +167,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time
 			stderrScanner := bufio.NewScanner(bufio.NewReader(stderr))
 			for stderrScanner.Scan() {
 				line := stderrScanner.Text()
-				u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "err: "+line)
+				u.record = AppendSafe(&recordLock, u.record, "err: "+line)
 			}
 		}()
 
@@ -167,17 +213,24 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 
 	done := false
 	foundOutput := false
+
+	update := func(line string) {
+		result = append(result, line)
+		if waitFor.HasValue() && strings.Contains(line, waitFor.Value()) {
+			foundOutput = true
+			done = true
+		}
+	}
+
+	u.stdout.Flush(update)
+
 	for !done {
 		select {
 		case <-timeoutChan:
-			u.Logger.Printf("%v\n", "timeout")
+			u.Logger.Println("timeout")
 			done = true
-		case output := <-u.stdoutChan:
-			result = append(result, output)
-			if waitFor.HasValue() && strings.Contains(output, waitFor.Value()) {
-				foundOutput = true
-				done = true
-			}
+		case _ = <-u.stdout.Wait():
+			u.stdout.Flush(update)
 		}
 	}
 
