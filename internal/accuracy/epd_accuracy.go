@@ -378,7 +378,7 @@ func ComputeResults(results *[]EpdResult, duration time.Duration, callback func(
 		}
 
 		runner := stockfish.NewStockfishRunner(
-		// stockfish.WithLogger(&SilentLogger),
+			stockfish.WithLogger(&SilentLogger),
 		)
 
 		result := CalculateEpdResult(runner, epd, duration)
