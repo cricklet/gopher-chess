@@ -86,13 +86,6 @@ func performMoveAndReturnLegality(g *GameState, b *Bitboards, move Move) (func()
 	return undo, false, NilError
 }
 
-type LoopResult int
-
-const (
-	LoopContinue LoopResult = iota
-	LoopBreak
-)
-
 type MoveGenerationMode int
 
 const (

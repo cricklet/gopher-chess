@@ -14,6 +14,13 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
+type LoopResult int
+
+const (
+	LoopContinue LoopResult = iota
+	LoopBreak
+)
+
 type Success bool
 
 func Ignore(t ...any) {

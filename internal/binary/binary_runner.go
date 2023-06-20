@@ -12,37 +12,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
-type StdOutBuffer struct {
-	buffer  []string
-	updated chan bool
-	read    int
-
-	noCopy NoCopy
-}
-
-func (u *StdOutBuffer) Update(line string) {
-	u.buffer = append(u.buffer, line)
-	select {
-	case u.updated <- true:
-		{
-		}
-	default:
-		{
-		}
-	}
-}
-
-func (u *StdOutBuffer) Flush(callback func(line string)) {
-	for i := u.read; i < len(u.buffer); i++ {
-		callback(u.buffer[i])
-	}
-	u.read = len(u.buffer)
-}
-
-func (u *StdOutBuffer) Wait() chan bool {
-	return u.updated
-}
-
 type BinaryRunner struct {
 	cmdPath string
 	cmdName string
@@ -198,7 +167,40 @@ func (u *BinaryRunner) RunAsync(input string) Error {
 	return NilError
 }
 
-func (u *BinaryRunner) Run(input string, waitFor Optional[string], timeout Optional[time.Duration]) ([]string, Error) {
+func (u *BinaryRunner) RunSync(input string, callback func(string) LoopResult, timeout Optional[time.Duration]) Error {
+	err := u.RunAsync(input)
+	if !IsNil(err) {
+		return err
+	}
+
+	timeoutChan := make(chan bool)
+	go func() {
+		if timeout.HasValue() {
+			time.Sleep(timeout.Value())
+			timeoutChan <- true
+		}
+	}()
+
+	done := false
+	for !done {
+		select {
+		case <-timeoutChan:
+			u.Logger.Println("timeout")
+			done = true
+		case <-u.stdout.Wait():
+			u.stdout.Flush(func(line string) {
+				result := callback(line)
+				if result == LoopBreak {
+					done = true
+				}
+			})
+		}
+	}
+
+	return NilError
+}
+
+func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Error) {
 	result := []string{}
 
 	err := u.RunAsync(input)
@@ -206,37 +208,20 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string], timeout Optio
 		return result, err
 	}
 
-	timeoutChan := make(chan bool)
-	go func() {
-		if timeout.HasValue() {
-			time.Sleep(timeout.Value())
-		} else {
-			time.Sleep(time.Second)
-		}
-		timeoutChan <- true
-	}()
-
-	done := false
 	foundOutput := false
 
-	update := func(line string) {
+	err = u.RunSync(input, func(line string) LoopResult {
 		result = append(result, line)
+
 		if waitFor.HasValue() && strings.Contains(line, waitFor.Value()) {
 			foundOutput = true
-			done = true
+			return LoopBreak
 		}
-	}
+		return LoopContinue
+	}, Some(time.Second))
 
-	u.stdout.Flush(update)
-
-	for !done {
-		select {
-		case <-timeoutChan:
-			u.Logger.Println("timeout")
-			done = true
-		case <-u.stdout.Wait():
-			u.stdout.Flush(update)
-		}
+	if !IsNil(err) {
+		return result, err
 	}
 
 	if waitFor.HasValue() && !foundOutput {
