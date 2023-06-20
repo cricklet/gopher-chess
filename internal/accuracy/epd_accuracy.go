@@ -1,19 +1,18 @@
-package search
+package accuracy
 
 import (
 	"fmt"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/cricklet/chessgo/internal/bitboards"
 	"github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/search"
 	"github.com/cricklet/chessgo/internal/stockfish"
-	"github.com/stretchr/testify/assert"
 )
 
-func epdToFen(epd string) string {
+func EpdToFen(epd string) string {
 	parts := strings.Split(epd, " ")
 	parts = parts[0:4]
 	return strings.Join(parts, " ")
@@ -55,7 +54,7 @@ func popTargetSquare(moveStr string) (FileRank, string, Error) {
 
 func findPiece(pieceStr string, target FileRank, g *game.GameState, b *bitboards.Bitboards) (FileRank, Error) {
 	moves := []Move{}
-	err := GenerateLegalMoves(b, g, &moves)
+	err := search.GenerateLegalMoves(b, g, &moves)
 	if err.HasError() {
 		return FileRank{}, err
 	}
@@ -136,7 +135,7 @@ func findPiece(pieceStr string, target FileRank, g *game.GameState, b *bitboards
 	return matches[0], NilError
 }
 
-func moveFromShorthand(moveStr string, g *game.GameState, b *bitboards.Bitboards) (string, Error) {
+func MoveFromShorthand(moveStr string, g *game.GameState, b *bitboards.Bitboards) (string, Error) {
 	isCapture, move2 := popCapture(moveStr)
 	promotionPieceType, move3 := popPromotion(move2)
 	targetFileRank, move4, err := popTargetSquare(move3)
@@ -160,7 +159,7 @@ func moveFromShorthand(moveStr string, g *game.GameState, b *bitboards.Bitboards
 	return move.String(), NilError
 }
 
-func movesFromEpd(prefix string, epd string, g *game.GameState, b *bitboards.Bitboards) ([]string, Error) {
+func MovesFromEpd(prefix string, epd string, g *game.GameState, b *bitboards.Bitboards) ([]string, Error) {
 	if !strings.Contains(epd, prefix+" ") {
 		return []string{}, NilError
 	}
@@ -170,7 +169,7 @@ func movesFromEpd(prefix string, epd string, g *game.GameState, b *bitboards.Bit
 	moves := []string{}
 
 	for _, moveStr := range strings.Split(movesStr, ", ") {
-		move, err := moveFromShorthand(moveStr, g, b)
+		move, err := MoveFromShorthand(moveStr, g, b)
 		if err.HasError() {
 			return []string{}, err
 		}
@@ -181,91 +180,7 @@ func movesFromEpd(prefix string, epd string, g *game.GameState, b *bitboards.Bit
 	return moves, NilError
 }
 
-func TestFindsTheRightCapture(t *testing.T) {
-	epd := "r1bqk1r1/1p1p1n2/p1n2pN1/2p1b2Q/2P1Pp2/1PN5/PB4PP/R4RK1 w q - - bm Rxf4; id \"ERET 001 - Relief\";"
-
-	fen := epdToFen(epd)
-	game, err := game.GamestateFromFenString(fen)
-	assert.True(t, err.IsNil(), err)
-
-	bitboards := game.CreateBitboards()
-
-	bestMoves, err := movesFromEpd("bm", epd, game, bitboards)
-
-	assert.True(t, err.IsNil(), err)
-	assert.Equal(t, 1, len(bestMoves))
-	if len(bestMoves) == 1 {
-		assert.Equal(t, "f1f4", bestMoves[0])
-	}
-}
-
-func TestEpdPawn(t *testing.T) {
-	epd := "r1b2r1k/ppp2ppp/8/4p3/2BPQ3/P3P1K1/1B3PPP/n3q1NR w - - bm dxe5; id \"ERET 011 - Attacking Castle\";"
-
-	fen := epdToFen(epd)
-	game, err := game.GamestateFromFenString(fen)
-	assert.True(t, err.IsNil(), err)
-
-	bitboards := game.CreateBitboards()
-
-	bestMoves, err := movesFromEpd("bm", epd, game, bitboards)
-
-	assert.True(t, err.IsNil(), err)
-	assert.Equal(t, 1, len(bestMoves), bestMoves)
-	if len(bestMoves) == 1 {
-		assert.Equal(t, "d4e5", bestMoves[0])
-	}
-}
-
-func TestDisambiguation(t *testing.T) {
-	fen := "5k2/8/1p6/2P5/1b6/8/8/5K2 b - - 0 1"
-
-	game, err := game.GamestateFromFenString(fen)
-	assert.True(t, err.IsNil(), err)
-
-	bitboards := game.CreateBitboards()
-
-	move, err := moveFromShorthand("Bxc5", game, bitboards)
-	assert.True(t, err.IsNil(), err)
-	assert.Equal(t, "b4c5", move)
-
-	move, err = moveFromShorthand("bxc5", game, bitboards)
-	assert.True(t, err.IsNil(), err)
-	assert.Equal(t, "b6c5", move)
-}
-
-func TestPawnPush(t *testing.T) {
-	fen := "r1b1r1k1/1pqn1pbp/p2pp1p1/P7/1n1NPP1Q/2NBBR2/1PP3PP/R6K w"
-
-	game, err := game.GamestateFromFenString(fen)
-	assert.True(t, err.IsNil(), err)
-
-	bitboards := game.CreateBitboards()
-
-	move, err := moveFromShorthand("f5", game, bitboards)
-	assert.True(t, err.IsNil(), err)
-	assert.Equal(t, "f4f5", move)
-}
-
-func TestDisambiguateKnight(t *testing.T) {
-	epd := "2rq1rk1/pb1n1ppN/4p3/1pb5/3P1Pn1/P1N5/1PQ1B1PP/R1B2RK1 b - - bm Nde5; id \"ERET 007 - Bishop Pair\""
-
-	fen := epdToFen(epd)
-	game, err := game.GamestateFromFenString(fen)
-	assert.True(t, err.IsNil(), err)
-
-	bitboards := game.CreateBitboards()
-
-	bestMoves, err := movesFromEpd("bm", epd, game, bitboards)
-
-	assert.True(t, err.IsNil(), err)
-	assert.Equal(t, 1, len(bestMoves), bestMoves)
-	if len(bestMoves) == 1 {
-		assert.Equal(t, "d7e5", bestMoves[0])
-	}
-}
-
-var eigenmannRapid = []string{
+var EigenmannRapidEpds = []string{
 	"r1bqk1r1/1p1p1n2/p1n2pN1/2p1b2Q/2P1Pp2/1PN5/PB4PP/R4RK1 w q - - bm Rxf4; id \"ERET 001 - Relief\";",
 	"r1n2N1k/2n2K1p/3pp3/5Pp1/b5R1/8/1PPP4/8 w - - bm Ng6; id \"ERET 002 - Zugzwang\";",
 	"r1b1r1k1/1pqn1pbp/p2pp1p1/P7/1n1NPP1Q/2NBBR2/1PP3PP/R6K w - - bm f5; id \"ERET 003 - Open Line\";",
@@ -379,57 +294,48 @@ var eigenmannRapid = []string{
 	"8/8/8/8/4kp2/1R6/P2q1PPK/8 w - - bm a3; id \"ERET 111 - Fortress\";",
 }
 
-func TestEigenmannDecoding(t *testing.T) {
-	for _, epd := range eigenmannRapid {
-		fen := epdToFen(epd)
-		game, err := game.GamestateFromFenString(fen)
-		assert.True(t, err.IsNil(), err)
-
-		bitboards := game.CreateBitboards()
-
-		_, err = movesFromEpd("bm", epd, game, bitboards)
-		assert.True(t, err.IsNil(),
-			fmt.Sprintf("epd: %s, %v", epd, err))
-
-		_, err = movesFromEpd("am", epd, game, bitboards)
-		assert.True(t, err.IsNil(), err)
-		assert.True(t, err.IsNil(),
-			fmt.Sprintf("epd: %s, %v", epd, err))
-	}
-}
-
 type EpdResult struct {
-	Epd              string
-	SortedMoves      []string
-	Scores           map[string]int
-	BestMoves        []string
-	AvoidMoves       []string
-	StockfishSuccess bool
+	Epd              string         `json:"epd"`
+	SortedMoves      []string       `json:"sorted_moves"`
+	Scores           map[string]int `json:"scores"`
+	BestMoves        []string       `json:"best_moves"`
+	AvoidMoves       []string       `json:"avoid_moves"`
+	StockfishSuccess bool           `json:"stockfish_success"`
 }
 
-func CheckEpd(
-	t *testing.T, stock *stockfish.StockfishRunner, epd string,
-) EpdResult {
-	fen := epdToFen(epd)
+func CalculateEpdResult(stock *stockfish.StockfishRunner, epd string, duration time.Duration) EpdResult {
+	fen := EpdToFen(epd)
 	game, err := game.GamestateFromFenString(fen)
-	assert.True(t, err.IsNil(), err)
+	if err.HasError() {
+		panic(err)
+	}
 
 	bitboards := game.CreateBitboards()
 
-	bestMoves, err := movesFromEpd("bm", epd, game, bitboards)
-	assert.True(t, err.IsNil(), err)
+	bestMoves, err := MovesFromEpd("bm", epd, game, bitboards)
+	if err.HasError() {
+		panic(err)
+	}
 
-	avoidMoves, err := movesFromEpd("am", epd, game, bitboards)
-	assert.True(t, err.IsNil(), err)
+	avoidMoves, err := MovesFromEpd("am", epd, game, bitboards)
+	if err.HasError() {
+		panic(err)
+	}
 
-	assert.True(t, len(bestMoves) > 0 || len(avoidMoves) > 0, fmt.Sprint(bestMoves, avoidMoves, epd))
-	assert.True(t, (len(bestMoves) > 0) != (len(avoidMoves) > 0), fmt.Sprint(bestMoves, avoidMoves, epd))
+	if len(bestMoves) == 0 && len(avoidMoves) == 0 {
+		panic(Errorf("no bm or am in epd: %v", epd))
+	}
+
+	if len(bestMoves) > 0 && len(avoidMoves) > 0 {
+		panic(Errorf("both bm and am in epd: %v", epd))
+	}
 
 	err = stock.SetupPosition(Position{Fen: fen})
-	assert.True(t, err.IsNil(), err)
+	if err.HasError() {
+		panic(err)
+	}
 
-	scores, sorted, err := stock.SearchVerbose(time.Millisecond * 1000)
-	assert.True(t, err.IsNil(), err)
+	scores, sorted, err := stock.SearchVerbose(duration)
 
 	success := false
 
@@ -441,7 +347,6 @@ func CheckEpd(
 		} else if len(avoidMoves) > 0 && !Contains(avoidMoves, stockBest) {
 			success = true
 		}
-
 	}
 
 	return EpdResult{
@@ -454,26 +359,37 @@ func CheckEpd(
 	}
 }
 
-func TestEigenmannRapid(t *testing.T) {
-	stock := stockfish.NewStockfishRunner(
-		stockfish.WithElo(4000),
-		stockfish.WithLogger(&SilentLogger))
+func ComputeResults(results *[]EpdResult, duration time.Duration, callback func()) {
+	priorSuccess := map[string]bool{}
+	for _, result := range *results {
+		priorSuccess[result.Epd] = result.StockfishSuccess
+	}
 
-	hits := 0
-	totalTests := len(eigenmannRapid)
+	for i, epd := range EigenmannRapidEpds {
+		prefix := fmt.Sprintf("%d/%d", i, len(EigenmannRapidEpds))
 
-	results := map[string]EpdResult{}
-
-	for i, epd := range eigenmannRapid {
-		result := CheckEpd(t, stock, epd)
-		results[epd] = result
-
-		if result.StockfishSuccess {
-			hits++
+		if prior, ok := priorSuccess[epd]; ok {
+			if prior {
+				fmt.Println(prefix, "skipping", epd)
+				continue
+			} else {
+				prefix += " (retry)"
+			}
 		}
 
-		percentage := fmt.Sprintf("%d %%", int(float64(hits)/float64(i+1)*100))
+		runner := stockfish.NewStockfishRunner(
+		// stockfish.WithLogger(&SilentLogger),
+		)
 
-		fmt.Printf("%v (%v/%v)\n", percentage, i, totalTests)
+		result := CalculateEpdResult(runner, epd, duration)
+		*results = append(*results, result)
+
+		if result.StockfishSuccess {
+			fmt.Println(prefix, "success", epd)
+		} else {
+			fmt.Println(prefix, "failure", epd)
+		}
+
+		callback()
 	}
 }

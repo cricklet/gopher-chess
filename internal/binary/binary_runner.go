@@ -99,6 +99,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time
 		go func() {
 			for {
 				line := <-u.stdin.ReadChan
+				u.Logger.Println("stdin: ", line)
 				u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "in:  "+strings.TrimSpace(line))
 			}
 		}()
@@ -107,9 +108,12 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time
 		go func() {
 			stdoutScanner := bufio.NewScanner(bufio.NewReader(stdout))
 			for stdoutScanner.Scan() {
-				line := stdoutScanner.Text()
-				u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "out: "+line)
-				u.stdoutChan <- line
+				output := stdoutScanner.Text()
+				for _, line := range strings.Split(output, "\n") {
+					u.Logger.Println("stdout: ", line)
+					u.stdRecord = AppendSafe(&recordLock, u.stdRecord, "out: "+line)
+					u.stdoutChan <- line
+				}
 			}
 		}()
 
@@ -147,29 +151,6 @@ func (u *BinaryRunner) RunAsync(input string) Error {
 	return NilError
 }
 
-func (u *BinaryRunner) RunUntilChan(input string, doneChan chan bool) ([]string, Error) {
-	result := []string{}
-
-	err := u.RunAsync(input)
-	if !IsNil(err) {
-		return result, err
-	}
-
-	done := false
-	for !done {
-		select {
-		case <-doneChan:
-			u.Logger.Printf("%v", "done channel fired")
-			done = true
-		case output := <-u.stdoutChan:
-			u.Logger.Printf("%v", output)
-			result = append(result, output)
-		}
-	}
-
-	return result, NilError
-}
-
 func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Error) {
 	result := []string{}
 
@@ -189,10 +170,9 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 	for !done {
 		select {
 		case <-timeoutChan:
-			u.Logger.Printf("%v", "timeout")
+			u.Logger.Printf("%v\n", "timeout")
 			done = true
 		case output := <-u.stdoutChan:
-			u.Logger.Printf("%v", output)
 			result = append(result, output)
 			if waitFor.HasValue() && strings.Contains(output, waitFor.Value()) {
 				foundOutput = true

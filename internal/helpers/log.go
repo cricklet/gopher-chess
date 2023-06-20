@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"fmt"
-	"log"
 )
 
 type Logger interface {
@@ -15,13 +14,13 @@ type _defaultLogger struct {
 }
 
 func (l *_defaultLogger) Println(v ...any) {
-	log.Println(v...)
+	fmt.Println(v...)
 }
 func (l *_defaultLogger) Printf(format string, v ...any) {
-	log.Printf(format, v...)
+	fmt.Printf(format, v...)
 }
 func (l *_defaultLogger) Print(v ...any) {
-	log.Print(v...)
+	fmt.Print(v...)
 }
 
 var DefaultLogger = _defaultLogger{}
