@@ -13,7 +13,7 @@ type Logger interface {
 type _defaultLogger struct {
 }
 
-var ellipseCutoff = 120
+var ellipseCutoff = 160
 
 func (l *_defaultLogger) Println(v ...any) {
 	fmt.Println(Ellipses(fmt.Sprint(v...), ellipseCutoff))

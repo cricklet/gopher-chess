@@ -54,8 +54,7 @@ type BinaryRunner struct {
 
 	record []string
 
-	timeout time.Duration
-	Logger  Logger
+	Logger Logger
 }
 
 type BinaryRunnerOption func(*BinaryRunner)
@@ -93,7 +92,6 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time
 	u := &BinaryRunner{
 		cmdPath: cmdPath,
 		cmdName: cmdName,
-		timeout: delay,
 	}
 
 	for _, option := range options {
@@ -143,6 +141,9 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time
 
 		avoidSpam := func(line string) bool {
 			if strings.Contains(line, "multipv") && !strings.Contains(line, "multipv 1 ") {
+				return true
+			}
+			if strings.Contains(line, "currmove") {
 				return true
 			}
 			return false
@@ -197,7 +198,7 @@ func (u *BinaryRunner) RunAsync(input string) Error {
 	return NilError
 }
 
-func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Error) {
+func (u *BinaryRunner) Run(input string, waitFor Optional[string], timeout Optional[time.Duration]) ([]string, Error) {
 	result := []string{}
 
 	err := u.RunAsync(input)
@@ -207,7 +208,11 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 
 	timeoutChan := make(chan bool)
 	go func() {
-		time.Sleep(u.timeout)
+		if timeout.HasValue() {
+			time.Sleep(timeout.Value())
+		} else {
+			time.Sleep(time.Second)
+		}
 		timeoutChan <- true
 	}()
 
@@ -229,7 +234,7 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 		case <-timeoutChan:
 			u.Logger.Println("timeout")
 			done = true
-		case _ = <-u.stdout.Wait():
+		case <-u.stdout.Wait():
 			u.stdout.Flush(update)
 		}
 	}

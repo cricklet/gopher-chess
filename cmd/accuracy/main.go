@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"strconv"
-	"time"
 
 	. "github.com/cricklet/chessgo/internal/accuracy"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -53,36 +51,69 @@ func main() {
 		fmt.Println(" > accuracy chessgo <seconds>")
 		fmt.Println(" > accuracy stockfish <seconds>")
 		fmt.Println(" > accuracy cache")
+		fmt.Println(" > accuracy clean")
 		return
 	}
 
+	cachePath := RootDir() + "/data/epd_cache.json"
 	cache := &[]EpdResult{}
-	found, err := unmarshalEpdCache(RootDir()+"/data/epd_cache.json", cache)
+	found, err := unmarshalEpdCache(cachePath, cache)
 	if err.HasError() {
 		panic(err)
 	}
 
 	fmt.Println("found cache:", found)
 
-	if args[0] == "cache" {
-		duration := time.Millisecond * 100
-		if len(args) > 1 {
-			secondsString := args[1]
-			seconds, err := WrapReturn(strconv.Atoi(secondsString))
-			if err.HasError() {
-				panic(err)
-			}
-			duration = time.Second * time.Duration(seconds)
-			fmt.Println("using duration:", duration)
+	if args[0] == "clean" {
+		err = Wrap(os.Remove(RootDir() + "/data/epd_cache.json"))
+		if err.HasError() {
+			panic(err)
+		}
+	} else if args[0] == "cache" {
+		priorSuccess := map[string]bool{}
+		for _, result := range *cache {
+			priorSuccess[result.Epd] = result.StockfishSuccess
 		}
 
-		ComputeResults(cache, duration, func() {
-			err = marshalEpdCache(RootDir()+"/data/epd_cache.json", cache)
+		for i, epd := range EigenmannRapidEpds {
+			prefix := fmt.Sprintf("%d/%d", i, len(EigenmannRapidEpds))
+
+			if prior, ok := priorSuccess[epd]; ok {
+				if prior {
+					fmt.Println(prefix, "skipping", epd)
+					continue
+				} else {
+					prefix += " (retry)"
+				}
+			}
+
+			result := CalculateEpdResult(epd)
+			*cache = append(*cache, result)
+
+			if result.StockfishSuccess {
+				fmt.Println(prefix, "success", epd)
+			} else {
+				fmt.Println(prefix, "failure", epd)
+			}
+
+			err = marshalEpdCache(cachePath, cache)
 			if err.HasError() {
 				panic(err)
 			}
-		})
+		}
+
 	} else {
+		// duration := time.Millisecond * 100
+		// if len(args) > 1 {
+		// 	secondsString := args[1]
+		// 	seconds, err := WrapReturn(strconv.Atoi(secondsString))
+		// 	if err.HasError() {
+		// 		panic(err)
+		// 	}
+		// 	duration = time.Second * time.Duration(seconds)
+		// 	fmt.Println("using duration:", duration)
+		// }
+
 		// var runner Runner
 		// if args[0] == "chessgo" {
 		// 	r := chessgo.NewChessGoRunner()

@@ -3,11 +3,8 @@ package accuracy
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/cricklet/chessgo/internal/game"
-	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/stockfish"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -111,29 +108,5 @@ func TestEigenmannDecoding(t *testing.T) {
 		assert.True(t, err.IsNil(), err)
 		assert.True(t, err.IsNil(),
 			fmt.Sprintf("epd: %s, %v", epd, err))
-	}
-}
-
-func TestTenthSecondStockfish(t *testing.T) {
-	stock := stockfish.NewStockfishRunner(
-		stockfish.WithElo(4000),
-		stockfish.WithLogger(&SilentLogger))
-
-	hits := 0
-	totalTests := len(EigenmannRapidEpds)
-
-	results := map[string]EpdResult{}
-
-	for i, epd := range EigenmannRapidEpds {
-		result := CalculateEpdResult(stock, epd, 10*time.Millisecond)
-		results[epd] = result
-
-		if result.StockfishSuccess {
-			hits++
-		}
-
-		percentage := fmt.Sprintf("%d %%", int(float64(hits)/float64(i+1)*100))
-
-		fmt.Printf("%v (%v/%v)\n", percentage, i, totalTests)
 	}
 }

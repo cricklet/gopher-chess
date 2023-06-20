@@ -3,7 +3,6 @@ package accuracy
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cricklet/chessgo/internal/bitboards"
 	"github.com/cricklet/chessgo/internal/game"
@@ -301,9 +300,17 @@ type EpdResult struct {
 	BestMoves        []string       `json:"best_moves"`
 	AvoidMoves       []string       `json:"avoid_moves"`
 	StockfishSuccess bool           `json:"stockfish_success"`
+	StockfishDepth   int            `json:"stockfish_depth"`
 }
 
-func CalculateEpdResult(stock *stockfish.StockfishRunner, epd string, duration time.Duration) EpdResult {
+func CalculateEpdResult(epd string) EpdResult {
+	logger := NewLiveLogger()
+
+	stock := stockfish.NewStockfishRunner(
+		// stockfish.WithLogger(&SilentLogger),
+		stockfish.WithLogger(logger),
+	)
+
 	fen := EpdToFen(epd)
 	game, err := game.GamestateFromFenString(fen)
 	if err.HasError() {
@@ -335,61 +342,71 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, epd string, duration t
 		panic(err)
 	}
 
-	scores, sorted, err := stock.SearchVerbose(duration)
+	cleanup, err := stock.SetMultiPV()
+	if err.HasError() {
+		panic(err)
+	}
 
-	success := false
-
-	if len(sorted) > 0 {
-		stockBest := sorted[0].First
-
-		if len(bestMoves) > 0 && Contains(bestMoves, stockBest) {
-			success = true
-		} else if len(avoidMoves) > 0 && !Contains(avoidMoves, stockBest) {
-			success = true
+	defer func() {
+		err := cleanup()
+		if err.HasError() {
+			panic(err)
 		}
-	}
+	}()
 
-	return EpdResult{
-		Epd:              epd,
-		SortedMoves:      MapSlice(sorted, func(m Pair[string, int]) string { return m.First }),
-		Scores:           scores,
-		BestMoves:        bestMoves,
-		AvoidMoves:       avoidMoves,
-		StockfishSuccess: success,
-	}
-}
+	result := EpdResult{}
 
-func ComputeResults(results *[]EpdResult, duration time.Duration, callback func()) {
-	priorSuccess := map[string]bool{}
-	for _, result := range *results {
-		priorSuccess[result.Epd] = result.StockfishSuccess
-	}
+	consecutiveSuccesses := 0
 
-	for i, epd := range EigenmannRapidEpds {
-		prefix := fmt.Sprintf("%d/%d", i, len(EigenmannRapidEpds))
+	// defer profile.Start(profile.ProfilePath(RootDir() + "/data/EpdCacheProfile")).Stop()
 
-		if prior, ok := priorSuccess[epd]; ok {
-			if prior {
-				fmt.Println(prefix, "skipping", epd)
-				continue
-			} else {
-				prefix += " (retry)"
+	for depth := 10; depth < 50; depth++ {
+		logger.SetFooter(
+			fmt.Sprintf("trying depth %v for %v", depth, epd),
+			0,
+		)
+
+		scores, sorted, err := stock.SearchVerbose(stockfish.SearchParams{
+			Depth: Some(depth),
+		})
+		if err.HasError() {
+			panic(err)
+		}
+
+		success := false
+
+		if len(sorted) > 0 {
+			stockBest := sorted[0].First
+
+			if len(bestMoves) > 0 && Contains(bestMoves, stockBest) {
+				success = true
+			} else if len(avoidMoves) > 0 && !Contains(avoidMoves, stockBest) {
+				success = true
 			}
 		}
 
-		runner := stockfish.NewStockfishRunner(
-			stockfish.WithLogger(&SilentLogger),
-		)
+		result.Epd = epd
+		result.SortedMoves = MapSlice(sorted, func(m Pair[string, int]) string { return m.First })
+		result.Scores = scores
+		result.BestMoves = bestMoves
+		result.AvoidMoves = avoidMoves
+		result.StockfishSuccess = success
+		result.StockfishDepth = depth
 
-		result := CalculateEpdResult(runner, epd, duration)
-		*results = append(*results, result)
-
-		if result.StockfishSuccess {
-			fmt.Println(prefix, "success", epd)
+		if success {
+			consecutiveSuccesses++
 		} else {
-			fmt.Println(prefix, "failure", epd)
+			consecutiveSuccesses = 0
 		}
 
-		callback()
+		logger.SetFooter(
+			fmt.Sprintf("successes %v", consecutiveSuccesses),
+			1,
+		)
+		if consecutiveSuccesses > 2 {
+			break
+		}
 	}
+
+	return result
 }

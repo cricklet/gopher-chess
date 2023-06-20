@@ -265,7 +265,7 @@ func RunAsync(binary *binary.BinaryRunner, cmd string) {
 func Run(binary *binary.BinaryRunner, cmd string, waitFor Optional[string]) []string {
 	var result []string
 	binary.Logger.Print("in=>", cmd)
-	result, err := binary.Run(cmd, waitFor)
+	result, err := binary.Run(cmd, waitFor, Empty[time.Duration]())
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -292,7 +292,7 @@ func RunThenStop(binary *binary.BinaryRunner, cmd string, wait time.Duration, st
 		}
 	}()
 
-	result, err := binary.Run(cmd, waitFor)
+	result, err := binary.Run(cmd, waitFor, Empty[time.Duration]())
 	if !IsNil(err) {
 		panic(err)
 	}

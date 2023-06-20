@@ -17,6 +17,8 @@ type StockfishRunner struct {
 	elo      Optional[int]
 	startFen string
 	moves    []string
+
+	multiPVEnabled bool
 }
 
 type StockfishRunnerOption func(*StockfishRunner)
@@ -61,7 +63,7 @@ func (r *StockfishRunner) SetupPosition(position Position) Error {
 
 	var output []string
 
-	output, err = r.binary.Run("isready", Some("readyok"))
+	output, err = r.binary.Run("isready", Some("readyok"), Empty[time.Duration]())
 	if !IsNil(err) {
 		return err
 	}
@@ -69,7 +71,7 @@ func (r *StockfishRunner) SetupPosition(position Position) Error {
 		return Errorf("needs readyok")
 	}
 
-	output, err = r.binary.Run("uci", Some("uciok"))
+	output, err = r.binary.Run("uci", Some("uciok"), Empty[time.Duration]())
 	if !IsNil(err) {
 		return err
 	}
@@ -152,23 +154,28 @@ func (r *StockfishRunner) Rewind(num int) Error {
 
 func (r *StockfishRunner) SetMultiPV() (func() Error, Error) {
 	err := r.binary.RunAsync("setoption name MultiPV value 80")
+	r.multiPVEnabled = true
 	if !IsNil(err) {
 		return func() Error { return NilError }, err
 	}
 	return func() Error {
+		r.multiPVEnabled = false
 		return r.binary.RunAsync("setoption name MultiPV value 1")
 	}, NilError
 }
 
-func (r *StockfishRunner) SearchVerbose(duration time.Duration) (
+type SearchParams struct {
+	Depth    Optional[int]
+	Duration Optional[time.Duration]
+}
+
+func (r *StockfishRunner) SearchVerbose(params SearchParams) (
 	map[string]int, []Pair[string, int], Error,
 ) {
-	cleanup, err := r.SetMultiPV()
-	if !IsNil(err) {
-		return nil, nil, err
+	if !r.multiPVEnabled {
+		return nil, nil, Errorf("use multi-pv for verbose search")
 	}
-
-	result, err := r.SearchRaw(duration)
+	result, err := r.SearchRaw(params)
 	if !IsNil(err) {
 		return nil, nil, err
 	}
@@ -196,11 +203,6 @@ func (r *StockfishRunner) SearchVerbose(duration time.Duration) (
 		return nil, nil, err
 	}
 
-	err = cleanup()
-	if !IsNil(err) {
-		return nil, nil, err
-	}
-
 	moveAndScore := []Pair[string, int]{}
 	for move, score := range moveToScore {
 		moveAndScore = append(moveAndScore,
@@ -213,24 +215,35 @@ func (r *StockfishRunner) SearchVerbose(duration time.Duration) (
 	return moveToScore, moveAndScore, NilError
 }
 
-func (r *StockfishRunner) SearchRaw(duration time.Duration) ([]string, Error) {
+func (r *StockfishRunner) SearchRaw(params SearchParams) ([]string, Error) {
 	var err Error
 	var result []string
-	err = r.binary.RunAsync("go")
-	if !IsNil(err) {
-		return nil, err
-	}
-	time.Sleep(duration)
-	result, err = r.binary.Run("stop", Some("bestmove"))
-	if !IsNil(err) {
-		return nil, err
+
+	if params.Depth.HasValue() {
+		result, err = r.binary.Run(fmt.Sprint("go depth ", params.Depth.Value()), Some("bestmove"), Some(time.Minute*30))
+		if !IsNil(err) {
+			return nil, err
+		}
+	} else if params.Duration.HasValue() {
+		err = r.binary.RunAsync("go")
+		if !IsNil(err) {
+			return nil, err
+		}
+		time.Sleep(params.Duration.Value())
+		result, err = r.binary.Run("stop", Some("bestmove"), Empty[time.Duration]())
+		if !IsNil(err) {
+			return nil, err
+		}
+	} else {
+		return nil, Errorf("no search params provided")
 	}
 
 	return result, NilError
 }
 
 func (r *StockfishRunner) Search() (Optional[string], Error) {
-	result, err := r.SearchRaw(1000 * time.Millisecond)
+	result, err := r.SearchRaw(SearchParams{Duration: Some(1 * time.Second)})
+
 	if !IsNil(err) {
 		return Empty[string](), err
 	}
