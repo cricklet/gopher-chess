@@ -8,6 +8,7 @@ import (
 
 	"github.com/cricklet/chessgo/internal/binary"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/search"
 )
 
 type StockfishRunner struct {
@@ -18,7 +19,7 @@ type StockfishRunner struct {
 	startFen string
 	moves    []string
 
-	multiPVEnabled bool
+	MultiPVEnabled bool
 }
 
 type StockfishRunnerOption func(*StockfishRunner)
@@ -51,10 +52,12 @@ var _ Runner = (*StockfishRunner)(nil)
 func (r *StockfishRunner) SetupPosition(position Position) Error {
 	var err Error
 
+	initialSetup := false
+
 	if r.binary == nil {
+		initialSetup = true
 		r.binary, err = binary.SetupBinaryRunner(
 			"stockfish", "stockfish", []string{},
-			1000*time.Millisecond,
 			binary.WithLogger(r.logger))
 		if !IsNil(err) {
 			return err
@@ -63,36 +66,38 @@ func (r *StockfishRunner) SetupPosition(position Position) Error {
 
 	var output []string
 
-	output, err = r.binary.Run("isready", Some("readyok"))
-	if !IsNil(err) {
-		return err
-	}
-	if !Contains(output, "readyok") {
-		return Errorf("needs readyok")
-	}
+	if initialSetup {
+		output, err = r.binary.Run("isready", Some("readyok"))
+		if !IsNil(err) {
+			return err
+		}
+		if !Contains(output, "readyok") {
+			return Errorf("needs readyok")
+		}
 
-	output, err = r.binary.Run("uci", Some("uciok"))
-	if !IsNil(err) {
-		return err
-	}
-	if !Contains(output, "uciok") {
-		return Errorf("needs uciok")
-	}
+		output, err = r.binary.Run("uci", Some("uciok"))
+		if !IsNil(err) {
+			return err
+		}
+		if !Contains(output, "uciok") {
+			return Errorf("needs uciok")
+		}
 
-	err = r.binary.RunAsync("ucinewgame")
-	if !IsNil(err) {
-		return err
-	}
-
-	if r.elo.HasValue() && r.elo.Value() > 0 {
-		err = r.binary.RunAsync("setoption name UCI_LimitStrength value true")
+		err = r.binary.RunAsync("ucinewgame")
 		if !IsNil(err) {
 			return err
 		}
 
-		err = r.binary.RunAsync(fmt.Sprintf("setoption name UCI_Elo value %v", r.elo.Value()))
-		if !IsNil(err) {
-			return err
+		if r.elo.HasValue() && r.elo.Value() > 0 {
+			err = r.binary.RunAsync("setoption name UCI_LimitStrength value true")
+			if !IsNil(err) {
+				return err
+			}
+
+			err = r.binary.RunAsync(fmt.Sprintf("setoption name UCI_Elo value %v", r.elo.Value()))
+			if !IsNil(err) {
+				return err
+			}
 		}
 	}
 
@@ -154,132 +159,232 @@ func (r *StockfishRunner) Rewind(num int) Error {
 
 func (r *StockfishRunner) SetMultiPV() (func() Error, Error) {
 	err := r.binary.RunAsync("setoption name MultiPV value 80")
-	r.multiPVEnabled = true
+	r.MultiPVEnabled = true
 	if !IsNil(err) {
 		return func() Error { return NilError }, err
 	}
 	return func() Error {
-		r.multiPVEnabled = false
+		r.MultiPVEnabled = false
 		return r.binary.RunAsync("setoption name MultiPV value 1")
 	}, NilError
 }
 
-type SearchParams struct {
-	Depth    Optional[int]
-	Duration Optional[time.Duration]
+func (r *StockfishRunner) SetHashSize(mb int) Error {
+	err := r.binary.RunAsync(fmt.Sprint("setoption name Hash value ", mb))
+	return err
 }
 
-func (r *StockfishRunner) SearchVerbose(params SearchParams) (
-	map[string]int, []Pair[string, int], Error,
-) {
-	if !r.multiPVEnabled {
-		return nil, nil, Errorf("use multi-pv for verbose search")
+func DepthFromInfoLine(line string) (int, Error) {
+	// input: "info depth 14 seldepth 21 multipv 46 score cp -1846 nodes 24503461 nps 1286203 hashfull 1000 tbhits 0 time 19051 pv h5g5 e5d4 g1h1"
+	// returns: 14
+	if strings.Contains(line, "info depth ") {
+		depthStr := strings.Split(
+			strings.Split(line, "info depth ")[1],
+			" ")[0]
+
+		depth, err := WrapReturn(strconv.Atoi(depthStr))
+		if !IsNil(err) {
+			return 0, err
+		}
+
+		return depth, NilError
 	}
 
-	moveToScore := map[string]int{}
+	return 0, Errorf("depth not found")
+}
 
-	err := r.SearchRaw(params, func(line string) Error {
-		if strings.Contains(line, "score cp ") &&
-			strings.Contains(line, "pv ") {
+func MoveAndScoreFromInfoLine(line string) (Optional[string], int, Error) {
+	if strings.Contains(line, "pv ") {
+		moveStr := strings.TrimSpace(strings.Split(
+			strings.Split(line, " pv ")[1],
+			" ")[0])
+
+		if strings.Contains(line, "score cp ") {
 			scoreStr := strings.Split(
 				strings.Split(line, "score cp ")[1],
-				" ")[0]
-			moveStr := strings.Split(
-				strings.Split(line, " pv ")[1],
 				" ")[0]
 
 			score, err := WrapReturn(strconv.Atoi(scoreStr))
 			if !IsNil(err) {
-				return err
+				return Some(moveStr), 0, err
 			}
 
-			moveToScore[moveStr] = score
+			return Some(moveStr), score, NilError
 		}
+		if strings.Contains(line, "score mate ") {
+			scoreStr := strings.Split(
+				strings.Split(line, "score mate ")[1],
+				" ")[0]
 
-		return NilError
-	})
+			score, err := WrapReturn(strconv.Atoi(scoreStr))
+			if !IsNil(err) {
+				return Some(moveStr), 0, err
+			}
 
-	if !IsNil(err) {
-		return nil, nil, err
+			if score < 0 {
+				return Some(moveStr), -search.Inf + score, NilError
+			} else {
+				return Some(moveStr), search.Inf + score, NilError
+			}
+		}
 	}
 
-	if !IsNil(err) {
-		return nil, nil, err
-	}
-
-	moveAndScore := []Pair[string, int]{}
-	for move, score := range moveToScore {
-		moveAndScore = append(moveAndScore,
-			Pair[string, int]{First: move, Second: score})
-	}
-	SortMaxFirst(&moveAndScore, func(p Pair[string, int]) int {
-		return p.Second
-	})
-
-	return moveToScore, moveAndScore, NilError
+	return Empty[string](), 0, NilError
 }
 
-func (r *StockfishRunner) SearchRaw(params SearchParams, callback func(line string) Error) Error {
+func MoveFromBestMoveLine(line string) Optional[string] {
+	if strings.HasPrefix(line, "bestmove ") {
+		return Some(strings.Split(line, " ")[1])
+	}
+
+	return Empty[string]()
+}
+
+func (r *StockfishRunner) SearchUnlimitedRaw(callback func(line string) (LoopResult, Error)) Error {
 	var err Error
 
-	processLine := func(line string) LoopResult {
-		err = callback(line)
+	processLine := func(line string) (LoopResult, Error) {
+		var result LoopResult
+		result, err = callback(line)
 		if !IsNil(err) {
-			return LoopBreak
+			return LoopBreak, err
 		}
 
-		if strings.Contains(line, "bestmove") {
-			return LoopBreak
-		}
-		return LoopContinue
+		return result, NilError
 	}
+
+	err = r.binary.RunSync("go", processLine, Empty[time.Duration]())
+
+	if !IsNil(err) {
+		return err
+	}
+	err = r.binary.RunSync("stop", processLine, Empty[time.Duration]())
+
+	return err
+}
+
+func (r *StockfishRunner) SearchDepthRaw(depth int, callback func(line string) (LoopResult, Error)) Error {
+	var err Error
 
 	if err.HasError() {
 		return err
 	}
 
-	if params.Depth.HasValue() {
-		err = r.binary.RunSync(fmt.Sprint("go depth ", params.Depth.Value()), processLine, Empty[time.Duration]())
-
+	err = r.binary.RunSync(fmt.Sprint("go depth ", depth), func(line string) (LoopResult, Error) {
+		result, err := callback(line)
 		if !IsNil(err) {
-			return err
+			return LoopBreak, err
 		}
 
-	} else if params.Duration.HasValue() {
-		err = r.binary.RunAsync("go")
-		if !IsNil(err) {
-			return err
-		}
-		time.Sleep(params.Duration.Value())
-		err = r.binary.RunSync(fmt.Sprint("stop", params.Depth.Value()), processLine, Empty[time.Duration]())
+		return result, NilError
+	}, Empty[time.Duration]())
 
-		if !IsNil(err) {
-			return err
-		}
-	} else {
-		return Errorf("no search params provided")
+	if !IsNil(err) {
+		return err
 	}
-
 	return NilError
 }
 
-func (r *StockfishRunner) Search() (Optional[string], Error) {
-	bestMoveString := Empty[string]()
+func (r *StockfishRunner) SearchDurationRaw(duration time.Duration, callback func(line string) (LoopResult, Error)) Error {
+	var err Error
 
-	err := r.SearchRaw(SearchParams{Duration: Some(1 * time.Second)}, func(v string) Error {
-		if strings.HasPrefix(v, "bestmove ") {
-			bestMoveString = Some(v)
-		}
-		return NilError
-	})
+	err = r.binary.RunAsync("go")
+	if !IsNil(err) {
+		return err
+	}
+
+	time.Sleep(time.Second)
+	err = r.binary.RunSync(
+		"stop",
+		func(line string) (LoopResult, Error) {
+			result, err := callback(line)
+			if !IsNil(err) {
+				return LoopBreak, err
+			}
+
+			return result, NilError
+		},
+		Some(time.Second), // timeout for reading stdout
+	)
 
 	if !IsNil(err) {
-		return Empty[string](), err
+		return err
+	}
+	return NilError
+}
+
+type SearchReader struct {
+	bestPVMove  Optional[string]
+	bestPVScore int
+	bestMove    Optional[string]
+	depth       int
+	noCopy      NoCopy
+}
+
+func (r *SearchReader) ReadLine(line string) (LoopResult, Error) {
+	{
+		move, score, err := MoveAndScoreFromInfoLine(line)
+		if !IsNil(err) {
+			return LoopBreak, err
+		}
+
+		if move.HasValue() {
+			r.bestPVMove = move
+			r.bestPVScore = score
+
+			depth, err := DepthFromInfoLine(line)
+			if !IsNil(err) {
+				return LoopBreak, err
+			}
+
+			r.depth = depth
+		}
 	}
 
-	if bestMoveString.HasValue() {
-		return Some(strings.Split(bestMoveString.Value(), " ")[1]), NilError
+	{
+		move := MoveFromBestMoveLine(line)
+		if move.HasValue() {
+			r.bestMove = move
+
+			if r.bestPVMove != r.bestMove {
+				return LoopBreak, Errorf("best move does not match best PV move (best move: %v, best PV move: %v)", r.bestMove, r.bestPVMove)
+			} else {
+				return LoopBreak, NilError
+			}
+		}
 	}
 
-	return Empty[string](), NilError
+	return LoopContinue, NilError
+}
+
+func (runner *StockfishRunner) SearchDepth(depth int) (Optional[string], int, Error) {
+	if runner.MultiPVEnabled {
+		return Empty[string](), 0, Errorf("cannot search with MultiPV enabled")
+	}
+
+	reader := &SearchReader{}
+
+	err := runner.SearchDepthRaw(depth, reader.ReadLine)
+
+	if !IsNil(err) {
+		return Empty[string](), 0, err
+	}
+
+	return reader.bestMove, reader.bestPVScore, NilError
+}
+
+func (runner *StockfishRunner) Search() (Optional[string], int, Error) {
+	if runner.MultiPVEnabled {
+		return Empty[string](), 0, Errorf("cannot search with MultiPV enabled")
+	}
+
+	reader := &SearchReader{}
+
+	err := runner.SearchDurationRaw(time.Second, reader.ReadLine)
+
+	if !IsNil(err) {
+		return Empty[string](), 0, err
+	}
+
+	return reader.bestMove, reader.bestPVScore, NilError
 }

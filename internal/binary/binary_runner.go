@@ -57,7 +57,7 @@ func wrapError(u *BinaryRunner, err error) Error {
 	return NilError
 }
 
-func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time.Duration, options ...BinaryRunnerOption) (*BinaryRunner, Error) {
+func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ...BinaryRunnerOption) (*BinaryRunner, Error) {
 	u := &BinaryRunner{
 		cmdPath: cmdPath,
 		cmdName: cmdName,
@@ -124,7 +124,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, delay time
 				output := stdoutScanner.Text()
 				for _, line := range strings.Split(output, "\n") {
 					if !avoidSpam(line) {
-						u.Logger.Println("stdout: ", line)
+						u.Logger.Println("stdout: ", Ellipses(line, 140))
 					}
 
 					u.record = AppendSafe(&recordLock, u.record, "out: "+line)
@@ -167,7 +167,7 @@ func (u *BinaryRunner) RunAsync(input string) Error {
 	return NilError
 }
 
-func (u *BinaryRunner) RunSync(input string, callback func(string) LoopResult, timeout Optional[time.Duration]) Error {
+func (u *BinaryRunner) RunSync(input string, callback func(string) (LoopResult, Error), timeout Optional[time.Duration]) Error {
 	err := u.RunAsync(input)
 	if !IsNil(err) {
 		return err
@@ -185,16 +185,25 @@ func (u *BinaryRunner) RunSync(input string, callback func(string) LoopResult, t
 	for !done {
 		select {
 		case <-timeoutChan:
+			err = u.stdout.Flush(func(line string) Error {
+				_, err = callback(line)
+				return err
+			})
 			u.Logger.Println("timeout")
 			done = true
 		case <-u.stdout.Wait():
-			u.stdout.Flush(func(line string) {
-				result := callback(line)
+			err = u.stdout.Flush(func(line string) Error {
+				result, err := callback(line)
 				if result == LoopBreak {
 					done = true
 				}
+				return err
 			})
 		}
+	}
+
+	if !IsNil(err) {
+		return err
 	}
 
 	return NilError
@@ -210,14 +219,14 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 
 	foundOutput := false
 
-	err = u.RunSync(input, func(line string) LoopResult {
+	err = u.RunSync(input, func(line string) (LoopResult, Error) {
 		result = append(result, line)
 
 		if waitFor.HasValue() && strings.Contains(line, waitFor.Value()) {
 			foundOutput = true
-			return LoopBreak
+			return LoopBreak, NilError
 		}
-		return LoopContinue
+		return LoopContinue, NilError
 	}, Some(time.Second))
 
 	if !IsNil(err) {

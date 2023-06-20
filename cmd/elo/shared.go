@@ -121,7 +121,7 @@ type Evaluator struct {
 }
 
 func NewEvaluator() (*Evaluator, Error) {
-	evaluator, err := binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, time.Millisecond*1000, binary.WithLogger(&SilentLogger))
+	evaluator, err := binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, binary.WithLogger(&SilentLogger))
 	if !IsNil(err) {
 		return nil, err
 	}

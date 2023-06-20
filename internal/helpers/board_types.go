@@ -568,6 +568,6 @@ type Runner interface {
 	MovesForSelection(s string) ([]string, Error)
 	Rewind(num int) Error
 	Reset()
-	Search() (Optional[string], Error)
+	Search() (Optional[string], int, Error)
 	IsNew() bool
 }

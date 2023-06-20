@@ -75,7 +75,7 @@ func (u *uciRunner) HandleInput(input string) ([]string, Error) {
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move, err := u.Runner.Search()
+		move, _, err := u.Runner.Search()
 		if !IsNil(err) {
 			return result, err
 		}

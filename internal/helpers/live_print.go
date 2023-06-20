@@ -10,6 +10,8 @@ import (
 
 type LiveLogger struct {
 	footers []string
+
+	noCopy NoCopy
 }
 
 var _ Logger = &LiveLogger{}

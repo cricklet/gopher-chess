@@ -36,7 +36,7 @@ func TestStockfish(t *testing.T) {
 			assert.True(t, IsNil(err))
 		}
 
-		move, err := r.Search()
+		move, _, err := r.Search()
 		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 	}

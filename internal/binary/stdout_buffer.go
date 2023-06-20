@@ -7,6 +7,7 @@ import (
 type StdOutBuffer struct {
 	buffer  []string
 	updated chan bool
+	read    int
 
 	noCopy NoCopy
 }
@@ -23,12 +24,19 @@ func (u *StdOutBuffer) Update(line string) {
 	}
 }
 
-func (u *StdOutBuffer) Flush(callback func(line string)) {
-	for _, line := range u.buffer {
-		callback(line)
+func (u *StdOutBuffer) Flush(callback func(line string) Error) Error {
+	var err Error
+
+	for i := u.read; i < len(u.buffer); i++ {
+		err = callback(u.buffer[i])
+		if !IsNil(err) {
+			break
+		}
 	}
 
-	u.buffer = []string{}
+	u.read = len(u.buffer)
+
+	return err
 }
 
 func (u *StdOutBuffer) Wait() chan bool {

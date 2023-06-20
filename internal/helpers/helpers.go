@@ -39,6 +39,22 @@ func Ellipses(s string, maxLength int) string {
 	return s
 }
 
+func ValuesAllEqual[K comparable, T comparable](m map[K]T) bool {
+	var initial T
+	for _, v := range m {
+		initial = v
+		break
+	}
+
+	for _, v := range m {
+		if v != initial {
+			return false
+		}
+	}
+
+	return true
+}
+
 func GetWithDefault[K comparable, T any](m map[K]T, key K, d T) T {
 	if v, ok := m[key]; ok {
 		return v

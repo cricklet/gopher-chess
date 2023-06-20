@@ -13,19 +13,17 @@ type Logger interface {
 type _defaultLogger struct {
 }
 
-var ellipseCutoff = 160
-
 func (l *_defaultLogger) Println(v ...any) {
-	fmt.Println(Ellipses(fmt.Sprint(v...), ellipseCutoff))
-	// fmt.Println(v...)
+	// fmt.Println(Ellipses(fmt.Sprint(v...), ellipseCutoff))
+	fmt.Println(v...)
 }
 func (l *_defaultLogger) Printf(format string, v ...any) {
-	fmt.Print(Ellipses(fmt.Sprintf(format, v...), ellipseCutoff))
-	// fmt.Printf(format, v...)
+	// fmt.Print(Ellipses(fmt.Sprintf(format, v...), ellipseCutoff))
+	fmt.Printf(format, v...)
 }
 func (l *_defaultLogger) Print(v ...any) {
-	fmt.Print(Ellipses(fmt.Sprint(v...), ellipseCutoff))
-	// fmt.Print(v...)
+	// fmt.Print(Ellipses(fmt.Sprint(v...), ellipseCutoff))
+	fmt.Print(v...)
 }
 
 var DefaultLogger = _defaultLogger{}

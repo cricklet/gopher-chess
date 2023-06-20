@@ -218,7 +218,7 @@ func playGameBinaries(
 				_footerEval)
 		}
 	})
-	stockfish, err = binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, time.Millisecond*10000, binary.WithLogger(stockfishLogger))
+	stockfish, err = binary.SetupBinaryRunner("stockfish", "stockfish", []string{}, binary.WithLogger(stockfishLogger))
 	if !IsNil(err) {
 		panic(err)
 	}
@@ -226,7 +226,7 @@ func playGameBinaries(
 
 	var opponent *binary.BinaryRunner
 	chessgoLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
-	opponent, err = binary.SetupBinaryRunner(binaryPath, "chessgo", binaryArgs, time.Millisecond*10000, binary.WithLogger(chessgoLogger))
+	opponent, err = binary.SetupBinaryRunner(binaryPath, "chessgo", binaryArgs, binary.WithLogger(chessgoLogger))
 	if !IsNil(err) {
 		panic(err)
 	}

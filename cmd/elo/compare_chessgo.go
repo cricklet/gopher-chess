@@ -86,8 +86,7 @@ func setupChessGoRunner(binaryPath string, options string, fen string) (*binary.
 	var player *binary.BinaryRunner
 	name := fmt.Sprintf("chessgo (%v)", options)
 	logger := FuncLogger(func(s string) { logger.Println(name, ">", Indent(s, "$ ")) })
-	player, err = binary.SetupBinaryRunner(binaryPath, "chessgo", strings.Split(options, " "),
-		time.Millisecond*10000, binary.WithLogger(logger))
+	player, err = binary.SetupBinaryRunner(binaryPath, "chessgo", strings.Split(options, " "), binary.WithLogger(logger))
 	if !IsNil(err) {
 		return nil, err
 	}

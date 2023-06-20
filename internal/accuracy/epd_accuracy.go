@@ -294,18 +294,137 @@ var EigenmannRapidEpds = []string{
 }
 
 type EpdResult struct {
-	Epd              string         `json:"epd"`
-	SortedMoves      []string       `json:"sorted_moves"`
-	Scores           map[string]int `json:"scores"`
-	BestMoves        []string       `json:"best_moves"`
-	AvoidMoves       []string       `json:"avoid_moves"`
+	Epd string `json:"epd"`
+
+	BestMoves  []string `json:"best_moves"`
+	AvoidMoves []string `json:"avoid_moves"`
+
+	StockfishScores  map[string]int `json:"stockfish_scores"`
+	StockfishMove    string         `json:"stockfish_move"`
 	StockfishSuccess bool           `json:"stockfish_success"`
 	StockfishDepth   int            `json:"stockfish_depth"`
 }
 
-func CalculateEpdResult(epd string) EpdResult {
-	logger := NewLiveLogger()
+func calculateSuccess(move string, bestMoves []string, avoidMoves []string) bool {
+	if len(bestMoves) > 0 && !Contains(bestMoves, move) {
+		return false
+	} else if len(avoidMoves) > 0 && Contains(avoidMoves, move) {
+		return false
+	}
+	return true
+}
 
+func CalculateDepthForEpdSuccess(
+	logger *LiveLogger,
+	stock *stockfish.StockfishRunner,
+	epd string,
+	bestMoves []string,
+	avoidMoves []string,
+) (string, int, Error) {
+	depth := 0
+	bestMove := ""
+
+	consecutiveSuccesses := map[int]bool{}
+
+	if stock.MultiPVEnabled {
+		return "", 0, Errorf("MultiPV must be disabled")
+	}
+
+	err := stock.SearchUnlimitedRaw(
+		func(line string) (LoopResult, Error) {
+			move, _, err := stockfish.MoveAndScoreFromInfoLine(line)
+			if err.HasError() {
+				return LoopBreak, err
+			}
+
+			if !move.HasValue() {
+				return LoopContinue, NilError
+			}
+			depth, err = stockfish.DepthFromInfoLine(line)
+			if err.HasError() {
+				return LoopBreak, err
+			}
+
+			if calculateSuccess(move.Value(), bestMoves, avoidMoves) {
+				consecutiveSuccesses[depth] = true
+			} else {
+				consecutiveSuccesses = map[int]bool{}
+			}
+
+			footerString := fmt.Sprintf("found %v at depth %v with %v successes for %v", move.Value(), depth, len(consecutiveSuccesses), epd)
+
+			logger.SetFooter(
+				footerString,
+				0,
+			)
+
+			if len(consecutiveSuccesses) > 0 {
+				logger.Println(footerString)
+			}
+
+			if len(consecutiveSuccesses) >= 3 {
+				bestMove = move.Value()
+				return LoopBreak, NilError
+			}
+
+			return LoopContinue, NilError
+		},
+	)
+
+	if err.HasError() {
+		return "", depth, err
+	}
+
+	return bestMove, depth - 2, NilError
+}
+
+func CalculateScoreForEveryMove(
+	logger *LiveLogger,
+	stock *stockfish.StockfishRunner,
+	goalDepth int,
+	fen string,
+	g *game.GameState,
+	b *bitboards.Bitboards,
+) (map[string]int, Error) {
+	scores := map[string]int{}
+
+	if stock.MultiPVEnabled {
+		return scores, Errorf("MultiPV must be disabled")
+	}
+
+	moves := []Move{}
+	err := search.GenerateLegalMoves(b, g, &moves)
+	if err.HasError() {
+		return scores, err
+	}
+
+	for i, move := range moves {
+		err := stock.SetupPosition(Position{
+			Fen: fen,
+			Moves: []string{
+				move.String(),
+			},
+		})
+		if err.HasError() {
+			return scores, err
+		}
+
+		logger.Printf("(%v / %v) searching %v\n", i+1, len(moves), move.String())
+		_, enemyScore, err := stock.SearchDepth(goalDepth - 1)
+		if err.HasError() {
+			return scores, err
+		}
+
+		score := -enemyScore
+
+		logger.Printf("(%v / %v) score for %v is %v\n", i+1, len(moves), move.String(), score)
+		scores[move.String()] = score
+	}
+
+	return scores, NilError
+}
+
+func CalculateEpdResult(logger *LiveLogger, epd string) EpdResult {
 	stock := stockfish.NewStockfishRunner(
 		// stockfish.WithLogger(&SilentLogger),
 		stockfish.WithLogger(logger),
@@ -342,71 +461,45 @@ func CalculateEpdResult(epd string) EpdResult {
 		panic(err)
 	}
 
-	cleanup, err := stock.SetMultiPV()
+	err = stock.SetHashSize(1024)
 	if err.HasError() {
 		panic(err)
 	}
 
-	defer func() {
-		err := cleanup()
-		if err.HasError() {
-			panic(err)
-		}
-	}()
-
 	result := EpdResult{}
-
-	consecutiveSuccesses := 0
 
 	// defer profile.Start(profile.ProfilePath(RootDir() + "/data/EpdCacheProfile")).Stop()
 
-	for depth := 10; depth < 50; depth++ {
-		logger.SetFooter(
-			fmt.Sprintf("trying depth %v for %v", depth, epd),
-			0,
-		)
+	move, depth, err := CalculateDepthForEpdSuccess(
+		logger,
+		stock,
+		epd,
+		bestMoves,
+		avoidMoves,
+	)
 
-		scores, sorted, err := stock.SearchVerbose(stockfish.SearchParams{
-			Depth: Some(depth),
-		})
-		if err.HasError() {
-			panic(err)
-		}
+	logger.SetFooter("", 0)
+	logger.Println(fmt.Sprintf("found correct move w/ depth %v", depth))
 
-		success := false
+	moveToScore, err := CalculateScoreForEveryMove(
+		logger,
+		stock,
+		depth,
+		fen,
+		game,
+		bitboards,
+	)
 
-		if len(sorted) > 0 {
-			stockBest := sorted[0].First
-
-			if len(bestMoves) > 0 && Contains(bestMoves, stockBest) {
-				success = true
-			} else if len(avoidMoves) > 0 && !Contains(avoidMoves, stockBest) {
-				success = true
-			}
-		}
-
-		result.Epd = epd
-		result.SortedMoves = MapSlice(sorted, func(m Pair[string, int]) string { return m.First })
-		result.Scores = scores
-		result.BestMoves = bestMoves
-		result.AvoidMoves = avoidMoves
-		result.StockfishSuccess = success
-		result.StockfishDepth = depth
-
-		if success {
-			consecutiveSuccesses++
-		} else {
-			consecutiveSuccesses = 0
-		}
-
-		logger.SetFooter(
-			fmt.Sprintf("successes %v", consecutiveSuccesses),
-			1,
-		)
-		if consecutiveSuccesses > 2 {
-			break
-		}
+	if err.HasError() {
+		panic(err)
 	}
 
+	result.Epd = epd
+	result.BestMoves = bestMoves
+	result.AvoidMoves = avoidMoves
+	result.StockfishMove = move
+	result.StockfishScores = moveToScore
+	result.StockfishSuccess = true
+	result.StockfishDepth = depth
 	return result
 }
