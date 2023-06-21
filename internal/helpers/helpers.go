@@ -26,6 +26,17 @@ type Success bool
 func Ignore(t ...any) {
 }
 
+func AsyncSend[T any](c *chan T, t T) {
+	select {
+	case *c <- t:
+		{
+		}
+	default:
+		{
+		}
+	}
+}
+
 func Ellipses(s string, maxLength int) string {
 	if len(s) > maxLength {
 		for i := maxLength - 1; i >= 0; i-- {

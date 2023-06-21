@@ -24,8 +24,10 @@ func TestStockfish(t *testing.T) {
 	}
 
 	{
-		r := NewStockfishRunner()
-		err := r.SetupPosition(Position{
+		r, err := NewStockfishRunner()
+		assert.True(t, IsNil(err))
+
+		err = r.SetupPosition(Position{
 			Fen:   fen,
 			Moves: []string{},
 		})

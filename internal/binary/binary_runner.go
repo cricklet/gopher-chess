@@ -103,10 +103,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 			}
 		}()
 
-		u.stdout = StdOutBuffer{
-			buffer:  []string{},
-			updated: make(chan bool),
-		}
+		u.stdout = StdOutBuffer{}
 
 		avoidSpam := func(line string) bool {
 			if strings.Contains(line, "multipv") && !strings.Contains(line, "multipv 1 ") {
@@ -173,15 +170,29 @@ func (u *BinaryRunner) RunSync(input string, callback func(string) (LoopResult, 
 		return err
 	}
 
+	done := false
+
 	timeoutChan := make(chan bool)
 	go func() {
 		if timeout.HasValue() {
 			time.Sleep(timeout.Value())
-			timeoutChan <- true
+			AsyncSend(&timeoutChan, true)
+		} else {
+			time.Sleep(time.Second * 10)
+		}
+		if !done {
+			fmt.Println("possible timeout detected")
 		}
 	}()
 
-	done := false
+	handleLine := func(line string) Error {
+		result, err := callback(line)
+		if result == LoopBreak {
+			done = true
+		}
+		return err
+	}
+
 	for !done {
 		select {
 		case <-timeoutChan:
@@ -192,13 +203,11 @@ func (u *BinaryRunner) RunSync(input string, callback func(string) (LoopResult, 
 			u.Logger.Println("timeout")
 			done = true
 		case <-u.stdout.Wait():
-			err = u.stdout.Flush(func(line string) Error {
-				result, err := callback(line)
-				if result == LoopBreak {
-					done = true
-				}
-				return err
-			})
+			err = u.stdout.Flush(handleLine)
+		}
+
+		if !IsNil(err) {
+			return err
 		}
 	}
 
@@ -212,14 +221,9 @@ func (u *BinaryRunner) RunSync(input string, callback func(string) (LoopResult, 
 func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Error) {
 	result := []string{}
 
-	err := u.RunAsync(input)
-	if !IsNil(err) {
-		return result, err
-	}
-
 	foundOutput := false
 
-	err = u.RunSync(input, func(line string) (LoopResult, Error) {
+	err := u.RunSync(input, func(line string) (LoopResult, Error) {
 		result = append(result, line)
 
 		if waitFor.HasValue() && strings.Contains(line, waitFor.Value()) {

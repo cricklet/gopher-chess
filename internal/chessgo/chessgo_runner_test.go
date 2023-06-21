@@ -97,7 +97,8 @@ type UciIteration struct {
 
 func TestBattle(t *testing.T) {
 	chessgo := NewChessGoRunner()
-	stockfish := stockfish.NewStockfishRunner()
+	stockfish, err := stockfish.NewStockfishRunner()
+	assert.True(t, IsNil(err))
 
 	// Setup both runners
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -106,7 +107,7 @@ func TestBattle(t *testing.T) {
 		Moves: []string{},
 	}
 
-	err := chessgo.SetupPosition(startPosition)
+	err = chessgo.SetupPosition(startPosition)
 	assert.True(t, IsNil(err))
 	err = stockfish.SetupPosition(startPosition)
 	assert.True(t, IsNil(err))

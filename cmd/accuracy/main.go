@@ -8,6 +8,7 @@ import (
 
 	. "github.com/cricklet/chessgo/internal/accuracy"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/stockfish"
 )
 
 func unmarshalEpdCache(jsonPath string, results *[]EpdResult) (bool, Error) {
@@ -48,9 +49,9 @@ func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
 		fmt.Println("usage:")
-		fmt.Println(" > accuracy chessgo <seconds>")
-		fmt.Println(" > accuracy stockfish <seconds>")
-		fmt.Println(" > accuracy cache")
+		fmt.Println(" > accuracy chessgo <seconds> <epd>")
+		fmt.Println(" > accuracy stockfish <seconds> <epd>")
+		fmt.Println(" > accuracy cache <epd>")
 		fmt.Println(" > accuracy clean")
 		return
 	}
@@ -65,19 +66,37 @@ func main() {
 	logger := NewLiveLogger()
 	logger.Println("found cache:", found)
 
+	stock, err := stockfish.NewStockfishRunner(
+		// stockfish.WithLogger(logger),
+		stockfish.WithLogger(NewFooterLogger(logger, 2)),
+	)
+	if err.HasError() {
+		panic(err)
+	}
+
 	if args[0] == "clean" {
 		err = Wrap(os.Remove(RootDir() + "/data/epd_cache.json"))
 		if err.HasError() {
-			panic(err)
+			fmt.Println("no cache to clean")
 		}
 	} else if args[0] == "cache" {
+		if len(args) < 2 {
+			fmt.Println("usage: accuracy cache <epd>")
+			return
+		}
+
 		priorSuccess := map[string]bool{}
 		for _, result := range *cache {
 			priorSuccess[result.Epd] = result.StockfishSuccess
 		}
 
-		for i, epd := range EigenmannRapidEpds {
-			prefix := fmt.Sprintf("%d/%d", i+1, len(EigenmannRapidEpds))
+		epdName := args[1]
+		epdPath := RootDir() + "/internal/accuracy/" + epdName + ".epd"
+
+		epds, err := LoadEpd(epdPath)
+
+		for i, epd := range epds {
+			prefix := fmt.Sprintf("%d/%d", i+1, len(epds))
 
 			if prior, ok := priorSuccess[epd]; ok {
 				if prior {
@@ -88,7 +107,7 @@ func main() {
 				}
 			}
 
-			result := CalculateEpdResult(logger, epd)
+			result := CalculateEpdResult(stock, logger, epd)
 			*cache = append(*cache, result)
 
 			if result.StockfishSuccess {
@@ -101,8 +120,6 @@ func main() {
 			if err.HasError() {
 				panic(err)
 			}
-
-			break
 		}
 
 	}

@@ -24,6 +24,27 @@ func NewLiveLogger() *LiveLogger {
 	return l
 }
 
+type _footerLogger struct {
+	logger *LiveLogger
+	i      int
+}
+
+func NewFooterLogger(logger *LiveLogger, i int) *_footerLogger {
+	return &_footerLogger{logger: logger, i: i}
+}
+
+func (l *_footerLogger) Println(v ...any) {
+	l.logger.SetFooter(fmt.Sprintln(v...), l.i)
+}
+func (l *_footerLogger) Printf(format string, v ...any) {
+	l.logger.SetFooter(fmt.Sprintf(format, v...), l.i)
+}
+func (l *_footerLogger) Print(v ...any) {
+	l.logger.SetFooter(fmt.Sprint(v...), l.i)
+}
+
+var FooterLogger = _footerLogger{}
+
 func (l *LiveLogger) FooterString() string {
 	return strings.Join(l.footers, "\n")
 }

@@ -35,7 +35,7 @@ func WithLogger(logger Logger) StockfishRunnerOption {
 	}
 }
 
-func NewStockfishRunner(options ...StockfishRunnerOption) *StockfishRunner {
+func NewStockfishRunner(options ...StockfishRunnerOption) (*StockfishRunner, Error) {
 	r := &StockfishRunner{}
 	for _, o := range options {
 		o(r)
@@ -44,62 +44,51 @@ func NewStockfishRunner(options ...StockfishRunnerOption) *StockfishRunner {
 		r.logger = &DefaultLogger
 	}
 
-	return r
+	var err Error
+
+	r.binary, err = binary.SetupBinaryRunner(
+		"stockfish", "stockfish", []string{},
+		binary.WithLogger(r.logger))
+	if !IsNil(err) {
+		return nil, err
+	}
+
+	var output []string
+
+	output, err = r.binary.Run("isready", Some("readyok"))
+	if !IsNil(err) {
+		return nil, err
+	}
+	if !Contains(output, "readyok") {
+		return nil, Errorf("needs readyok")
+	}
+
+	output, err = r.binary.Run("uci", Some("uciok"))
+	if !IsNil(err) {
+		return nil, err
+	}
+	if !Contains(output, "uciok") {
+		return nil, Errorf("needs uciok")
+	}
+
+	if r.elo.HasValue() && r.elo.Value() > 0 {
+		err = r.binary.RunAsync("setoption name UCI_LimitStrength value true")
+		if !IsNil(err) {
+			return nil, err
+		}
+
+		err = r.binary.RunAsync(fmt.Sprintf("setoption name UCI_Elo value %v", r.elo.Value()))
+		if !IsNil(err) {
+			return nil, err
+		}
+	}
+	return r, NilError
 }
 
 var _ Runner = (*StockfishRunner)(nil)
 
 func (r *StockfishRunner) SetupPosition(position Position) Error {
 	var err Error
-
-	initialSetup := false
-
-	if r.binary == nil {
-		initialSetup = true
-		r.binary, err = binary.SetupBinaryRunner(
-			"stockfish", "stockfish", []string{},
-			binary.WithLogger(r.logger))
-		if !IsNil(err) {
-			return err
-		}
-	}
-
-	var output []string
-
-	if initialSetup {
-		output, err = r.binary.Run("isready", Some("readyok"))
-		if !IsNil(err) {
-			return err
-		}
-		if !Contains(output, "readyok") {
-			return Errorf("needs readyok")
-		}
-
-		output, err = r.binary.Run("uci", Some("uciok"))
-		if !IsNil(err) {
-			return err
-		}
-		if !Contains(output, "uciok") {
-			return Errorf("needs uciok")
-		}
-
-		err = r.binary.RunAsync("ucinewgame")
-		if !IsNil(err) {
-			return err
-		}
-
-		if r.elo.HasValue() && r.elo.Value() > 0 {
-			err = r.binary.RunAsync("setoption name UCI_LimitStrength value true")
-			if !IsNil(err) {
-				return err
-			}
-
-			err = r.binary.RunAsync(fmt.Sprintf("setoption name UCI_Elo value %v", r.elo.Value()))
-			if !IsNil(err) {
-				return err
-			}
-		}
-	}
 
 	r.startFen = position.Fen
 	r.moves = position.Moves

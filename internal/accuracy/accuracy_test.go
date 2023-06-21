@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/cricklet/chessgo/internal/game"
+	"github.com/cricklet/chessgo/internal/helpers"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -92,8 +93,11 @@ func TestDisambiguateKnight(t *testing.T) {
 	}
 }
 
-func TestEigenmannDecoding(t *testing.T) {
-	for _, epd := range EigenmannRapidEpds {
+func CheckEpd(t *testing.T, name string) {
+	epds, err := LoadEpd(helpers.RootDir() + "/internal/accuracy/" + name)
+	assert.True(t, err.IsNil(), err)
+
+	for _, epd := range epds {
 		fen := EpdToFen(epd)
 		game, err := game.GamestateFromFenString(fen)
 		assert.True(t, err.IsNil(), err)
@@ -109,4 +113,12 @@ func TestEigenmannDecoding(t *testing.T) {
 		assert.True(t, err.IsNil(),
 			fmt.Sprintf("epd: %s, %v", epd, err))
 	}
+}
+
+func TestDecoding(t *testing.T) {
+	CheckEpd(t, "ccr.epd")
+	CheckEpd(t, "eigenmann.epd")
+	CheckEpd(t, "kaufman.epd")
+	CheckEpd(t, "louguet.epd")
+	CheckEpd(t, "wac.epd")
 }

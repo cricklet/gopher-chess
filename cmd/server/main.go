@@ -146,13 +146,17 @@ func main() {
 
 		chessGoRunner := chessgo.NewChessGoRunner()
 
-		stockfishRunner := stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
+		stockfishRunner, err := stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
 			&LogForwarding{
 				writeCallback: func(message string) {
 					log(fmt.Sprintf("stockfish: %v", message))
 				},
 			},
 		))
+
+		if !IsNil(err) {
+			panic(err)
+		}
 
 		var runnerForPlayer = func(p Player) Runner {
 			if playerTypes[p] == ChessGo {
