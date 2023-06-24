@@ -1,35 +1,34 @@
 package binary
 
 import (
-	"sync"
-
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
 type StdOutBuffer struct {
-	buffer []string
-	read   int
-
-	waitingLock sync.Mutex
-	waiting     Optional[chan bool]
+	buffer  []string
+	updated chan bool
+	read    int
 
 	noCopy NoCopy
 }
 
 func (u *StdOutBuffer) Update(line string) {
 	u.buffer = append(u.buffer, line)
-
-	u.waitingLock.Lock()
-	defer u.waitingLock.Unlock()
-	if u.waiting.HasValue() {
-		u.waiting.Value() <- true
-		u.waiting = Empty[chan bool]()
+	select {
+	case u.updated <- true:
+		{
+		}
+	default:
+		{
+		}
 	}
 }
 
 func (u *StdOutBuffer) Flush(callback func(line string) Error) Error {
+	var err Error
+
 	for i := u.read; i < len(u.buffer); i++ {
-		err := callback(u.buffer[i])
+		err = callback(u.buffer[i])
 		if !IsNil(err) {
 			break
 		}
@@ -37,17 +36,9 @@ func (u *StdOutBuffer) Flush(callback func(line string) Error) Error {
 
 	u.read = len(u.buffer)
 
-	return NilError
+	return err
 }
 
 func (u *StdOutBuffer) Wait() chan bool {
-	u.waitingLock.Lock()
-	defer u.waitingLock.Unlock()
-
-	if u.waiting.HasValue() {
-		return u.waiting.Value()
-	}
-
-	u.waiting = Some(make(chan bool))
-	return u.waiting.Value()
+	return u.updated
 }
