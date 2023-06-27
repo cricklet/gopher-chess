@@ -67,8 +67,9 @@ func main() {
 	logger.Println("found cache:", found)
 
 	stock, err := stockfish.NewStockfishRunner(
+		// stockfish.WithLogger(&SilentLogger),
 		// stockfish.WithLogger(logger),
-		stockfish.WithLogger(NewFooterLogger(logger, 2)),
+		stockfish.WithLogger(NewFooterLogger(logger, 0)),
 	)
 	if err.HasError() {
 		panic(err)

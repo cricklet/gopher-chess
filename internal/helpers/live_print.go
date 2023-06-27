@@ -103,7 +103,7 @@ func wrapText(s string, width int, indent string) string {
 }
 
 func (l *LiveLogger) SetFooter(s string, index int) {
-	s = wrapText(s, termWidth(), "  ")
+	// s = wrapText(s, termWidth(), "  ")
 
 	prevFooterString := l.FooterString()
 

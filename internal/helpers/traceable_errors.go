@@ -68,6 +68,13 @@ func WrapReturn[T any](x T, err error) (T, Error) {
 	return x, Wrap(err)
 }
 
+func UnwrapReturn[T any](x T, err Error) T {
+	if err.HasError() {
+		panic(err)
+	}
+	return x
+}
+
 func JoinReturn[T any](e Error, x T, err Error) (T, Error) {
 	return x, Join(e, Join(err))
 }

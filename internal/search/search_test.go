@@ -334,12 +334,18 @@ func TestNoLegalMoves(t *testing.T) {
 }
 
 func TestCheckMateSearch(t *testing.T) {
-	fen := "kQK5/8/8/8/8/8/8/8 b KQkq - 13 7"
-
-	result, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
-	assert.True(t, IsNil(err), err)
-
-	assert.Equal(t, len(result), 0)
+	{
+		fen := "kQK5/8/8/8/8/8/8/8 b KQkq - 13 7"
+		result, _, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
+		assert.True(t, IsNil(err), err)
+		assert.Equal(t, len(result), 0)
+	}
+	{
+		fen := "kQK5/8/8/8/8/8/8/8 w KQkq - 13 7"
+		_, score, err := Search(fen, WithMaxDepth{3}, WithoutQuiescence{})
+		assert.True(t, IsNil(err), err)
+		assert.True(t, IsMate(score))
+	}
 }
 
 func TestCheckMateDetection(t *testing.T) {
@@ -358,7 +364,7 @@ func TestCheckMateDetection(t *testing.T) {
 	assert.True(t, isCheckMate)
 }
 
-func TestCheckMateInFour(t *testing.T) {
+func TestCheckMateInThree(t *testing.T) {
 	fen := "1K6/8/1b6/5k2/1p2p3/8/2q5/n7 b - - 2 2"
 
 	// searching 3 ahead doesn't see the checkmate because we aren't able
@@ -368,7 +374,7 @@ func TestCheckMateInFour(t *testing.T) {
 	assert.True(t, result != nil)
 
 	checkMateMoves := map[string]bool{"c2c7": true}
-	assert.Less(t, score, 9999)
+	assert.False(t, IsMate(score))
 	assert.False(t, checkMateMoves[result[0].String()], result[0].String())
 
 	// instead search 4 ahead
@@ -376,7 +382,8 @@ func TestCheckMateInFour(t *testing.T) {
 	assert.True(t, IsNil(err), err)
 	assert.True(t, result != nil)
 
-	assert.Greater(t, score, 9999)
+	assert.True(t, IsMate(score))
+	assert.Equal(t, ScoreString(score), "mate+3")
 	assert.True(t, checkMateMoves[result[0].String()], result[0].String())
 }
 func TestCheckMateInFourSpecific(t *testing.T) {
@@ -397,7 +404,9 @@ func TestCheckMateInFourSpecific(t *testing.T) {
 
 	result, score, err := Search(fen, WithSearch{searchMoves}, WithMaxDepth{4}, WithoutQuiescence{})
 	assert.True(t, IsNil(err))
-	assert.Greater(t, score, 9999)
+
+	assert.True(t, IsMate(score))
+	assert.Equal(t, ScoreString(score), "mate+3")
 	assert.Equal(t,
 		"c2c7, b8a8, c7a7",
 		ConcatStringify(result))
@@ -423,7 +432,9 @@ func TestCheckMateInFourSpecificWithoutIteration(t *testing.T) {
 		WithoutIterativeDeepening{}, WithoutQuiescence{},
 	)
 	assert.True(t, IsNil(err))
-	assert.Greater(t, score, 9999)
+
+	assert.True(t, IsMate(score))
+	assert.Equal(t, ScoreString(score), "mate+3")
 	assert.Equal(t,
 		"c2c7, b8a8, c7a7",
 		ConcatStringify(result))
@@ -437,7 +448,8 @@ func TestCheckMateInOne2(t *testing.T) {
 
 	assert.True(t, result != nil)
 
-	fmt.Println(score, result)
+	assert.True(t, IsMate(score))
+	assert.Equal(t, ScoreString(score), "mate+1")
 
 	checkMateMoves := map[string]bool{"d2d1q": true}
 	assert.True(t, checkMateMoves[result[0].String()], result[0].String())

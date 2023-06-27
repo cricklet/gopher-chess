@@ -201,20 +201,21 @@ func MoveAndScoreFromInfoLine(line string) (Optional[string], int, Error) {
 			return Some(moveStr), score, NilError
 		}
 		if strings.Contains(line, "score mate ") {
-			scoreStr := strings.Split(
+			mateStr := strings.Split(
 				strings.Split(line, "score mate ")[1],
 				" ")[0]
 
-			score, err := WrapReturn(strconv.Atoi(scoreStr))
+			mate, err := WrapReturn(strconv.Atoi(mateStr))
 			if !IsNil(err) {
 				return Some(moveStr), 0, err
 			}
 
-			if score < 0 {
-				return Some(moveStr), search.MateInNScore(score), NilError
-			} else {
-				return Some(moveStr), search.MateInNScore(score), NilError
+			score, err := search.MateInNScore(mate)
+			if err.HasError() {
+				return Some(moveStr), 0, err
 			}
+
+			return Some(moveStr), score, NilError
 		}
 	}
 

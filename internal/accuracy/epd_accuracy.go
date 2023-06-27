@@ -245,17 +245,6 @@ func CalculateDepthForEpdSuccess(
 				consecutiveSuccesses = map[int]bool{}
 			}
 
-			footerString := fmt.Sprintf("found %v at depth %v with %v successes for %v", move.Value(), depth, len(consecutiveSuccesses), epd)
-
-			logger.SetFooter(
-				footerString,
-				0,
-			)
-
-			if len(consecutiveSuccesses) > 0 {
-				logger.Println(footerString)
-			}
-
 			if len(consecutiveSuccesses) >= 3 {
 				bestMove = move.Value()
 				return LoopBreak, NilError
@@ -310,7 +299,7 @@ func CalculateScoreForEveryMove(
 
 		score := -enemyScore
 
-		logger.Printf("(%v / %v) score for %v is %v\n", i+1, len(moves), move.String(), score)
+		logger.Printf("(%v / %v) score for %v is %v\n", i+1, len(moves), move.String(), search.ScoreString(score))
 		scores[move.String()] = score
 	}
 

@@ -321,13 +321,7 @@ func VariationDebugString(searchMoves []SearchMove, currentIndex int, label stri
 
 	scoreLabel := ""
 	if score.HasValue() {
-		if score.Value() == Inf {
-			scoreLabel = "inf"
-		} else if score.Value() == -Inf {
-			scoreLabel = "-inf"
-		} else {
-			scoreLabel = fmt.Sprint(score.Value())
-		}
+		scoreLabel = ScoreString(score.Value())
 	}
 
 	return PrintColumns(
@@ -445,6 +439,13 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 				return nil, alpha, err
 			}
 
+			if IsMate(enemyScore) {
+				enemyScore, err = IncrementMate(enemyScore)
+				if err.HasError() {
+					return nil, alpha, err
+				}
+			}
+
 			score := -enemyScore
 			if score >= beta {
 				alpha = beta // fail hard beta-cutoff
@@ -480,7 +481,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 			}
 			// If no legal moves exist, we're in stalemate or checkmate
 			if helper.inCheck() {
-				alpha = -Inf
+				alpha = MateNegative()
 			} else {
 				alpha = 0
 			}
@@ -545,6 +546,13 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 
 				if err.HasError() {
 					return nil, 0, err
+				}
+
+				if IsMate(enemyScore) {
+					enemyScore, err = IncrementMate(enemyScore)
+					if err.HasError() {
+						return nil, 0, err
+					}
 				}
 
 				score := -enemyScore

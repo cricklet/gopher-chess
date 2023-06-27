@@ -84,7 +84,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 	}
 
 	if u.cmd == nil {
-		u.Logger.Println(cmdPath, args)
+		// u.Logger.Println(cmdPath, args)
 		u.cmd = exec.Command(cmdPath, args...)
 
 		var err Error

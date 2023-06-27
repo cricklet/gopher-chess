@@ -1,6 +1,8 @@
 package search
 
 import (
+	"fmt"
+
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -12,16 +14,49 @@ func InitialBounds() int {
 	return Inf + 1
 }
 
-func MateInNScore(n int) int {
+func IsMate(score int) bool {
+	return score > Inf-100 || score < -Inf+100
+}
+
+func IncrementMate(score int) (int, Error) {
+	if !IsMate(score) {
+		return score, Errorf("only increment mate scores)")
+	}
+
+	if score < 0 {
+		return score + 1, NilError
+	} else {
+		return score - 1, NilError
+	}
+}
+
+func MateNegative() int {
+	return -Inf
+}
+
+func MateInNScore(n int) (int, Error) {
+	if n == 0 {
+		return Inf, Errorf("not sure which direction for mate")
+	}
 	if n < 0 {
 		// mate in -1 should give -999998
 		// mate in -2 should give -999997
-		return -Inf + (-n)
+		return -Inf + (-n), NilError
 	} else {
 		// mate in 1 should give 999998
 		// mate in 2 should give 999997
-		return Inf - n
+		return Inf - n, NilError
 	}
+}
+
+func ScoreString(score int) string {
+	if score > Inf-100 {
+		return fmt.Sprint("mate+", Inf-score)
+	}
+	if score < -Inf+100 {
+		return fmt.Sprint("mate-", -(-Inf - score))
+	}
+	return fmt.Sprint(score)
 }
 
 func PlayerIsInCheck(g *GameState, b *Bitboards) bool {
