@@ -35,53 +35,6 @@ func TestTee(t *testing.T) {
 
 	assert.True(t, err.IsNil())
 }
-
-func TestShowError(t *testing.T) {
-	cmd := exec.Command("tee")
-
-	stdinWriter, err := cmd.StdinPipe()
-	assert.True(t, err == nil, err)
-
-	stdoutReader, err := cmd.StdoutPipe()
-	assert.True(t, err == nil, err)
-
-	stdoutScanner := bufio.NewScanner(bufio.NewReader(stdoutReader))
-
-	err = cmd.Start()
-	assert.True(t, err == nil, err)
-
-	{
-		_, err = stdinWriter.Write([]byte("1\n"))
-		assert.True(t, err == nil, err)
-
-		success := stdoutScanner.Scan()
-		assert.True(t, success)
-
-		output := stdoutScanner.Text()
-		assert.Equal(t, "1", output)
-	}
-
-	stdoutChan := make(chan string)
-
-	go func() {
-		for stdoutScanner.Scan() {
-			output := stdoutScanner.Text()
-			AsyncSend(&stdoutChan, output)
-		}
-	}()
-
-	for i := 0; i < 100; i++ {
-		v := fmt.Sprintf("hello %d", i)
-		_, err = stdinWriter.Write([]byte(v + "\n"))
-		assert.True(t, err == nil, err)
-
-		time.Sleep(time.Millisecond * 10)
-
-		result := <-stdoutChan
-		assert.Equal(t, v, result)
-	}
-}
-
 func TestFixWithMultiWriterCopy(t *testing.T) {
 	cmd := exec.Command("tee")
 

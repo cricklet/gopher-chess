@@ -11,6 +11,10 @@ type ReadableWriter struct {
 	ReadChan chan string
 }
 
+func (r *ReadableWriter) Close() {
+	close(r.ReadChan)
+}
+
 func (r *ReadableWriter) Write(p []byte) (n int, err error) {
 	for _, line := range strings.Split(string(p), "\n") {
 		line = strings.TrimSpace(line)

@@ -19,7 +19,7 @@ type BinaryRunner struct {
 
 	stdin ReadableWriter
 
-	stdout StdOutBuffer
+	stdoutScanner *bufio.Scanner
 
 	record []string
 
@@ -27,6 +27,14 @@ type BinaryRunner struct {
 }
 
 type BinaryRunnerOption func(*BinaryRunner)
+
+func (b *BinaryRunner) Close() {
+	if b.cmd != nil {
+		_ = b.cmd.Process.Kill()
+		b.cmd = nil
+	}
+	b.stdin.Close()
+}
 
 func (b *BinaryRunner) CmdPath() string {
 	return b.cmdPath
@@ -75,20 +83,34 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 		u.Logger.Println(cmdPath, args)
 		u.cmd = exec.Command(cmdPath, args...)
 
-		var err error
-		u.stdin.Writer, err = u.cmd.StdinPipe()
+		var err Error
+		u.stdin.Writer, err = WrapReturn(u.cmd.StdinPipe())
 		u.stdin.ReadChan = make(chan string)
 		if !IsNil(err) {
 			return u, wrapError(u, err)
 		}
 
-		var stdout io.Reader
-		var stderr io.Reader
-		stdout, err = u.cmd.StdoutPipe()
-		if !IsNil(err) {
-			return u, wrapError(u, err)
+		stdoutLoggingReader, stdoutLoggingWriter := io.Pipe()
+		stdoutSyncReader, stdoutSyncWriter := io.Pipe()
+		stdoutCombinedWriter := io.MultiWriter(stdoutLoggingWriter, stdoutSyncWriter)
+
+		stdoutReader, err := WrapReturn(u.cmd.StdoutPipe())
+		if err.HasError() {
+			return u, err
 		}
-		stderr, err = u.cmd.StderrPipe()
+
+		go func() {
+			// This is necessary: https://stackoverflow.com/questions/47486128/why-does-io-pipe-continue-to-block-even-when-eof-is-reached
+			defer stdoutLoggingWriter.Close()
+			defer stdoutSyncReader.Close()
+
+			_, err = WrapReturn(io.Copy(stdoutCombinedWriter, stdoutReader))
+			if err.HasError() {
+				panic("failed to copy data from stdout")
+			}
+		}()
+
+		stderrReader, err := WrapReturn(u.cmd.StderrPipe())
 		if !IsNil(err) {
 			return u, wrapError(u, err)
 		}
@@ -103,8 +125,6 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 			}
 		}()
 
-		u.stdout = StdOutBuffer{}
-
 		avoidSpam := func(line string) bool {
 			if strings.Contains(line, "multipv") && !strings.Contains(line, "multipv 1 ") {
 				return true
@@ -115,30 +135,31 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 			return false
 		}
 
+		stdoutLoggingScanner := bufio.NewScanner(bufio.NewReader(stdoutLoggingReader))
 		go func() {
-			stdoutScanner := bufio.NewScanner(bufio.NewReader(stdout))
-			for stdoutScanner.Scan() {
-				output := stdoutScanner.Text()
+			for stdoutLoggingScanner.Scan() {
+				output := stdoutLoggingScanner.Text()
 				for _, line := range strings.Split(output, "\n") {
 					if !avoidSpam(line) {
 						u.Logger.Println("stdout: ", Ellipses(line, 140))
 					}
 
 					u.record = AppendSafe(&recordLock, u.record, "out: "+line)
-					u.stdout.Update(line)
 				}
 			}
 		}()
 
+		stderrScanner := bufio.NewScanner(bufio.NewReader(stderrReader))
 		go func() {
-			stderrScanner := bufio.NewScanner(bufio.NewReader(stderr))
 			for stderrScanner.Scan() {
 				line := stderrScanner.Text()
 				u.record = AppendSafe(&recordLock, u.record, "err: "+line)
 			}
 		}()
 
-		err = u.cmd.Start()
+		u.stdoutScanner = bufio.NewScanner(bufio.NewReader(stdoutSyncReader))
+
+		err = Wrap(u.cmd.Start())
 		if !IsNil(err) {
 			return u, wrapError(u, err)
 		}
@@ -170,44 +191,15 @@ func (u *BinaryRunner) RunSync(input string, callback func(string) (LoopResult, 
 		return err
 	}
 
-	done := false
-
-	timeoutChan := make(chan bool)
-	go func() {
-		if timeout.HasValue() {
-			time.Sleep(timeout.Value())
-			AsyncSend(&timeoutChan, true)
-		} else {
-			time.Sleep(time.Second * 10)
-		}
-		if !done {
-			fmt.Println("possible timeout detected")
-		}
-	}()
-
-	handleLine := func(line string) Error {
+	for u.stdoutScanner.Scan() {
+		line := u.stdoutScanner.Text()
 		result, err := callback(line)
-		if result == LoopBreak {
-			done = true
-		}
-		return err
-	}
-
-	for !done {
-		select {
-		case <-timeoutChan:
-			err = u.stdout.Flush(func(line string) Error {
-				_, err = callback(line)
-				return err
-			})
-			u.Logger.Println("timeout")
-			done = true
-		case <-u.stdout.Wait():
-			err = u.stdout.Flush(handleLine)
-		}
-
 		if !IsNil(err) {
 			return err
+		}
+
+		if result == LoopBreak {
+			break
 		}
 	}
 
@@ -247,13 +239,6 @@ func (u *BinaryRunner) Run(input string, waitFor Optional[string]) ([]string, Er
 func (u *BinaryRunner) Wait() {
 	if u.cmd != nil {
 		_ = u.cmd.Wait()
-		u.cmd = nil
-	}
-}
-
-func (u *BinaryRunner) Close() {
-	if u.cmd != nil {
-		_ = u.cmd.Process.Kill()
 		u.cmd = nil
 	}
 }
