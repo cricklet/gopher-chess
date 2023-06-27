@@ -567,6 +567,3 @@ func TestTimeQuiescence(t *testing.T) {
 
 	assert.Greater(t, iterativeNonStandPat, 10*iterativeStandPat)
 }
-
-// NEXT write a test for fen/r1b1r1k1/ppq1bpp1/2pp1n1p/P3p3/1P1PP1nP/2NBBNP1/2P2P2/R2QR1K1 w - - 1 15/lastmove/f8e8
-// Why is this one so slow?

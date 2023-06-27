@@ -211,9 +211,9 @@ func MoveAndScoreFromInfoLine(line string) (Optional[string], int, Error) {
 			}
 
 			if score < 0 {
-				return Some(moveStr), -search.Inf + score, NilError
+				return Some(moveStr), search.MateInNScore(score), NilError
 			} else {
-				return Some(moveStr), search.Inf + score, NilError
+				return Some(moveStr), search.MateInNScore(score), NilError
 			}
 		}
 	}
@@ -223,7 +223,8 @@ func MoveAndScoreFromInfoLine(line string) (Optional[string], int, Error) {
 
 func MoveFromBestMoveLine(line string) Optional[string] {
 	if strings.HasPrefix(line, "bestmove ") {
-		return Some(strings.Split(line, " ")[1])
+		v := strings.Split(line, " ")[1]
+		return Some(strings.Split(v, " ponder ")[0])
 	}
 
 	return Empty[string]()
@@ -335,8 +336,8 @@ func (r *SearchReader) ReadLine(line string) (LoopResult, Error) {
 		if move.HasValue() {
 			r.bestMove = move
 
-			if r.bestPVMove != r.bestMove {
-				return LoopBreak, Errorf("best move does not match best PV move (best move: %v, best PV move: %v)", r.bestMove, r.bestPVMove)
+			if r.bestPVMove.HasValue() && r.bestPVMove != r.bestMove {
+				return LoopBreak, Errorf("best move does not match best PV move (best move: %v, best PV move: %v, line %v)", r.bestMove, r.bestPVMove, line)
 			} else {
 				return LoopBreak, NilError
 			}

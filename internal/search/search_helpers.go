@@ -8,6 +8,22 @@ import (
 
 var Inf int = 999999
 
+func InitialBounds() int {
+	return Inf + 1
+}
+
+func MateInNScore(n int) int {
+	if n < 0 {
+		// mate in -1 should give -999998
+		// mate in -2 should give -999997
+		return -Inf + (-n)
+	} else {
+		// mate in 1 should give 999998
+		// mate in 2 should give 999997
+		return Inf - n
+	}
+}
+
 func PlayerIsInCheck(g *GameState, b *Bitboards) bool {
 	return KingIsInCheck(b, g.Player)
 }

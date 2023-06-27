@@ -34,6 +34,10 @@ func TestTee(t *testing.T) {
 	}, Empty[time.Duration]())
 
 	assert.True(t, err.IsNil())
+
+	runner.Close()
+	time.Sleep(time.Millisecond * 200)
+	assert.Equal(t, 0, runner.openGoRoutines)
 }
 func TestFixWithMultiWriterCopy(t *testing.T) {
 	cmd := exec.Command("tee")

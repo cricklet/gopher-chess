@@ -17,23 +17,27 @@ type BinaryRunner struct {
 	cmdName string
 	cmd     *exec.Cmd
 
-	stdin ReadableWriter
-
+	stdinWriter   *io.PipeWriter
 	stdoutScanner *bufio.Scanner
 
 	record []string
 
 	Logger Logger
+
+	openGoRoutines int
 }
 
 type BinaryRunnerOption func(*BinaryRunner)
 
 func (b *BinaryRunner) Close() {
+	if b.stdinWriter != nil {
+		b.stdinWriter.Close()
+	}
+
 	if b.cmd != nil {
 		_ = b.cmd.Process.Kill()
 		b.cmd = nil
 	}
-	b.stdin.Close()
 }
 
 func (b *BinaryRunner) CmdPath() string {
@@ -84,11 +88,41 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 		u.cmd = exec.Command(cmdPath, args...)
 
 		var err Error
-		u.stdin.Writer, err = WrapReturn(u.cmd.StdinPipe())
-		u.stdin.ReadChan = make(chan string)
-		if !IsNil(err) {
-			return u, wrapError(u, err)
-		}
+		var inputPipeReader *io.PipeReader
+		inputPipeReader, u.stdinWriter = io.Pipe()
+
+		stdinLoggingReader, stdinLoggingWriter := io.Pipe()
+		stdinWriter, err := WrapReturn(u.cmd.StdinPipe())
+
+		stdinCombinedWriter := io.MultiWriter(stdinLoggingWriter, stdinWriter)
+
+		go func() {
+			u.openGoRoutines++
+			defer func() { u.openGoRoutines-- }()
+			// This is necessary: https://stackoverflow.com/questions/47486128/why-does-io-pipe-continue-to-block-even-when-eof-is-reached
+			defer u.stdinWriter.Close()
+			defer stdinLoggingWriter.Close()
+
+			_, err = WrapReturn(io.Copy(stdinCombinedWriter, inputPipeReader))
+			if err.HasError() {
+				panic("failed to copy data to stdin")
+			}
+
+			fmt.Println("binary stdin writer closed")
+		}()
+
+		recordLock := sync.Mutex{}
+
+		stdinLoggingScanner := bufio.NewScanner(bufio.NewReader(stdinLoggingReader))
+		go func() {
+			u.openGoRoutines++
+			defer func() { u.openGoRoutines-- }()
+			for stdinLoggingScanner.Scan() {
+				line := stdinLoggingScanner.Text()
+				u.record = AppendSafe(&recordLock, u.record, "err: "+line)
+			}
+			fmt.Println("binary stdin logging finished")
+		}()
 
 		stdoutLoggingReader, stdoutLoggingWriter := io.Pipe()
 		stdoutSyncReader, stdoutSyncWriter := io.Pipe()
@@ -100,30 +134,25 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 		}
 
 		go func() {
+			u.openGoRoutines++
+			defer func() { u.openGoRoutines-- }()
+
 			// This is necessary: https://stackoverflow.com/questions/47486128/why-does-io-pipe-continue-to-block-even-when-eof-is-reached
 			defer stdoutLoggingWriter.Close()
-			defer stdoutSyncReader.Close()
+			defer stdoutSyncWriter.Close()
 
 			_, err = WrapReturn(io.Copy(stdoutCombinedWriter, stdoutReader))
 			if err.HasError() {
 				panic("failed to copy data from stdout")
 			}
+
+			fmt.Println("binary stdout readers closed")
 		}()
 
 		stderrReader, err := WrapReturn(u.cmd.StderrPipe())
 		if !IsNil(err) {
 			return u, wrapError(u, err)
 		}
-
-		recordLock := sync.Mutex{}
-
-		go func() {
-			for {
-				line := <-u.stdin.ReadChan
-				u.Logger.Println("stdin: ", line)
-				u.record = AppendSafe(&recordLock, u.record, "in:  "+strings.TrimSpace(line))
-			}
-		}()
 
 		avoidSpam := func(line string) bool {
 			if strings.Contains(line, "multipv") && !strings.Contains(line, "multipv 1 ") {
@@ -137,6 +166,9 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 
 		stdoutLoggingScanner := bufio.NewScanner(bufio.NewReader(stdoutLoggingReader))
 		go func() {
+			u.openGoRoutines++
+			defer func() { u.openGoRoutines-- }()
+
 			for stdoutLoggingScanner.Scan() {
 				output := stdoutLoggingScanner.Text()
 				for _, line := range strings.Split(output, "\n") {
@@ -147,14 +179,21 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 					u.record = AppendSafe(&recordLock, u.record, "out: "+line)
 				}
 			}
+
+			fmt.Println("binary stdout logging finished")
 		}()
 
-		stderrScanner := bufio.NewScanner(bufio.NewReader(stderrReader))
+		stderrLoggingScanner := bufio.NewScanner(bufio.NewReader(stderrReader))
 		go func() {
-			for stderrScanner.Scan() {
-				line := stderrScanner.Text()
+			u.openGoRoutines++
+			defer func() { u.openGoRoutines-- }()
+
+			for stderrLoggingScanner.Scan() {
+				line := stderrLoggingScanner.Text()
 				u.record = AppendSafe(&recordLock, u.record, "err: "+line)
 			}
+
+			fmt.Println("binary stderr logging finished")
 		}()
 
 		u.stdoutScanner = bufio.NewScanner(bufio.NewReader(stdoutSyncReader))
@@ -177,7 +216,7 @@ func (u *BinaryRunner) RunAsync(input string) Error {
 		return wrapError(u, Errorf("cmd exited: %v\n", u.cmdPath))
 	}
 
-	_, err := u.stdin.Write([]byte(input + "\n"))
+	_, err := u.stdinWriter.Write([]byte(input + "\n"))
 	if !IsNil(err) {
 		return wrapError(u, err)
 	}

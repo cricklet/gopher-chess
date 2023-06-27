@@ -536,7 +536,7 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 
 			if legal {
 				// Traverse past the first generated move
-				variation, enemyScore, err := helper.alphaBeta(-Inf-1, Inf+1,
+				variation, enemyScore, err := helper.alphaBeta(-InitialBounds(), InitialBounds(),
 					// current depth is 1 (0 would be before we applied `move`)
 					1,
 					// we've already searched one move, so decrement depth remaining
