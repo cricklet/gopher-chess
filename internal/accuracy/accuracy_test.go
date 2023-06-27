@@ -93,7 +93,7 @@ func TestDisambiguateKnight(t *testing.T) {
 	}
 }
 
-func CheckEpd(t *testing.T, name string) {
+func CheckEpdParsing(t *testing.T, name string) {
 	epds, err := LoadEpd(helpers.RootDir() + "/internal/accuracy/" + name)
 	assert.True(t, err.IsNil(), err)
 
@@ -116,9 +116,9 @@ func CheckEpd(t *testing.T, name string) {
 }
 
 func TestDecoding(t *testing.T) {
-	CheckEpd(t, "ccr.epd")
-	CheckEpd(t, "eigenmann.epd")
-	CheckEpd(t, "kaufman.epd")
-	CheckEpd(t, "louguet.epd")
-	CheckEpd(t, "wac.epd")
+	CheckEpdParsing(t, "ccr.epd")
+	CheckEpdParsing(t, "eigenmann.epd")
+	CheckEpdParsing(t, "kaufman.epd")
+	CheckEpdParsing(t, "louguet.epd")
+	CheckEpdParsing(t, "wac.epd")
 }

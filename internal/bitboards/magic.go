@@ -312,6 +312,6 @@ func init() {
 	// defer profile.Start(profile.MemProfile, profile.ProfilePath(RootDir() + "/data")).Stop()
 	err := initMagicTables()
 	if !IsNil(err) {
-		fmt.Println("Error initializing magic tables: ", err)
+		panic(err)
 	}
 }

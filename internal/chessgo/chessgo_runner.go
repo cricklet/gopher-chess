@@ -165,7 +165,7 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 		}
 	}
 
-	PrintMemUsage()
+	r.Logger.Println(MemUsageString())
 
 	return NilError
 }
@@ -239,7 +239,7 @@ func (r *ChessGoRunner) Search() (Optional[string], int, Error) {
 	*r.outOfTime = false
 
 	go func() {
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(2000 * time.Millisecond)
 		*r.outOfTime = true
 	}()
 

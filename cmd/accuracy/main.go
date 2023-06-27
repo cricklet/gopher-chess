@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 
 	. "github.com/cricklet/chessgo/internal/accuracy"
+	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/cricklet/chessgo/internal/stockfish"
 )
@@ -49,8 +50,8 @@ func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
 		fmt.Println("usage:")
-		fmt.Println(" > accuracy chessgo <seconds> <epd>")
-		fmt.Println(" > accuracy stockfish <seconds> <epd>")
+		fmt.Println(" > accuracy chessgo <epd>")
+		fmt.Println(" > accuracy stockfish <epd>")
 		fmt.Println(" > accuracy cache <epd>")
 		fmt.Println(" > accuracy clean")
 		return
@@ -66,11 +67,6 @@ func main() {
 	logger := NewLiveLogger()
 	logger.Println("found cache:", found)
 
-	stock, err := stockfish.NewStockfishRunner(
-		// stockfish.WithLogger(&SilentLogger),
-		// stockfish.WithLogger(logger),
-		stockfish.WithLogger(NewFooterLogger(logger, 0)),
-	)
 	if err.HasError() {
 		panic(err)
 	}
@@ -86,6 +82,11 @@ func main() {
 			return
 		}
 
+		stock, err := stockfish.NewStockfishRunner(
+			// stockfish.WithLogger(&SilentLogger),
+			// stockfish.WithLogger(logger),
+			stockfish.WithLogger(NewFooterLogger(logger, 0)),
+		)
 		priorSuccess := map[string]bool{}
 		for _, result := range *cache {
 			priorSuccess[result.Epd] = result.StockfishSuccess
@@ -122,32 +123,61 @@ func main() {
 				panic(err)
 			}
 		}
+	} else if args[0] == "chessgo" || args[0] == "stockfish" {
+		if len(args) < 2 {
+			fmt.Println("usage: accuracy chessgo <epd>")
+			return
+		}
 
+		epdName := args[1]
+		epdPath := RootDir() + "/internal/accuracy/" + epdName + ".epd"
+
+		epds, err := LoadEpd(epdPath)
+		if err.HasError() {
+			panic(err)
+		}
+
+		var runner Runner
+		if args[0] == "chessgo" {
+			r := chessgo.NewChessGoRunner(
+				chessgo.WithLogger(&SilentLogger),
+			)
+			runner = &r
+		} else if args[0] == "stockfish" {
+			r, err := stockfish.NewStockfishRunner(
+				stockfish.WithLogger(&SilentLogger),
+			)
+			if err.HasError() {
+				panic(err)
+			}
+			runner = r
+		}
+
+		successes := 0
+
+		for i, epd := range epds {
+			prefix := fmt.Sprintf("%d/%d", i+1, len(epds))
+
+			success, err := SearchEpd(runner, epd)
+			if err.HasError() {
+				panic(err)
+			}
+
+			if success {
+				successes++
+				prefix += " success "
+			} else {
+				prefix += " failure "
+			}
+
+			suffix := fmt.Sprintf("%d / %d successes", successes, i+1)
+
+			if success {
+				successes++
+				logger.Println(prefix, epd, suffix)
+			} else {
+				logger.Println(prefix, epd, suffix)
+			}
+		}
 	}
-	// else {
-	// duration := time.Millisecond * 100
-	// if len(args) > 1 {
-	// 	secondsString := args[1]
-	// 	seconds, err := WrapReturn(strconv.Atoi(secondsString))
-	// 	if err.HasError() {
-	// 		panic(err)
-	// 	}
-	// 	duration = time.Second * time.Duration(seconds)
-	// 	fmt.Println("using duration:", duration)
-	// }
-
-	// var runner Runner
-	// if args[0] == "chessgo" {
-	// 	r := chessgo.NewChessGoRunner()
-	// 	runner = &r
-	// } else if args[0] == "stockfish" {
-	// 	runner = stockfish.NewStockfishRunner()
-	// }
-
-	// secondsString := args[1]
-	// seconds, err := strconv.Atoi(secondsString)
-	// if err.HasError() {
-	// 	panic(err)
-	// }
-	// }
 }

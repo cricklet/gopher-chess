@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -358,14 +357,14 @@ func bToKb(b uint64) uint64 {
 	return b / 1024
 }
 
-func PrintMemUsage() {
+func MemUsageString() string {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
+
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	log.Printf("Alloc = %v KB\n", bToKb(m.Alloc))
-	log.Printf("\tTotalAlloc = %v KB\n", bToKb(m.TotalAlloc))
-	log.Printf("\tSys = %v KB\n", bToKb(m.Sys))
-	log.Printf("\tNumGC = %v\n", m.NumGC)
+	v := fmt.Sprintf("%vkb, total %vkb", bToKb(m.Alloc), bToKb(m.TotalAlloc))
+
+	return v
 }
 
 func PrintColumns(values []string, sizes []int, separator string) string {

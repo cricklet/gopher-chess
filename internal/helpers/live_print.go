@@ -50,9 +50,7 @@ func (l *LiveLogger) FooterString() string {
 }
 
 func (l *LiveLogger) FlushFooter() {
-	fmt.Println(l.FooterString())
-	fmt.Println()
-	fmt.Println()
+	l.Println(l.FooterString())
 }
 
 func (l *LiveLogger) Println(v ...interface{}) {

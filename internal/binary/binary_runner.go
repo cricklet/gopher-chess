@@ -108,7 +108,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 				panic("failed to copy data to stdin")
 			}
 
-			fmt.Println("binary stdin writer closed")
+			// fmt.Println("binary stdin writer closed")
 		}()
 
 		recordLock := sync.Mutex{}
@@ -121,7 +121,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 				line := stdinLoggingScanner.Text()
 				u.record = AppendSafe(&recordLock, u.record, "err: "+line)
 			}
-			fmt.Println("binary stdin logging finished")
+			// fmt.Println("binary stdin logging finished")
 		}()
 
 		stdoutLoggingReader, stdoutLoggingWriter := io.Pipe()
@@ -146,7 +146,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 				panic("failed to copy data from stdout")
 			}
 
-			fmt.Println("binary stdout readers closed")
+			// fmt.Println("binary stdout readers closed")
 		}()
 
 		stderrReader, err := WrapReturn(u.cmd.StderrPipe())
@@ -173,14 +173,14 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 				output := stdoutLoggingScanner.Text()
 				for _, line := range strings.Split(output, "\n") {
 					if !avoidSpam(line) {
-						u.Logger.Println("stdout: ", Ellipses(line, 140))
+						// u.Logger.Println("stdout: ", Ellipses(line, 140))
 					}
 
 					u.record = AppendSafe(&recordLock, u.record, "out: "+line)
 				}
 			}
 
-			fmt.Println("binary stdout logging finished")
+			// fmt.Println("binary stdout logging finished")
 		}()
 
 		stderrLoggingScanner := bufio.NewScanner(bufio.NewReader(stderrReader))
@@ -193,7 +193,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 				u.record = AppendSafe(&recordLock, u.record, "err: "+line)
 			}
 
-			fmt.Println("binary stderr logging finished")
+			// fmt.Println("binary stderr logging finished")
 		}()
 
 		u.stdoutScanner = bufio.NewScanner(bufio.NewReader(stdoutSyncReader))

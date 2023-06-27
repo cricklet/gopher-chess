@@ -306,7 +306,18 @@ func CalculateScoreForEveryMove(
 	return scores, NilError
 }
 
-func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, epd string) EpdResult {
+type Epd struct {
+	epd string
+	fen string
+
+	bestMoves  []string
+	avoidMoves []string
+
+	game      *game.GameState
+	bitboards *bitboards.Bitboards
+}
+
+func ParseEpd(epd string) (*Epd, Error) {
 	fen := EpdToFen(epd)
 	game, err := game.GamestateFromFenString(fen)
 	if err.HasError() {
@@ -317,19 +328,32 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 
 	bestMoves, err := MovesFromEpd("bm", epd, game, bitboards)
 	if err.HasError() {
-		panic(err)
+		return nil, err
 	}
 
 	avoidMoves, err := MovesFromEpd("am", epd, game, bitboards)
 	if err.HasError() {
-		panic(err)
+		return nil, err
 	}
 
 	if len(bestMoves) == 0 && len(avoidMoves) == 0 {
-		panic(Errorf("no bm or am in epd: %v", epd))
+		return nil, Errorf("no bm or am in epd: %v", epd)
 	}
 
-	err = stock.SetupPosition(Position{Fen: fen})
+	return &Epd{
+		epd:        epd,
+		fen:        fen,
+		bestMoves:  bestMoves,
+		avoidMoves: avoidMoves,
+		game:       game,
+		bitboards:  bitboards,
+	}, NilError
+}
+
+func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, epd string) EpdResult {
+	parsed, err := ParseEpd(epd)
+
+	err = stock.SetupPosition(Position{Fen: parsed.fen})
 	if err.HasError() {
 		panic(err)
 	}
@@ -347,8 +371,8 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 		logger,
 		stock,
 		epd,
-		bestMoves,
-		avoidMoves,
+		parsed.bestMoves,
+		parsed.avoidMoves,
 	)
 
 	logger.SetFooter("", 0)
@@ -358,9 +382,9 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 		logger,
 		stock,
 		depth,
-		fen,
-		game,
-		bitboards,
+		parsed.fen,
+		parsed.game,
+		parsed.bitboards,
 	)
 
 	if err.HasError() {
@@ -368,8 +392,8 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 	}
 
 	result.Epd = epd
-	result.BestMoves = bestMoves
-	result.AvoidMoves = avoidMoves
+	result.BestMoves = parsed.bestMoves
+	result.AvoidMoves = parsed.avoidMoves
 	result.StockfishMove = move
 	result.StockfishScores = moveToScore
 	result.StockfishSuccess = true
@@ -397,4 +421,25 @@ func LoadEpd(path string) ([]string, Error) {
 	}
 
 	return results, NilError
+}
+
+func SearchEpd(runner Runner, epd string) (bool, Error) {
+	parsed, err := ParseEpd(epd)
+	if err.HasError() {
+		return false, err
+	}
+
+	runner.SetupPosition(Position{Fen: parsed.fen})
+	if err.HasError() {
+		return false, err
+	}
+
+	move, _, err := runner.Search()
+
+	if move.IsEmpty() {
+		return false, Errorf("no moves found")
+	}
+
+	success := calculateSuccess(move.Value(), parsed.bestMoves, parsed.avoidMoves)
+	return success, NilError
 }
