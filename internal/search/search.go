@@ -493,6 +493,76 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 	return principleVariation, alpha, NilError
 }
 
+type SearchResult int
+
+const (
+	OutOfTime SearchResult = iota
+	Failed
+	Completed
+)
+
+func (helper *SearchHelper) SearchUpToDepth(
+	depthRemaining int,
+	moves *[]Move,
+) ([]Pair[int, []SearchMove], SearchResult, Error) {
+	var err Error
+
+	// The next set of principle variations will go here
+	nextVariations := []Pair[int, []SearchMove]{}
+
+	if err.HasError() {
+		return nextVariations, Failed, err
+	}
+
+	err = helper.MoveSorter.sortMoves(moves)
+	if err.HasError() {
+		return nextVariations, Failed, err
+	}
+
+	for _, move := range *moves {
+		if helper.OutOfTime != nil && *helper.OutOfTime {
+			return nextVariations, OutOfTime, NilError
+		}
+
+		undo, legal, err := performMoveAndReturnLegality(helper.GameState, helper.Bitboards, move)
+		if err.HasError() {
+			return nextVariations, Failed, err
+		}
+
+		if legal {
+			// Traverse past the first generated move
+			variation, enemyScore, err := helper.alphaBeta(-InitialBounds(), InitialBounds(),
+				// current depth is 1 (0 would be before we applied `move`)
+				1,
+				// we've already searched one move, so decrement depth remaining
+				depthRemaining-1,
+				[]SearchMove{{move, false}})
+
+			if err.HasError() {
+				return nextVariations, Failed, err
+			}
+
+			if IsMate(enemyScore) {
+				enemyScore, err = IncrementMate(enemyScore)
+				if err.HasError() {
+					return nextVariations, Failed, err
+				}
+			}
+
+			score := -enemyScore
+			nextVariations = append(nextVariations, Pair[int, []SearchMove]{
+				First: score, Second: append([]SearchMove{{move, false}}, variation...)})
+		}
+
+		err = undo()
+		if err.HasError() {
+			return nextVariations, Failed, err
+		}
+	}
+
+	return nextVariations, Completed, NilError
+}
+
 func (helper *SearchHelper) Search() ([]Move, int, Error) {
 	knownVariations := []Pair[int, []SearchMove]{}
 
@@ -506,67 +576,23 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 	cleanup, _, moves, err := helper.MoveGen.generateMoves(AllMoves)
 	defer cleanup()
 
+	if err.HasError() {
+		return nil, 0, err
+	}
+
 	doneEarly := false
 
 	for depthRemaining := startDepthRemaining; !doneEarly && depthRemaining <= helper.IterativeDeepeningDepth; depthRemaining += depthIncrement {
 		// The generator will prioritize trying the principle variations first
 		helper.MoveSorter.reset(knownVariations)
 
-		// The next set of principle variations will go here
-		nextVariations := []Pair[int, []SearchMove]{}
+		nextVariations, searchResult, err := helper.SearchUpToDepth(depthRemaining, moves)
 
 		if err.HasError() {
 			return nil, 0, err
 		}
 
-		err = helper.MoveSorter.sortMoves(moves)
-		if err.HasError() {
-			return nil, 0, err
-		}
-
-		for _, move := range *moves {
-			if helper.OutOfTime != nil && *helper.OutOfTime {
-				doneEarly = true
-				break
-			}
-
-			undo, legal, err := performMoveAndReturnLegality(helper.GameState, helper.Bitboards, move)
-			if err.HasError() {
-				return nil, 0, err
-			}
-
-			if legal {
-				// Traverse past the first generated move
-				variation, enemyScore, err := helper.alphaBeta(-InitialBounds(), InitialBounds(),
-					// current depth is 1 (0 would be before we applied `move`)
-					1,
-					// we've already searched one move, so decrement depth remaining
-					depthRemaining-1,
-					[]SearchMove{{move, false}})
-
-				if err.HasError() {
-					return nil, 0, err
-				}
-
-				if IsMate(enemyScore) {
-					enemyScore, err = IncrementMate(enemyScore)
-					if err.HasError() {
-						return nil, 0, err
-					}
-				}
-
-				score := -enemyScore
-				nextVariations = append(nextVariations, Pair[int, []SearchMove]{
-					First: score, Second: append([]SearchMove{{move, false}}, variation...)})
-			}
-
-			err = undo()
-			if err.HasError() {
-				return nil, 0, err
-			}
-		}
-
-		if doneEarly && len(knownVariations) > 0 {
+		if searchResult == OutOfTime && len(knownVariations) > 0 {
 			break
 		}
 
