@@ -82,6 +82,8 @@ func NewStockfishRunner(options ...StockfishRunnerOption) (*StockfishRunner, Err
 			return nil, err
 		}
 	}
+	r.logger.Println("setup stockfish")
+
 	return r, NilError
 }
 
@@ -245,11 +247,11 @@ func (r *StockfishRunner) SearchUnlimitedRaw(callback func(line string) (LoopRes
 	}
 
 	err = r.binary.RunSync("go", processLine, Empty[time.Duration]())
-
 	if !IsNil(err) {
 		return err
 	}
-	err = r.binary.RunSync("stop", processLine, Empty[time.Duration]())
+
+	_, err = r.binary.Run("stop", Some("bestmove"))
 
 	return err
 }

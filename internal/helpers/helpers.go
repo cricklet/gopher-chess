@@ -184,6 +184,17 @@ func ReduceSlice[T, U any](ts []T, initial U, f func(U, T) U) U {
 	return u
 }
 
+func MoveToFront[T any](ts *[]T, f func(T) bool) bool {
+	for i, t := range *ts {
+		if f(t) {
+			*ts = append((*ts)[:i], (*ts)[i+1:]...)
+			*ts = append([]T{t}, *ts...)
+			return true
+		}
+	}
+	return false
+}
+
 func SortMaxFirst[T any](ts *[]T, f func(T) int) {
 	sort.SliceStable(*ts, func(i, j int) bool {
 		return f((*ts)[j]) < f((*ts)[i])

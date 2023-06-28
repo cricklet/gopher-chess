@@ -3,6 +3,7 @@ package helpers
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/acarl005/stripansi"
@@ -11,6 +12,7 @@ import (
 type LiveLogger struct {
 	footers []string
 
+	lock   sync.Mutex
 	noCopy NoCopy
 }
 
@@ -18,9 +20,8 @@ var _ Logger = &LiveLogger{}
 
 func NewLiveLogger() *LiveLogger {
 	fmt.Print("\033[B")
-	fmt.Print("\033[B")
 	l := &LiveLogger{footers: []string{}}
-	PrintLive(Empty[string](), l.FooterString(), l.FooterString())
+	l.PrintLive(Empty[string](), l.FooterString(), l.FooterString())
 	return l
 }
 
@@ -62,7 +63,7 @@ func (l *LiveLogger) Printf(format string, v ...interface{}) {
 }
 
 func (l *LiveLogger) Print(xs ...interface{}) {
-	PrintLive(Some(fmt.Sprint(xs...)), l.FooterString(), l.FooterString())
+	l.PrintLive(Some(fmt.Sprint(xs...)), l.FooterString(), l.FooterString())
 }
 
 func runeCountIgnoringAnsi(s string) int {
@@ -102,18 +103,19 @@ func wrapText(s string, width int, indent string) string {
 
 func (l *LiveLogger) SetFooter(s string, index int) {
 	// s = wrapText(s, termWidth(), "  ")
+	s = strings.TrimSpace(s)
 
 	prevFooterString := l.FooterString()
 
-	for i := len(l.footers) - 1; i <= index; i++ {
+	for i := len(l.footers) - 1; i < index; i++ {
 		l.footers = append(l.footers, "")
 	}
 	l.footers[index] = s
 
-	PrintLive(Empty[string](), prevFooterString, l.FooterString())
+	l.PrintLive(Empty[string](), prevFooterString, l.FooterString())
 }
 
-func PrintLive(output Optional[string], previousFooter string, footer string) {
+func (l *LiveLogger) PrintLive(output Optional[string], previousFooter string, footer string) {
 	// > ... previous logging
 	// > ^ caret is here for fmt.Println
 	// (when println runs... we want to:
@@ -121,7 +123,10 @@ func PrintLive(output Optional[string], previousFooter string, footer string) {
 	//   clear everything after
 	// 	 and then reprint the live display at the bottom)
 
-	for i := 0; i < len(strings.Split(previousFooter, "\n"))+1; i++ {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	for i := 0; i < len(strings.Split(previousFooter, "\n")); i++ {
 		fmt.Print("\033[A")
 	}
 
@@ -132,6 +137,4 @@ func PrintLive(output Optional[string], previousFooter string, footer string) {
 	}
 
 	fmt.Println(footer)
-	fmt.Println()
-
 }

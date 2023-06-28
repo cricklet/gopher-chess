@@ -119,6 +119,7 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 			defer func() { u.openGoRoutines-- }()
 			for stdinLoggingScanner.Scan() {
 				line := stdinLoggingScanner.Text()
+				u.Logger.Println("stdin: ", strings.TrimSpace(line))
 				u.record = AppendSafe(&recordLock, u.record, "err: "+line)
 			}
 			// fmt.Println("binary stdin logging finished")
@@ -173,9 +174,8 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 				output := stdoutLoggingScanner.Text()
 				for _, line := range strings.Split(output, "\n") {
 					if !avoidSpam(line) {
-						// u.Logger.Println("stdout: ", Ellipses(line, 140))
+						u.Logger.Println("stdout: ", Ellipses(strings.TrimSpace(line), 140))
 					}
-
 					u.record = AppendSafe(&recordLock, u.record, "out: "+line)
 				}
 			}
@@ -189,8 +189,11 @@ func SetupBinaryRunner(cmdPath string, cmdName string, args []string, options ..
 			defer func() { u.openGoRoutines-- }()
 
 			for stderrLoggingScanner.Scan() {
-				line := stderrLoggingScanner.Text()
-				u.record = AppendSafe(&recordLock, u.record, "err: "+line)
+				output := stderrLoggingScanner.Text()
+				for _, line := range strings.Split(output, "\n") {
+					u.Logger.Println("stdout: ", line)
+					u.record = AppendSafe(&recordLock, u.record, "err: "+line)
+				}
 			}
 
 			// fmt.Println("binary stderr logging finished")

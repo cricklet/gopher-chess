@@ -8,6 +8,7 @@ import (
 
 	"github.com/cricklet/chessgo/internal/bitboards"
 	"github.com/cricklet/chessgo/internal/game"
+	"github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/cricklet/chessgo/internal/search"
 	"github.com/cricklet/chessgo/internal/stockfish"
@@ -265,6 +266,7 @@ func CalculateScoreForEveryMove(
 	logger *LiveLogger,
 	stock *stockfish.StockfishRunner,
 	goalDepth int,
+	moveToPrioritize string,
 	fen string,
 	g *game.GameState,
 	b *bitboards.Bitboards,
@@ -281,6 +283,14 @@ func CalculateScoreForEveryMove(
 		return scores, err
 	}
 
+	prioritized := helpers.MoveToFront(&moves, func(move Move) bool {
+		return move.String() == moveToPrioritize
+	})
+
+	if !prioritized {
+		return scores, Errorf("move to prioritize not found")
+	}
+
 	for i, move := range moves {
 		err := stock.SetupPosition(Position{
 			Fen: fen,
@@ -292,7 +302,7 @@ func CalculateScoreForEveryMove(
 			return scores, err
 		}
 
-		_, enemyScore, err := stock.SearchDepth(goalDepth - 1)
+		_, enemyScore, err := stock.SearchDepth(goalDepth)
 		if err.HasError() {
 			return scores, err
 		}
@@ -382,6 +392,7 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 		logger,
 		stock,
 		depth,
+		move,
 		parsed.fen,
 		parsed.game,
 		parsed.bitboards,

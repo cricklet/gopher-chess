@@ -37,6 +37,7 @@ func marshalEpdCache(jsonPath string, results *[]EpdResult) Error {
 	err = os.WriteFile(jsonPath, output, 0644)
 	return Wrap(err)
 }
+
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -50,9 +51,10 @@ func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
 		fmt.Println("usage:")
-		fmt.Println(" > accuracy chessgo <epd>")
-		fmt.Println(" > accuracy stockfish <epd>")
-		fmt.Println(" > accuracy cache <epd>")
+		fmt.Println(" > accuracy chessgo <epds>")
+		fmt.Println(" > accuracy stockfish <epds>")
+		fmt.Println(" > accuracy cache <epds>")
+		fmt.Println(" > accuracy cache-specific <epd>")
 		fmt.Println(" > accuracy clean")
 		return
 	}
@@ -76,9 +78,36 @@ func main() {
 		if err.HasError() {
 			fmt.Println("no cache to clean")
 		}
+	} else if args[0] == "cache-specific" {
+		if len(args) < 2 {
+			fmt.Println("usage: accuracy cache-specific <epd>")
+			return
+		}
+
+		stock, err := stockfish.NewStockfishRunner(
+			// stockfish.WithLogger(&SilentLogger),
+			stockfish.WithLogger(logger),
+			// stockfish.WithLogger(NewFooterLogger(logger, 0)),
+		)
+		if err.HasError() {
+			panic(err)
+		}
+
+		epd := args[1]
+		logger.Println("epd:", epd)
+
+		result := CalculateEpdResult(stock, logger, epd)
+		*cache = append(*cache, result)
+
+		logger.Println(result)
+
+		err = marshalEpdCache(cachePath, cache)
+		if err.HasError() {
+			panic(err)
+		}
 	} else if args[0] == "cache" {
 		if len(args) < 2 {
-			fmt.Println("usage: accuracy cache <epd>")
+			fmt.Println("usage: accuracy cache <epds>")
 			return
 		}
 
@@ -87,15 +116,18 @@ func main() {
 			// stockfish.WithLogger(logger),
 			stockfish.WithLogger(NewFooterLogger(logger, 0)),
 		)
+		if err.HasError() {
+			panic(err)
+		}
 		priorSuccess := map[string]bool{}
 		for _, result := range *cache {
 			priorSuccess[result.Epd] = result.StockfishSuccess
 		}
 
-		epdName := args[1]
-		epdPath := RootDir() + "/internal/accuracy/" + epdName + ".epd"
+		epdsName := args[1]
+		epdsPath := RootDir() + "/internal/accuracy/" + epdsName + ".epd"
 
-		epds, err := LoadEpd(epdPath)
+		epds, err := LoadEpd(epdsPath)
 
 		for i, epd := range epds {
 			prefix := fmt.Sprintf("%d/%d", i+1, len(epds))
@@ -125,7 +157,7 @@ func main() {
 		}
 	} else if args[0] == "chessgo" || args[0] == "stockfish" {
 		if len(args) < 2 {
-			fmt.Println("usage: accuracy chessgo <epd>")
+			fmt.Println("usage: accuracy chessgo <epds>")
 			return
 		}
 
