@@ -219,6 +219,18 @@ func IndexOfMax[T any](ts []T, f func(T) int) int {
 	return bestIndex
 }
 
+func MaxInMap(m map[string]int) string {
+	max := Empty[int]()
+	maxKey := ""
+	for k, v := range m {
+		if !max.HasValue() || v > max.Value() {
+			max = Some(v)
+			maxKey = k
+		}
+	}
+	return maxKey
+}
+
 func RandomInt(min int, max int) int {
 	return min + rand.Intn(max-min+1)
 }

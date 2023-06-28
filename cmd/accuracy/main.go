@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strings"
 
 	. "github.com/cricklet/chessgo/internal/accuracy"
 	"github.com/cricklet/chessgo/internal/chessgo"
@@ -132,22 +133,26 @@ func main() {
 		for i, epd := range epds {
 			prefix := fmt.Sprintf("%d/%d", i+1, len(epds))
 
+			epdStr := fmt.Sprintf("\"%s\"", strings.ReplaceAll(epd, "\"", "\\\""))
+
 			if prior, ok := priorSuccess[epd]; ok {
 				if prior {
-					logger.Println(prefix, "skipping", epd)
+					logger.Println(prefix, "skipping", epdStr)
 					continue
 				} else {
 					prefix += " (retry)"
 				}
 			}
 
+			logger.Println(prefix, "calculating", epdStr)
+
 			result := CalculateEpdResult(stock, logger, epd)
 			*cache = append(*cache, result)
 
 			if result.StockfishSuccess {
-				logger.Println(prefix, "success", epd)
+				logger.Println(prefix, "success", epdStr)
 			} else {
-				logger.Println(prefix, "failure", epd)
+				logger.Println(prefix, "failure", epdStr)
 			}
 
 			err = marshalEpdCache(cachePath, cache)

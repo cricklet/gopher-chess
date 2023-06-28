@@ -308,7 +308,7 @@ func (r *StockfishRunner) SearchDurationRaw(duration time.Duration, callback fun
 
 type SearchReader struct {
 	bestPVMove  Optional[string]
-	bestPVScore int
+	bestPVScore Optional[int]
 	bestMove    Optional[string]
 	depth       int
 	noCopy      NoCopy
@@ -323,7 +323,7 @@ func (r *SearchReader) ReadLine(line string) (LoopResult, Error) {
 
 		if move.HasValue() {
 			r.bestPVMove = move
-			r.bestPVScore = score
+			r.bestPVScore = Some(score)
 
 			depth, err := DepthFromInfoLine(line)
 			if !IsNil(err) {
@@ -350,9 +350,9 @@ func (r *SearchReader) ReadLine(line string) (LoopResult, Error) {
 	return LoopContinue, NilError
 }
 
-func (runner *StockfishRunner) SearchDepth(depth int) (Optional[string], int, Error) {
+func (runner *StockfishRunner) SearchDepth(depth int) (Optional[string], Optional[int], Error) {
 	if runner.MultiPVEnabled {
-		return Empty[string](), 0, Errorf("cannot search with MultiPV enabled")
+		return Empty[string](), Empty[int](), Errorf("cannot search with MultiPV enabled")
 	}
 
 	reader := &SearchReader{}
@@ -360,15 +360,15 @@ func (runner *StockfishRunner) SearchDepth(depth int) (Optional[string], int, Er
 	err := runner.SearchDepthRaw(depth, reader.ReadLine)
 
 	if !IsNil(err) {
-		return Empty[string](), 0, err
+		return Empty[string](), Empty[int](), err
 	}
 
 	return reader.bestMove, reader.bestPVScore, NilError
 }
 
-func (runner *StockfishRunner) Search() (Optional[string], int, Error) {
+func (runner *StockfishRunner) Search() (Optional[string], Optional[int], Error) {
 	if runner.MultiPVEnabled {
-		return Empty[string](), 0, Errorf("cannot search with MultiPV enabled")
+		return Empty[string](), Empty[int](), Errorf("cannot search with MultiPV enabled")
 	}
 
 	reader := &SearchReader{}
@@ -376,7 +376,7 @@ func (runner *StockfishRunner) Search() (Optional[string], int, Error) {
 	err := runner.SearchDurationRaw(time.Second, reader.ReadLine)
 
 	if !IsNil(err) {
-		return Empty[string](), 0, err
+		return Empty[string](), Empty[int](), err
 	}
 
 	return reader.bestMove, reader.bestPVScore, NilError

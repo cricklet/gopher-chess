@@ -246,7 +246,7 @@ func CalculateDepthForEpdSuccess(
 				consecutiveSuccesses = map[int]bool{}
 			}
 
-			if len(consecutiveSuccesses) >= 3 {
+			if len(consecutiveSuccesses) >= 4 {
 				bestMove = move.Value()
 				return LoopBreak, NilError
 			}
@@ -259,7 +259,7 @@ func CalculateDepthForEpdSuccess(
 		return "", depth, err
 	}
 
-	return bestMove, depth - 2, NilError
+	return bestMove, depth - 3, NilError
 }
 
 func CalculateScoreForEveryMove(
@@ -307,10 +307,19 @@ func CalculateScoreForEveryMove(
 			return scores, err
 		}
 
-		score := -enemyScore
+		if enemyScore.IsEmpty() {
+			return scores, Errorf("no score found for %v", move.String())
+		}
+
+		score := -enemyScore.Value()
 
 		logger.Printf("(%v / %v) score for %v is %v\n", i+1, len(moves), move.String(), search.ScoreString(score))
 		scores[move.String()] = score
+	}
+
+	bestMove := MaxInMap(scores)
+	if bestMove != moveToPrioritize {
+		return scores, Errorf("best move %v does not match best move we previously found %v", bestMove, moveToPrioritize)
 	}
 
 	return scores, NilError

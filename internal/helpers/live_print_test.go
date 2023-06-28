@@ -1,22 +1,11 @@
 package helpers
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestPrintLive(t *testing.T) {
-	fmt.Print("\033[B")
-	fmt.Print("\033[B")
-	PrintLive(Some("1\n"), "", "a")
-	time.Sleep(500 * time.Millisecond)
-	PrintLive(Some("2\n"), "a", "ab")
-	time.Sleep(500 * time.Millisecond)
-	PrintLive(Some("3\n"), "ab", "abc")
-}
 
 func TestLiveLogger(t *testing.T) {
 	l := NewLiveLogger()

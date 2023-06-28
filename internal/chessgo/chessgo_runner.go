@@ -233,7 +233,7 @@ func (r *ChessGoRunner) Board() BoardArray {
 	return r.g.Board
 }
 
-func (r *ChessGoRunner) Search() (Optional[string], int, Error) {
+func (r *ChessGoRunner) Search() (Optional[string], Optional[int], Error) {
 	var err Error
 
 	*r.outOfTime = false
@@ -244,19 +244,19 @@ func (r *ChessGoRunner) Search() (Optional[string], int, Error) {
 	}()
 
 	if r.s == nil {
-		return Empty[string](), 0, Errorf("position not setup")
+		return Empty[string](), Empty[int](), Errorf("position not setup")
 	}
 
 	moves, score, err := r.s.Search()
 	if !IsNil(err) {
-		return Empty[string](), score, err
+		return Empty[string](), Empty[int](), err
 	}
 
 	if len(moves) > 0 {
-		return Some(moves[0].String()), score, NilError
+		return Some(moves[0].String()), Some(score), NilError
 	}
 
-	return Empty[string](), score, NilError
+	return Empty[string](), Empty[int](), NilError
 }
 
 func (r *ChessGoRunner) PlayerIsInCheck() bool {
