@@ -7,7 +7,6 @@ r6k/pp4p1/2p1b3/3pP3/7q/P2B3r/1PP2Q1P/2K1R1R1 w - - bm Qc5; id "LCTII.POS.03"; c
 r1b2r1k/pp2q1pp/2p2p2/2p1n2N/4P3/1PNP2QP/1PP2RP1/5RK1 w - - bm Nd1; id "LCTII.POS.07"; c0 "Tartakower - Rubinstein, Moskau 1925";
 r2qrnk1/pp3ppb/3b1n1p/1Pp1p3/2P1P2N/P5P1/1B1NQPBP/R4RK1 w - - bm Bh3; id "LCTII.POS.08"; c0 "Polugaevsky - Unzicker, Kislovodsk 1972";
 5nk1/Q4bpp/5p2/8/P1n1PN2/q4P2/6PP/1R4K1 w - - bm Qd4; id "LCTII.POS.09"; c0 "Boissel - Del Gobbo, corr. 1994";
-r3k2r/3bbp1p/p1nppp2/5P2/1p1NP3/5NP1/PPPK3P/3R1B1R b kq - bm Bf8; id "LCTII.POS.10"; c0 "Cucka - Jansa, Brno 1960";
 bn6/1q4n1/1p1p1kp1/2pPp1pp/1PP1P1P1/3N1P1P/4B1K1/2Q2N2 w - - bm h4; id "LCTII.POS.11"; c0 "Landau - Schmidt, Noordwijk 1938";
 3r2k1/pp2npp1/2rqp2p/8/3PQ3/1BR3P1/PP3P1P/3R2K1 b - - bm Rb6; id "LCTII.POS.12"; c0 "Korchnoi - Karpov, Meran 1981";
 1r2r1k1/4ppbp/B5p1/3P4/pp1qPB2/2n2Q1P/P4PP1/4RRK1 b - - bm Nxa2; id "LCTII.POS.13"; c0 "Barbero - Kouatly, Budapest 1987";
@@ -31,5 +30,4 @@ r2qrb1k/1p1b2p1/p2ppn1p/8/3NP3/1BN5/PPP3QP/1K3RR1 w - - bm e5; id "LCTII.CMB.12"
 6k1/6p1/7p/P1N5/1r3p2/7P/1b3PP1/3bR1K1 w - - bm a6; id "LCTII.FIN.05"; c0 "Karpov - Kasparov, Moskau 1985 [Analyse]";
 8/3b4/5k2/2pPnp2/1pP4N/pP1B2P1/P3K3/8 b - - bm f4; id "LCTII.FIN.06"; c0 "Minev - Portisch, Halle 1967";
 6k1/4pp1p/3p2p1/P1pPb3/R7/1r2P1PP/3B1P2/6K1 w - - bm Bb4; id "LCTII.FIN.07"; c0 "Lengyel - Kaufman, Los Angeles 1974";
-2k5/p7/Pp1p1b2/1P1P1p2/2P2P1p/3K3P/5B2/8 w - - bm c5; id "LCTII.FIN.08"; c0 "Spassky - Byrne, 1974";
 8/5Bp1/4P3/6pP/1b1k1P2/5K2/8/8 w - - bm Kg4; id "LCTII.FIN.09"; c0 "Klimenok - Kabanov, UdSSR 1969";

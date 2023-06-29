@@ -55,7 +55,7 @@ func main() {
 		fmt.Println(" > accuracy chessgo <epds>")
 		fmt.Println(" > accuracy stockfish <epds>")
 		fmt.Println(" > accuracy cache <epds>")
-		fmt.Println(" > accuracy cache-specific <epd>")
+		fmt.Println(" > accuracy try <epd>")
 		fmt.Println(" > accuracy clean")
 		return
 	}
@@ -79,36 +79,9 @@ func main() {
 		if err.HasError() {
 			fmt.Println("no cache to clean")
 		}
-	} else if args[0] == "cache-specific" {
+	} else if args[0] == "try" {
 		if len(args) < 2 {
 			fmt.Println("usage: accuracy cache-specific <epd>")
-			return
-		}
-
-		stock, err := stockfish.NewStockfishRunner(
-			// stockfish.WithLogger(&SilentLogger),
-			stockfish.WithLogger(logger),
-			// stockfish.WithLogger(NewFooterLogger(logger, 0)),
-		)
-		if err.HasError() {
-			panic(err)
-		}
-
-		epd := args[1]
-		logger.Println("epd:", epd)
-
-		result := CalculateEpdResult(stock, logger, epd)
-		*cache = append(*cache, result)
-
-		logger.Println(result)
-
-		err = marshalEpdCache(cachePath, cache)
-		if err.HasError() {
-			panic(err)
-		}
-	} else if args[0] == "cache" {
-		if len(args) < 2 {
-			fmt.Println("usage: accuracy cache <epds>")
 			return
 		}
 
@@ -120,44 +93,92 @@ func main() {
 		if err.HasError() {
 			panic(err)
 		}
-		priorSuccess := map[string]bool{}
-		for _, result := range *cache {
-			priorSuccess[result.Epd] = result.StockfishSuccess
+
+		epd := args[1]
+		logger.Println("epd:", epd)
+
+		result := CalculateEpdResult(stock, logger, epd)
+		*cache = append(*cache, result)
+
+		stock.Close()
+
+		logger.Println(result)
+
+		// err = marshalEpdCache(cachePath, cache)
+		// if err.HasError() {
+		// 	panic(err)
+		// }
+	} else if args[0] == "cache" {
+		if len(args) < 2 {
+			fmt.Println("usage: accuracy cache <epds>")
+			return
 		}
 
-		epdsName := args[1]
-		epdsPath := RootDir() + "/internal/accuracy/" + epdsName + ".epd"
+		stock, err := stockfish.NewStockfishRunner(
+			// stockfish.WithLogger(&SilentLogger),
+			// stockfish.WithLogger(logger),
+			stockfish.WithLogger(NewFooterLogger(logger, 0)),
+		)
+		defer stock.Close()
 
-		epds, err := LoadEpd(epdsPath)
+		if err.HasError() {
+			panic(err)
+		}
 
-		for i, epd := range epds {
-			prefix := fmt.Sprintf("%d/%d", i+1, len(epds))
+		epdResultMap := map[string]EpdResult{}
+		for _, result := range *cache {
+			epdResultMap[result.Epd] = result
+		}
 
-			epdStr := fmt.Sprintf("\"%s\"", strings.ReplaceAll(epd, "\"", "\\\""))
+		epdsNames := args[1:]
 
-			if prior, ok := priorSuccess[epd]; ok {
-				if prior {
-					logger.Println(prefix, "skipping", epdStr)
-					continue
-				} else {
-					prefix += " (retry)"
-				}
-			}
+		for _, epdName := range epdsNames {
+			epdsPath := RootDir() + "/internal/accuracy/" + epdName + ".epd"
 
-			logger.Println(prefix, "calculating", epdStr)
-
-			result := CalculateEpdResult(stock, logger, epd)
-			*cache = append(*cache, result)
-
-			if result.StockfishSuccess {
-				logger.Println(prefix, "success", epdStr)
-			} else {
-				logger.Println(prefix, "failure", epdStr)
-			}
-
-			err = marshalEpdCache(cachePath, cache)
+			epds, err := LoadEpd(epdsPath)
 			if err.HasError() {
 				panic(err)
+			}
+
+			for i, epd := range epds {
+				prefix := fmt.Sprintf("%d/%d %v", i+1, len(epds), epdName)
+
+				epdStr := fmt.Sprintf("\"%s\"", strings.ReplaceAll(epd, "\"", "\\\""))
+
+				if r, ok := epdResultMap[epd]; ok {
+					if r.StockfishSuccess {
+						if r.StockfishScoreUncertainty {
+							logger.Println(prefix, "cached ambiguous w/ depth", r.StockfishDepth, epdStr)
+							continue
+						} else {
+							logger.Println(prefix, "cached success w/ depth", r.StockfishDepth, epdStr)
+							continue
+						}
+					} else {
+						logger.Println(prefix, "cached failure w/ depth", r.StockfishDepth, epdStr)
+						continue
+					}
+				}
+
+				logger.Println(prefix, "calculating", epdStr)
+
+				result := CalculateEpdResult(stock, logger, epd)
+				*cache = append(*cache, result)
+
+				if result.StockfishSuccess {
+					if result.StockfishScoreUncertainty {
+						logger.Println(prefix, "ambiguous w/ depth", result.StockfishDepth, epdStr)
+					} else {
+						logger.Println(prefix, "success w/ depth", result.StockfishDepth, epdStr)
+					}
+				} else {
+					logger.Println(prefix, "failure w/ depth", result.StockfishDepth, epdStr)
+				}
+
+				err = marshalEpdCache(cachePath, cache)
+				if err.HasError() {
+					panic(err)
+				}
 			}
 		}
 	} else if args[0] == "chessgo" || args[0] == "stockfish" {
@@ -184,6 +205,7 @@ func main() {
 			r, err := stockfish.NewStockfishRunner(
 				stockfish.WithLogger(&SilentLogger),
 			)
+			defer r.Close()
 			if err.HasError() {
 				panic(err)
 			}

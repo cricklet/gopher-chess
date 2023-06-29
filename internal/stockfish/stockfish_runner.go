@@ -87,6 +87,13 @@ func NewStockfishRunner(options ...StockfishRunnerOption) (*StockfishRunner, Err
 	return r, NilError
 }
 
+func (r *StockfishRunner) Close() {
+	if r.binary != nil {
+		r.binary.Close()
+		r.binary = nil
+	}
+}
+
 var _ Runner = (*StockfishRunner)(nil)
 
 func (r *StockfishRunner) SetupPosition(position Position) Error {
@@ -162,6 +169,11 @@ func (r *StockfishRunner) SetMultiPV() (func() Error, Error) {
 
 func (r *StockfishRunner) SetHashSize(mb int) Error {
 	err := r.binary.RunAsync(fmt.Sprint("setoption name Hash value ", mb))
+	return err
+}
+
+func (r *StockfishRunner) ClearHash() Error {
+	err := r.binary.RunAsync("setoption name Clear Hash")
 	return err
 }
 

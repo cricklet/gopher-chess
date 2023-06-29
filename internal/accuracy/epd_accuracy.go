@@ -193,10 +193,11 @@ type EpdResult struct {
 	BestMoves  []string `json:"best_moves"`
 	AvoidMoves []string `json:"avoid_moves"`
 
-	StockfishScores  map[string]int `json:"stockfish_scores"`
-	StockfishMove    string         `json:"stockfish_move"`
-	StockfishSuccess bool           `json:"stockfish_success"`
-	StockfishDepth   int            `json:"stockfish_depth"`
+	StockfishScores           map[string]int `json:"stockfish_scores"`
+	StockfishMove             string         `json:"stockfish_move"`
+	StockfishSuccess          bool           `json:"stockfish_success"`
+	StockfishScoreUncertainty bool           `json:"stockfish_score_uncertainty"`
+	StockfishDepth            int            `json:"stockfish_depth"`
 }
 
 func calculateSuccess(move string, bestMoves []string, avoidMoves []string) bool {
@@ -215,6 +216,7 @@ func CalculateDepthForEpdSuccess(
 	epd string,
 	bestMoves []string,
 	avoidMoves []string,
+	maxDepth Optional[int],
 ) (string, int, Error) {
 	depth := 0
 	bestMove := ""
@@ -224,6 +226,8 @@ func CalculateDepthForEpdSuccess(
 	if stock.MultiPVEnabled {
 		return "", 0, Errorf("MultiPV must be disabled")
 	}
+
+	requireSuccesses := 6
 
 	err := stock.SearchUnlimitedRaw(
 		func(line string) (LoopResult, Error) {
@@ -240,13 +244,17 @@ func CalculateDepthForEpdSuccess(
 				return LoopBreak, err
 			}
 
+			if maxDepth.HasValue() && depth >= maxDepth.Value() {
+				return LoopBreak, NilError
+			}
+
 			if calculateSuccess(move.Value(), bestMoves, avoidMoves) {
 				consecutiveSuccesses[depth] = true
 			} else {
 				consecutiveSuccesses = map[int]bool{}
 			}
 
-			if len(consecutiveSuccesses) >= 4 {
+			if len(consecutiveSuccesses) >= requireSuccesses {
 				bestMove = move.Value()
 				return LoopBreak, NilError
 			}
@@ -255,11 +263,13 @@ func CalculateDepthForEpdSuccess(
 		},
 	)
 
+	logger.Println(consecutiveSuccesses)
+
 	if err.HasError() {
 		return "", depth, err
 	}
 
-	return bestMove, depth - 3, NilError
+	return bestMove, depth - requireSuccesses + 1, NilError
 }
 
 func CalculateScoreForEveryMove(
@@ -317,11 +327,6 @@ func CalculateScoreForEveryMove(
 		scores[move.String()] = score
 	}
 
-	bestMove := MaxInMap(scores)
-	if bestMove != moveToPrioritize {
-		return scores, Errorf("best move %v does not match best move we previously found %v", bestMove, moveToPrioritize)
-	}
-
 	return scores, NilError
 }
 
@@ -371,6 +376,9 @@ func ParseEpd(epd string) (*Epd, Error) {
 
 func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, epd string) EpdResult {
 	parsed, err := ParseEpd(epd)
+	if err.HasError() {
+		panic(err)
+	}
 
 	err = stock.SetupPosition(Position{Fen: parsed.fen})
 	if err.HasError() {
@@ -383,6 +391,9 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 	// }
 
 	result := EpdResult{}
+	result.Epd = epd
+	result.BestMoves = parsed.bestMoves
+	result.AvoidMoves = parsed.avoidMoves
 
 	// defer profile.Start(profile.ProfilePath(RootDir() + "/data/EpdCacheProfile")).Stop()
 
@@ -392,7 +403,16 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 		epd,
 		parsed.bestMoves,
 		parsed.avoidMoves,
+		Some(28),
 	)
+
+	if !calculateSuccess(move, parsed.bestMoves, parsed.avoidMoves) {
+		result.StockfishMove = move
+		result.StockfishScores = nil
+		result.StockfishSuccess = false
+		result.StockfishDepth = depth
+		return result
+	}
 
 	logger.SetFooter("", 0)
 	logger.Println(fmt.Sprintf("found correct move w/ depth %v", depth))
@@ -406,18 +426,20 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 		parsed.game,
 		parsed.bitboards,
 	)
-
 	if err.HasError() {
 		panic(err)
 	}
 
-	result.Epd = epd
-	result.BestMoves = parsed.bestMoves
-	result.AvoidMoves = parsed.avoidMoves
 	result.StockfishMove = move
 	result.StockfishScores = moveToScore
 	result.StockfishSuccess = true
 	result.StockfishDepth = depth
+
+	bestMove := MaxInMap(moveToScore)
+	bestMoveIsCertain := calculateSuccess(bestMove, parsed.bestMoves, parsed.avoidMoves)
+
+	result.StockfishScoreUncertainty = !bestMoveIsCertain
+
 	return result
 }
 
@@ -449,7 +471,7 @@ func SearchEpd(runner Runner, epd string) (bool, Error) {
 		return false, err
 	}
 
-	runner.SetupPosition(Position{Fen: parsed.fen})
+	err = runner.SetupPosition(Position{Fen: parsed.fen})
 	if err.HasError() {
 		return false, err
 	}
