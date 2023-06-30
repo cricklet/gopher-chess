@@ -5,7 +5,6 @@ import (
 	"time"
 
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/search"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,13 +49,13 @@ func TestInfoMate(t *testing.T) {
 	move, score, err := MoveAndScoreFromInfoLine(line)
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, "a4e8", move.Value())
-	assert.Equal(t, search.ScoreString(score), "mate+1")
+	assert.Equal(t, ScoreString(score), "mate+1")
 
 	line = "info depth 31 seldepth 2 multipv 1 score mate -1 nodes 670 nps 670000 tbhits 0 time 1 pv a4e8	"
 	move, score, err = MoveAndScoreFromInfoLine(line)
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, "a4e8", move.Value())
-	assert.Equal(t, search.ScoreString(score), "mate-1")
+	assert.Equal(t, ScoreString(score), "mate-1")
 }
 
 func TestInfoScore(t *testing.T) {

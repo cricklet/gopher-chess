@@ -330,7 +330,7 @@ func CalculateScoreForEveryMove(
 
 		score := -enemyScore.Value()
 
-		logger.Printf("(%v / %v) score for %v is %v\n", i+1, len(moves), move.String(), search.ScoreString(score))
+		logger.Printf("(%v / %v) score for %v is %v\n", i+1, len(moves), move.String(), ScoreString(score))
 		scores[move.String()] = score
 	}
 

@@ -12,7 +12,6 @@ import (
 	. "github.com/cricklet/chessgo/internal/accuracy"
 	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/search"
 	"github.com/cricklet/chessgo/internal/stockfish"
 )
 
@@ -252,7 +251,7 @@ func checkRunner(runner Runner, testEpds []accuracy.EpdResult, logger Logger) {
 		acc := accuracy.AccuracyForScores(runnerScore, bestScore)
 
 		prefix := fmt.Sprintf("%2d/%d depth cached %2v, ", i+1, len(testEpds), epdResult.StockfishDepth)
-		prefix += fmt.Sprintf("searched %v: %5.1f (%4v) %6v vs %6v", depth, acc, move, search.ScoreString(runnerScore), search.ScoreString(bestScore))
+		prefix += fmt.Sprintf("searched %v: %5.1f (%4v) %6v vs %6v", depth, acc, move, ScoreString(runnerScore), ScoreString(bestScore))
 
 		logger.Println(prefix, epdResult.Epd)
 	}

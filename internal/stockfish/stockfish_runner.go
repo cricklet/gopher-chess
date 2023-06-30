@@ -8,7 +8,6 @@ import (
 
 	"github.com/cricklet/chessgo/internal/binary"
 	. "github.com/cricklet/chessgo/internal/helpers"
-	"github.com/cricklet/chessgo/internal/search"
 )
 
 type StockfishRunner struct {
@@ -224,7 +223,7 @@ func MoveAndScoreFromInfoLine(line string) (Optional[string], int, Error) {
 				return Some(moveStr), 0, err
 			}
 
-			score, err := search.MateInNScore(mate)
+			score, err := MateInNScore(mate)
 			if err.HasError() {
 				return Some(moveStr), 0, err
 			}

@@ -15,6 +15,7 @@ type MoveListener interface {
 }
 
 type GameState struct {
+	// NEXT: have GameState own Bitboards directly
 	Board                        BoardArray
 	Player                       Player
 	PlayerAndCastlingSideAllowed [2][2]bool
