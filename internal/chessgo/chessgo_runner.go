@@ -134,7 +134,7 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 		r.Logger = &DefaultLogger
 	}
 	if !r.IsNew() {
-		return Errorf("please use ucinewgame")
+		r.Reset()
 	}
 
 	game, err := GamestateFromFenString(position.Fen)
@@ -239,7 +239,7 @@ func (r *ChessGoRunner) Search() (Optional[string], Optional[int], Error) {
 	*r.outOfTime = false
 
 	go func() {
-		time.Sleep(2000 * time.Millisecond)
+		time.Sleep(5000 * time.Millisecond)
 		*r.outOfTime = true
 	}()
 

@@ -465,23 +465,23 @@ func LoadEpd(path string) ([]string, Error) {
 	return results, NilError
 }
 
-func SearchEpd(runner Runner, epd string) (bool, Error) {
+func SearchEpd(runner Runner, epd string) (string, bool, Error) {
 	parsed, err := ParseEpd(epd)
 	if err.HasError() {
-		return false, err
+		return "", false, err
 	}
 
 	err = runner.SetupPosition(Position{Fen: parsed.fen})
 	if err.HasError() {
-		return false, err
+		return "", false, err
 	}
 
 	move, _, err := runner.Search()
 
 	if move.IsEmpty() {
-		return false, Errorf("no moves found")
+		return "", false, Errorf("no moves found")
 	}
 
 	success := calculateSuccess(move.Value(), parsed.bestMoves, parsed.avoidMoves)
-	return success, NilError
+	return move.Value(), success, NilError
 }

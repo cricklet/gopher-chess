@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	. "github.com/cricklet/chessgo/internal/accuracy"
@@ -52,8 +53,8 @@ func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
 		fmt.Println("usage:")
-		fmt.Println(" > accuracy chessgo <epds>")
-		fmt.Println(" > accuracy stockfish <epds>")
+		fmt.Println(" > accuracy chessgo <depth>")
+		fmt.Println(" > accuracy stockfish <depth>")
 		fmt.Println(" > accuracy cache <epds>")
 		fmt.Println(" > accuracy try <epd>")
 		fmt.Println(" > accuracy clean")
@@ -183,16 +184,26 @@ func main() {
 		}
 	} else if args[0] == "chessgo" || args[0] == "stockfish" {
 		if len(args) < 2 {
-			fmt.Println("usage: accuracy chessgo <epds>")
+			fmt.Println("usage: accuracy chessgo <depth>")
 			return
 		}
 
-		epdName := args[1]
-		epdPath := RootDir() + "/internal/accuracy/" + epdName + ".epd"
-
-		epds, err := LoadEpd(epdPath)
+		depthStr := args[1]
+		depth, err := WrapReturn(strconv.Atoi(depthStr))
 		if err.HasError() {
 			panic(err)
+		}
+
+		testEpds := []EpdResult{}
+
+		for _, epdResult := range *cache {
+			if epdResult.StockfishDepth > depth {
+				continue
+			}
+			if !epdResult.StockfishSuccess || !epdResult.StockfishScoreUncertainty {
+				continue
+			}
+			testEpds = append(testEpds, epdResult)
 		}
 
 		var runner Runner
@@ -214,13 +225,16 @@ func main() {
 
 		successes := 0
 
-		for i, epd := range epds {
-			prefix := fmt.Sprintf("%d/%d", i+1, len(epds))
+		for i, epdResult := range testEpds {
+			prefix := fmt.Sprintf("%d/%d (depth %v)", i+1, len(testEpds), epdResult.StockfishDepth)
 
-			success, err := SearchEpd(runner, epd)
+			move, success, err := SearchEpd(runner, epdResult.Epd)
 			if err.HasError() {
 				panic(err)
 			}
+
+			runnerScore := epdResult.StockfishScores[move]
+			bestScore := epdResult.StockfishScores[epdResult.StockfishMove]
 
 			if success {
 				successes++
@@ -228,15 +242,11 @@ func main() {
 			} else {
 				prefix += " failure "
 			}
+			prefix += fmt.Sprint(move, " ", runnerScore, " vs ideal ", bestScore)
 
-			suffix := fmt.Sprintf("%d / %d successes", successes, i+1)
+			suffix := fmt.Sprintf("%d successes", successes)
 
-			if success {
-				successes++
-				logger.Println(prefix, epd, suffix)
-			} else {
-				logger.Println(prefix, epd, suffix)
-			}
+			logger.Println(prefix, epdResult.Epd, suffix)
 		}
 	}
 }
