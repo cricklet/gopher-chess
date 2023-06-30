@@ -14,7 +14,6 @@ func TestEvaluation(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
 
-	bitboards := g.CreateBitboards()
 	assert.Equal(t, strings.Join([]string{
 		"    k   ",
 		"  R     ",
@@ -26,16 +25,15 @@ func TestEvaluation(t *testing.T) {
 		"    K   ",
 	}, "\n"), g.Board.String())
 
-	assert.Equal(t, EvaluateDevelopment(bitboards, White), 2*_developmentScale)
-	assert.Equal(t, EvaluateDevelopment(bitboards, Black), 0*_developmentScale)
+	assert.Equal(t, EvaluateDevelopment(g.Bitboards, White), 2*_developmentScale)
+	assert.Equal(t, EvaluateDevelopment(g.Bitboards, Black), 0*_developmentScale)
 }
 
 func EvaluateFen(t *testing.T, s string, args ...EvaluationOption) int {
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
 
-	bitboards := g.CreateBitboards()
-	return Evaluate(bitboards, g.Player, args...)
+	return Evaluate(g.Bitboards, g.Player, args...)
 }
 
 func TestEvaluationEndgame(t *testing.T) {

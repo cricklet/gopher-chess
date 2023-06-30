@@ -1,24 +1,23 @@
 package search
 
 import (
-	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
 
-func PlayerIsInCheck(g *GameState, b *Bitboards) bool {
-	return KingIsInCheck(b, g.Player)
+func PlayerIsInCheck(g *GameState) bool {
+	return KingIsInCheck(g.Bitboards, g.Player)
 }
 
-func IsLegal(g *GameState, b *Bitboards, move Move) (bool, Error) {
+func IsLegal(g *GameState, move Move) (bool, Error) {
 	var returnError Error
 
 	player := g.Player
 
 	var update BoardUpdate
-	err := g.PerformMove(move, &update, b)
+	err := g.PerformMove(move, &update)
 	defer func() {
-		err = g.UndoUpdate(&update, b)
+		err = g.UndoUpdate(&update)
 		returnError = Join(returnError, err)
 	}()
 
@@ -27,7 +26,7 @@ func IsLegal(g *GameState, b *Bitboards, move Move) (bool, Error) {
 		return false, returnError
 	}
 
-	if KingIsInCheck(b, player) {
+	if KingIsInCheck(g.Bitboards, player) {
 		returnError = Join(returnError, err)
 		return false, returnError
 	}
@@ -36,7 +35,7 @@ func IsLegal(g *GameState, b *Bitboards, move Move) (bool, Error) {
 	return true, returnError
 }
 
-func NoValidMoves(g *GameState, b *Bitboards) (bool, Error) {
+func NoValidMoves(g *GameState) (bool, Error) {
 	foundValidMove := false
 	returnError := NilError
 
@@ -45,13 +44,13 @@ func NoValidMoves(g *GameState, b *Bitboards) (bool, Error) {
 			return
 		}
 
-		legal, err := IsLegal(g, b, move)
+		legal, err := IsLegal(g, move)
 		if !IsNil(err) {
 			returnError = Join(returnError, err)
 		} else if legal {
 			foundValidMove = true
 		}
-	}, b, g)
+	}, g)
 
 	return !foundValidMove, returnError
 }

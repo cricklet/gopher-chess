@@ -89,9 +89,16 @@ func GamestateFromFenString(s string) (*GameState, Error) {
 		return &GameState{}, Errorf("wrong num %v of fields in str '%v'", len(ss), s)
 	}
 
-	game := GameState{}
+	var err Error
 
 	boardStr, playerString := ss[0], ss[1]
+
+	var board BoardArray
+	var player Player
+	var playerAndCastlingSideAllowed [2][2]bool
+	var enPassantTarget Optional[FileRank]
+	var halfMoveClock int
+	var fullMoveClock int
 
 	var rankIndex Rank = 7
 	var fileIndex File = 0
@@ -106,15 +113,14 @@ func GamestateFromFenString(s string) (*GameState, Error) {
 			fileIndex += File(indicesToSkip)
 		} else if p, err := PieceFromRune(c); IsNil(err) {
 			// note, we insert pieces into the board in inverse order so the 0th index refers to a1
-			game.Board[IndexFromFileRank(FileRank{File: fileIndex, Rank: rankIndex})] = p
+			board[IndexFromFileRank(FileRank{File: fileIndex, Rank: rankIndex})] = p
 			fileIndex++
 		} else {
 			return &GameState{}, Errorf("unknown character '%v' in '%v'", c, s)
 		}
 	}
 
-	if player, err := PlayerFromString(playerString); IsNil(err) {
-		game.Player = player
+	if player, err = PlayerFromString(playerString); IsNil(err) {
 	} else {
 		return &GameState{}, Errorf("invalid player '%v' in '%v'", playerString, s)
 	}
@@ -134,37 +140,46 @@ func GamestateFromFenString(s string) (*GameState, Error) {
 		case '-':
 			continue
 		case 'K':
-			game.PlayerAndCastlingSideAllowed[White][Kingside] = true
+			playerAndCastlingSideAllowed[White][Kingside] = true
 		case 'Q':
-			game.PlayerAndCastlingSideAllowed[White][Queenside] = true
+			playerAndCastlingSideAllowed[White][Queenside] = true
 		case 'k':
-			game.PlayerAndCastlingSideAllowed[Black][Kingside] = true
+			playerAndCastlingSideAllowed[Black][Kingside] = true
 		case 'q':
-			game.PlayerAndCastlingSideAllowed[Black][Queenside] = true
+			playerAndCastlingSideAllowed[Black][Queenside] = true
 		}
 	}
 
 	if enPassantTargetString == "-" {
-		game.EnPassantTarget = Empty[FileRank]()
-	} else if enPassantTarget, err := FileRankFromString(enPassantTargetString); IsNil(err) {
-		game.EnPassantTarget = Some(enPassantTarget)
+		enPassantTarget = Empty[FileRank]()
+	} else if v, err := FileRankFromString(enPassantTargetString); IsNil(err) {
+		enPassantTarget = Some(v)
 	} else {
 		return &GameState{}, Errorf("invalid en-passant target '%v' in '%v'", enPassantTargetString, s)
 	}
 
-	if halfMoveClock, err := strconv.ParseInt(string(halfMoveClockString), 10, 0); IsNil(err) {
-		game.HalfMoveClock = int(halfMoveClock)
+	if v, err := strconv.ParseInt(string(halfMoveClockString), 10, 0); IsNil(err) {
+		halfMoveClock = int(v)
 	} else {
 		return &GameState{}, Errorf("invalid half move clock '%v' in '%v'", halfMoveClockString, s)
 	}
 
-	if fullMoveClock, err := strconv.ParseInt(string(fullMoveClockString), 10, 0); IsNil(err) {
-		game.FullMoveClock = int(fullMoveClock)
+	if v, err := strconv.ParseInt(string(fullMoveClockString), 10, 0); IsNil(err) {
+		fullMoveClock = int(v)
 	} else {
 		return &GameState{}, Errorf("invalid full move clock '%v' in '%v'", fullMoveClockString, s)
 	}
 
+	game := NewGameState(
+		board,
+		player,
+		playerAndCastlingSideAllowed,
+		enPassantTarget,
+		halfMoveClock,
+		fullMoveClock,
+	)
+
 	game.ZobristHash()
 
-	return &game, NilError
+	return game, NilError
 }

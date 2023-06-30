@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/helpers"
 	"github.com/cricklet/chessgo/internal/zobrist"
@@ -23,11 +24,54 @@ type GameState struct {
 	HalfMoveClock                int
 	FullMoveClock                int
 
+	Bitboards *bitboards.Bitboards
+
 	zobristHash Optional[uint64]
 
 	moveListeners []MoveListener
 
-	noCopy NoCopy
+	noDefaultConstruction bool
+	noCopy                NoCopy
+}
+
+func NewGameState(
+	board BoardArray,
+	player Player,
+	playerAndCastlingSideAllowed [2][2]bool,
+	enPassantTarget Optional[FileRank],
+	halfMoveClock int,
+	fullMoveClock int,
+) *GameState {
+	game := GameState{
+		Board:                        board,
+		Player:                       player,
+		PlayerAndCastlingSideAllowed: playerAndCastlingSideAllowed,
+		EnPassantTarget:              enPassantTarget,
+		HalfMoveClock:                halfMoveClock,
+		FullMoveClock:                fullMoveClock,
+		Bitboards:                    &Bitboards{},
+		noDefaultConstruction:        true,
+	}
+
+	for i, piece := range game.Board {
+		if piece == XX {
+			continue
+		}
+		pieceType := piece.PieceType()
+		player := piece.Player()
+		game.Bitboards.Players[player].Pieces[pieceType] |= SingleBitboard(i)
+
+		if piece.IsWhite() {
+			game.Bitboards.Occupied |= SingleBitboard(i)
+			game.Bitboards.Players[White].Occupied |= SingleBitboard(i)
+		}
+		if piece.IsBlack() {
+			game.Bitboards.Occupied |= SingleBitboard(i)
+			game.Bitboards.Players[Black].Occupied |= SingleBitboard(i)
+		}
+	}
+
+	return &game
 }
 
 func (g *GameState) RegisterListener(listener MoveListener) func() {
@@ -164,14 +208,18 @@ func (g *GameState) updateCastlingRequirementsFor(moveBitboard Bitboard, player 
 	}
 }
 
-func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) Error {
+func (g *GameState) PerformMove(move Move, update *BoardUpdate) Error {
+	if !g.noDefaultConstruction {
+		return Errorf("GameState must be constructed with NewGameState")
+	}
+
 	prevZobristHash := g.ZobristHash()
 	err := setupBoardUpdate(g, move, update)
 	if !IsNil(err) {
 		return err
 	}
 
-	err = g.applyMoveToBitboards(b, update)
+	err = g.applyMoveToBitboards(update)
 	if !IsNil(err) {
 		return err
 	}
@@ -221,7 +269,7 @@ func (g *GameState) PerformMove(move Move, update *BoardUpdate, b *Bitboards) Er
 	return NilError
 }
 
-func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) Error {
+func (g *GameState) applyMoveToBitboards(update *BoardUpdate) Error {
 	for i := 0; i < update.Num; i++ {
 		index := update.Indices[i]
 		prevPiece := update.PrevPieces[i]
@@ -229,20 +277,20 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) Erro
 		if nextPiece == XX {
 			if prevPiece == XX {
 			} else {
-				err := b.ClearSquare(index, prevPiece)
+				err := g.Bitboards.ClearSquare(index, prevPiece)
 				if !IsNil(err) {
 					return err
 				}
 			}
 		} else {
 			if prevPiece == XX {
-				b.SetSquare(index, nextPiece)
+				g.Bitboards.SetSquare(index, nextPiece)
 			} else {
-				err := b.ClearSquare(index, prevPiece)
+				err := g.Bitboards.ClearSquare(index, prevPiece)
 				if !IsNil(err) {
 					return err
 				}
-				b.SetSquare(index, nextPiece)
+				g.Bitboards.SetSquare(index, nextPiece)
 			}
 		}
 	}
@@ -250,13 +298,13 @@ func (g *GameState) applyMoveToBitboards(b *Bitboards, update *BoardUpdate) Erro
 	return NilError
 }
 
-func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) Error {
+func (g *GameState) UndoUpdate(update *BoardUpdate) Error {
 	if g.zobristHash.IsEmpty() {
 		return Errorf("zobrist hash should have been setup during original move")
 	}
 	g.zobristHash = Some(zobrist.UpdateHash(g.zobristHash.Value(), update, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget))
 
-	err := g.applyUndoToBitboards(update, b)
+	err := g.applyUndoToBitboards(update)
 	if !IsNil(err) {
 		return err
 	}
@@ -281,7 +329,7 @@ func (g *GameState) UndoUpdate(update *BoardUpdate, b *Bitboards) Error {
 	return NilError
 }
 
-func (g *GameState) applyUndoToBitboards(update *BoardUpdate, b *Bitboards) Error {
+func (g *GameState) applyUndoToBitboards(update *BoardUpdate) Error {
 	for i := update.Num - 1; i >= 0; i-- {
 		index := update.Indices[i]
 		current := update.Pieces[i]
@@ -290,15 +338,15 @@ func (g *GameState) applyUndoToBitboards(update *BoardUpdate, b *Bitboards) Erro
 		if current == XX {
 			if previous == XX {
 			} else {
-				b.SetSquare(index, previous)
+				g.Bitboards.SetSquare(index, previous)
 			}
 		} else {
 			var err Error
 			if previous == XX {
-				err = b.ClearSquare(index, current)
+				err = g.Bitboards.ClearSquare(index, current)
 			} else {
-				err = b.ClearSquare(index, current)
-				b.SetSquare(index, previous)
+				err = g.Bitboards.ClearSquare(index, current)
+				g.Bitboards.SetSquare(index, previous)
 			}
 			if !IsNil(err) {
 				return Errorf("undo %v %v %v: %w", StringFromBoardIndex(index), current, previous, err)
@@ -327,26 +375,4 @@ func (g *GameState) BlackCanCastleKingside() bool {
 }
 func (g *GameState) BlackCanCastleQueenside() bool {
 	return g.PlayerAndCastlingSideAllowed[Black][Queenside]
-}
-
-func (g *GameState) CreateBitboards() *Bitboards {
-	result := Bitboards{}
-	for i, piece := range g.Board {
-		if piece == XX {
-			continue
-		}
-		pieceType := piece.PieceType()
-		player := piece.Player()
-		result.Players[player].Pieces[pieceType] |= SingleBitboard(i)
-
-		if piece.IsWhite() {
-			result.Occupied |= SingleBitboard(i)
-			result.Players[White].Occupied |= SingleBitboard(i)
-		}
-		if piece.IsBlack() {
-			result.Occupied |= SingleBitboard(i)
-			result.Players[Black].Occupied |= SingleBitboard(i)
-		}
-	}
-	return &result
 }

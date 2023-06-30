@@ -14,7 +14,6 @@ type ChessGoRunner struct {
 	Logger Logger
 
 	g         *GameState
-	b         *Bitboards
 	s         *search.SearchHelper
 	outOfTime *bool
 
@@ -49,14 +48,13 @@ type HistoryValue struct {
 
 func (r *ChessGoRunner) Reset() {
 	r.g = nil
-	r.b = nil
 	r.s = nil
 	r.StartFen = ""
 	r.history = []HistoryValue{}
 }
 
 func (r *ChessGoRunner) IsNew() bool {
-	return r.g == nil || r.b == nil
+	return r.g == nil
 }
 
 func (r *ChessGoRunner) LastMove() Optional[Move] {
@@ -72,7 +70,7 @@ func (r *ChessGoRunner) LastHistory() *HistoryValue {
 func (r *ChessGoRunner) Rewind(num int) Error {
 	for i := 0; i < MinInt(num, len(r.history)); i++ {
 		h := r.history[len(r.history)-1]
-		err := r.g.UndoUpdate(&h.update, r.b)
+		err := r.g.UndoUpdate(&h.update)
 		if !IsNil(err) {
 			return Errorf("Rewind: %w", err)
 		}
@@ -87,7 +85,7 @@ func (r *ChessGoRunner) PerformMove(move Move) Error {
 	h := r.LastHistory()
 	h.move = move
 
-	err := r.g.PerformMove(move, &h.update, r.b)
+	err := r.g.PerformMove(move, &h.update)
 	if !IsNil(err) {
 		return Errorf("PerformMove: %w", err)
 	}
@@ -143,13 +141,10 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	}
 	r.g = game
 
-	bitboards := r.g.CreateBitboards()
-	r.b = bitboards
-
 	// We don't need to be careful about unregistering searcher because it
 	// has the same lifecycle as GameState above. eg, the garbage collector
 	// will clean up both at the same time
-	_, searcher := search.NewSearchHelper(r.g, r.b,
+	_, searcher := search.NewSearchHelper(r.g,
 		search.WithMaxDepth{MaxDepth: 10},
 		search.WithLogger{Logger: r.Logger},
 		search.WithTimer{OutOfTime: r.outOfTime},
@@ -178,7 +173,7 @@ func (r *ChessGoRunner) MovesForSelection(selection string) ([]string, Error) {
 	selectionIndex := IndexFromFileRank(selectionFileRank)
 
 	legalMoves := []Move{}
-	err = search.GenerateLegalMoves(r.b, r.g, &legalMoves)
+	err = search.GenerateLegalMoves(r.g, &legalMoves)
 	if !IsNil(err) {
 		return nil, err
 	}
@@ -226,7 +221,7 @@ func (r *ChessGoRunner) Player() Player {
 }
 
 func (r *ChessGoRunner) Bitboards() *Bitboards {
-	return r.b
+	return r.g.Bitboards
 }
 
 func (r *ChessGoRunner) Board() BoardArray {
@@ -260,19 +255,19 @@ func (r *ChessGoRunner) Search() (Optional[string], Optional[int], int, Error) {
 }
 
 func (r *ChessGoRunner) PlayerIsInCheck() bool {
-	return search.PlayerIsInCheck(r.g, r.b)
+	return search.PlayerIsInCheck(r.g)
 }
 
 func (r *ChessGoRunner) NoValidMoves() (bool, Error) {
-	return search.NoValidMoves(r.g, r.b)
+	return search.NoValidMoves(r.g)
 }
 
 func (r *ChessGoRunner) Evaluate(player Player) int {
-	return search.Evaluate(r.b, player)
+	return search.Evaluate(r.g.Bitboards, player)
 }
 
 func (r *ChessGoRunner) EvaluateSimple(player Player) int {
-	return search.EvaluatePieces(r.b, player) - search.EvaluatePieces(r.b, player.Other())
+	return search.EvaluatePieces(r.g.Bitboards, player) - search.EvaluatePieces(r.g.Bitboards, player.Other())
 }
 
 func (r *ChessGoRunner) DrawClock() int {

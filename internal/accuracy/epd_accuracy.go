@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cricklet/chessgo/internal/bitboards"
 	"github.com/cricklet/chessgo/internal/game"
 	"github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -54,9 +53,9 @@ func popTargetSquare(moveStr string) (FileRank, string, Error) {
 	return fileRank, prefix, err
 }
 
-func findPiece(pieceStr string, target FileRank, g *game.GameState, b *bitboards.Bitboards) (FileRank, Error) {
+func findPiece(pieceStr string, target FileRank, g *game.GameState) (FileRank, Error) {
 	moves := []Move{}
-	err := search.GenerateLegalMoves(b, g, &moves)
+	err := search.GenerateLegalMoves(g, &moves)
 	if err.HasError() {
 		return FileRank{}, err
 	}
@@ -141,7 +140,7 @@ func popCheck(moveStr string) string {
 	return strings.ReplaceAll(moveStr, "+", "")
 }
 
-func MoveFromShorthand(moveStr string, g *game.GameState, b *bitboards.Bitboards) (string, Error) {
+func MoveFromShorthand(moveStr string, g *game.GameState) (string, Error) {
 	moveStr = popCheck(moveStr)
 	isCapture, move2 := popCapture(moveStr)
 	promotionPieceType, move3 := popPromotion(move2)
@@ -150,7 +149,7 @@ func MoveFromShorthand(moveStr string, g *game.GameState, b *bitboards.Bitboards
 		return "", err
 	}
 
-	startFileRank, err := findPiece(move4, targetFileRank, g, b)
+	startFileRank, err := findPiece(move4, targetFileRank, g)
 	if err.HasError() {
 		return "", err
 	}
@@ -166,7 +165,7 @@ func MoveFromShorthand(moveStr string, g *game.GameState, b *bitboards.Bitboards
 	return move.String(), NilError
 }
 
-func MovesFromEpd(prefix string, epd string, g *game.GameState, b *bitboards.Bitboards) ([]string, Error) {
+func MovesFromEpd(prefix string, epd string, g *game.GameState) ([]string, Error) {
 	if !strings.Contains(epd, prefix+" ") {
 		return []string{}, NilError
 	}
@@ -176,7 +175,7 @@ func MovesFromEpd(prefix string, epd string, g *game.GameState, b *bitboards.Bit
 	moves := []string{}
 
 	for _, moveStr := range strings.Split(movesStr, ", ") {
-		move, err := MoveFromShorthand(moveStr, g, b)
+		move, err := MoveFromShorthand(moveStr, g)
 		if err.HasError() {
 			return []string{}, err
 		}
@@ -286,7 +285,6 @@ func CalculateScoreForEveryMove(
 	moveToPrioritize string,
 	fen string,
 	g *game.GameState,
-	b *bitboards.Bitboards,
 ) (map[string]int, Error) {
 	scores := map[string]int{}
 
@@ -295,7 +293,7 @@ func CalculateScoreForEveryMove(
 	}
 
 	moves := []Move{}
-	err := search.GenerateLegalMoves(b, g, &moves)
+	err := search.GenerateLegalMoves(g, &moves)
 	if err.HasError() {
 		return scores, err
 	}
@@ -344,8 +342,7 @@ type Epd struct {
 	bestMoves  []string
 	avoidMoves []string
 
-	game      *game.GameState
-	bitboards *bitboards.Bitboards
+	game *game.GameState
 }
 
 func ParseEpd(epd string) (*Epd, Error) {
@@ -355,14 +352,12 @@ func ParseEpd(epd string) (*Epd, Error) {
 		panic(err)
 	}
 
-	bitboards := game.CreateBitboards()
-
-	bestMoves, err := MovesFromEpd("bm", epd, game, bitboards)
+	bestMoves, err := MovesFromEpd("bm", epd, game)
 	if err.HasError() {
 		return nil, err
 	}
 
-	avoidMoves, err := MovesFromEpd("am", epd, game, bitboards)
+	avoidMoves, err := MovesFromEpd("am", epd, game)
 	if err.HasError() {
 		return nil, err
 	}
@@ -377,7 +372,6 @@ func ParseEpd(epd string) (*Epd, Error) {
 		bestMoves:  bestMoves,
 		avoidMoves: avoidMoves,
 		game:       game,
-		bitboards:  bitboards,
 	}, NilError
 }
 
@@ -431,7 +425,6 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 		move,
 		parsed.fen,
 		parsed.game,
-		parsed.bitboards,
 	)
 	if err.HasError() {
 		panic(err)

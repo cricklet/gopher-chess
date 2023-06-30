@@ -234,7 +234,7 @@ func TestBitboardSetup(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, WN, WR,
 	}.AsBoardArray().String())
 
-	bitboards := g.CreateBitboards()
+	bitboards := g.Bitboards
 	assert.Equal(t, bitboards.Occupied.String(), strings.Join([]string{
 		"11111111",
 		"11111111",
@@ -353,12 +353,10 @@ func TestGeneratePseudoMovesEarly(t *testing.T) {
 		WR, WN, WB, WQ, WK, WB, WN, WR,
 	}.AsBoardArray().String())
 
-	bitboards := g.CreateBitboards()
-
 	result := []string{}
 	GeneratePseudoMoves(func(move Move) {
 		result = append(result, move.String())
-	}, bitboards, g)
+	}, g)
 
 	expected := []string{
 		"a2a3",
@@ -433,12 +431,10 @@ func TestGeneratePseudoMovesEnPassant(t *testing.T) {
 
 	assert.Equal(t, g.EnPassantTarget.Value().String(), "g6")
 
-	bitboards := g.CreateBitboards()
-
 	result := []string{}
 	GeneratePseudoMoves(func(move Move) {
 		result = append(result, move.String())
-	}, bitboards, g)
+	}, g)
 
 	expected := []string{
 		"a2a3",
@@ -646,12 +642,10 @@ func TestWhiteCastling(t *testing.T) {
 	assert.Equal(t, White, g.Player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.PlayerAndCastlingSideAllowed)
 
-	bitboards := g.CreateBitboards()
-
 	result := []string{}
 	GeneratePseudoMoves(func(move Move) {
 		result = append(result, move.String())
-	}, bitboards, g)
+	}, g)
 
 	expected := []string{
 		// rook
@@ -739,12 +733,10 @@ func TestBlackCastling(t *testing.T) {
 	assert.Equal(t, Black, g.Player)
 	assert.Equal(t, [2][2]bool{{true, true}, {true, true}}, g.PlayerAndCastlingSideAllowed)
 
-	bitboards := g.CreateBitboards()
-
 	result := []string{}
 	GeneratePseudoMoves(func(move Move) {
 		result = append(result, move.String())
-	}, bitboards, g)
+	}, g)
 
 	expected := []string{
 		// queen
@@ -825,8 +817,6 @@ func TestAttackMap(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
 
-	bitboards := g.CreateBitboards()
-
 	assert.Equal(t, strings.Join([]string{
 		"r   k  r",
 		"pp bb  p",
@@ -849,7 +839,7 @@ func TestAttackMap(t *testing.T) {
 			"10000000",
 			"00000000",
 		}).String(),
-		DangerBoard(bitboards, White).String())
+		DangerBoard(g.Bitboards, White).String())
 
 	assert.Equal(t,
 		BitboardFromStrings([8]string{
@@ -862,7 +852,7 @@ func TestAttackMap(t *testing.T) {
 			"10111101",
 			"01111110",
 		}).String(),
-		DangerBoard(bitboards, Black).String())
+		DangerBoard(g.Bitboards, Black).String())
 }
 
 func TestKnightMasks(t *testing.T) {
@@ -924,8 +914,6 @@ func TestCheck(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
 
-	bitboards := g.CreateBitboards()
-
 	assert.Equal(t, strings.Join([]string{
 		"r   k  r",
 		"pp bb   ",
@@ -939,7 +927,7 @@ func TestCheck(t *testing.T) {
 
 	result := []string{}
 	moves := make([]Move, 0)
-	err = GenerateLegalMoves(bitboards, g, &moves)
+	err = GenerateLegalMoves(g, &moves)
 	if !IsNil(err) {
 		t.Error(err)
 	}
@@ -966,8 +954,6 @@ func TestPin(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
 
-	bitboards := g.CreateBitboards()
-
 	assert.Equal(t, strings.Join([]string{
 		"     k  ",
 		"        ",
@@ -981,7 +967,7 @@ func TestPin(t *testing.T) {
 
 	result := []string{}
 	moves := make([]Move, 0)
-	err = GenerateLegalMoves(bitboards, g, &moves)
+	err = GenerateLegalMoves(g, &moves)
 	if !IsNil(err) {
 		t.Error(err)
 	}
@@ -1075,31 +1061,6 @@ func TestBitboardsCopyingIsDeep(t *testing.T) {
 	// assert.Equal(t, c.Occupied, Bitboard(11))
 	// assert.Equal(t, c.Players[White].Occupied, Bitboard(11))
 	// assert.Equal(t, c.Players[White].Pieces[Rook], Bitboard(11))
-}
-
-func TestGameStateCopyingIsDeep(t *testing.T) {
-	b := GameState{}
-	b.Board[0] = WQ
-	b.HalfMoveClock = 9
-	b.PlayerAndCastlingSideAllowed[0][0] = true
-	b.PlayerAndCastlingSideAllowed[0][1] = false
-
-	// GameState copying is now disabled via noCopy
-	// c := b
-	// c.Board[0] = BQ
-	// c.HalfMoveClock = 11
-	// c.PlayerAndCastlingSideAllowed[0][0] = false
-	// c.PlayerAndCastlingSideAllowed[0][1] = true
-
-	assert.Equal(t, b.Board[0], WQ)
-	assert.Equal(t, b.HalfMoveClock, 9)
-	assert.Equal(t, b.PlayerAndCastlingSideAllowed[0][0], true)
-	assert.Equal(t, b.PlayerAndCastlingSideAllowed[0][1], false)
-
-	// assert.Equal(t, c.Board[0], BQ)
-	// assert.Equal(t, c.HalfMoveClock, 11)
-	// assert.Equal(t, c.PlayerAndCastlingSideAllowed[0][0], false)
-	// assert.Equal(t, c.PlayerAndCastlingSideAllowed[0][1], true)
 }
 
 type TestBuffer []int

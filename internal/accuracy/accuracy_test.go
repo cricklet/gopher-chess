@@ -16,9 +16,7 @@ func TestFindsTheRightCapture(t *testing.T) {
 	game, err := game.GamestateFromFenString(fen)
 	assert.True(t, err.IsNil(), err)
 
-	bitboards := game.CreateBitboards()
-
-	bestMoves, err := MovesFromEpd("bm", epd, game, bitboards)
+	bestMoves, err := MovesFromEpd("bm", epd, game)
 
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, 1, len(bestMoves))
@@ -34,9 +32,7 @@ func TestEpdPawn(t *testing.T) {
 	game, err := game.GamestateFromFenString(fen)
 	assert.True(t, err.IsNil(), err)
 
-	bitboards := game.CreateBitboards()
-
-	bestMoves, err := MovesFromEpd("bm", epd, game, bitboards)
+	bestMoves, err := MovesFromEpd("bm", epd, game)
 
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, 1, len(bestMoves), bestMoves)
@@ -51,13 +47,11 @@ func TestDisambiguation(t *testing.T) {
 	game, err := game.GamestateFromFenString(fen)
 	assert.True(t, err.IsNil(), err)
 
-	bitboards := game.CreateBitboards()
-
-	move, err := MoveFromShorthand("Bxc5", game, bitboards)
+	move, err := MoveFromShorthand("Bxc5", game)
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, "b4c5", move)
 
-	move, err = MoveFromShorthand("bxc5", game, bitboards)
+	move, err = MoveFromShorthand("bxc5", game)
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, "b6c5", move)
 }
@@ -68,9 +62,7 @@ func TestPawnPush(t *testing.T) {
 	game, err := game.GamestateFromFenString(fen)
 	assert.True(t, err.IsNil(), err)
 
-	bitboards := game.CreateBitboards()
-
-	move, err := MoveFromShorthand("f5", game, bitboards)
+	move, err := MoveFromShorthand("f5", game)
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, "f4f5", move)
 }
@@ -82,9 +74,7 @@ func TestDisambiguateKnight(t *testing.T) {
 	game, err := game.GamestateFromFenString(fen)
 	assert.True(t, err.IsNil(), err)
 
-	bitboards := game.CreateBitboards()
-
-	bestMoves, err := MovesFromEpd("bm", epd, game, bitboards)
+	bestMoves, err := MovesFromEpd("bm", epd, game)
 
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, 1, len(bestMoves), bestMoves)
@@ -102,13 +92,11 @@ func CheckEpdParsing(t *testing.T, name string) {
 		game, err := game.GamestateFromFenString(fen)
 		assert.True(t, err.IsNil(), err)
 
-		bitboards := game.CreateBitboards()
-
-		_, err = MovesFromEpd("bm", epd, game, bitboards)
+		_, err = MovesFromEpd("bm", epd, game)
 		assert.True(t, err.IsNil(),
 			fmt.Sprintf("epd: %s, %v", epd, err))
 
-		_, err = MovesFromEpd("am", epd, game, bitboards)
+		_, err = MovesFromEpd("am", epd, game)
 		assert.True(t, err.IsNil(), err)
 		assert.True(t, err.IsNil(),
 			fmt.Sprintf("epd: %s, %v", epd, err))

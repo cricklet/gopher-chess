@@ -14,9 +14,8 @@ func TestCastlingRights(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
 
-	b := g.CreateBitboards()
 	update := BoardUpdate{}
-	err = g.PerformMove(g.MoveFromString("e1c1"), &update, b)
+	err = g.PerformMove(g.MoveFromString("e1c1"), &update)
 	assert.True(t, IsNil(err))
 
 	assert.False(t, g.WhiteCanCastleKingside())
@@ -31,14 +30,13 @@ func TestPromotion(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
 
-	b := g.CreateBitboards()
 	update := BoardUpdate{}
 
-	err = g.PerformMove(g.MoveFromString("d7c8q"), &update, b)
+	err = g.PerformMove(g.MoveFromString("d7c8q"), &update)
 	assert.True(t, IsNil(err))
 
 	assert.True(t,
-		b.Players[White].Pieces[Queen]&SingleBitboard(BoardIndexFromString("c8")) != 0)
+		g.Bitboards.Players[White].Pieces[Queen]&SingleBitboard(BoardIndexFromString("c8")) != 0)
 }
 
 func TestZobristHashIsKeptUpToDate(t *testing.T) {
@@ -46,19 +44,17 @@ func TestZobristHashIsKeptUpToDate(t *testing.T) {
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
 
-	b := g.CreateBitboards()
-
 	hash0 := zobrist.HashForBoardPosition(&g.Board, g.Player, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget)
 	assert.Equal(t, hash0, g.ZobristHash())
 
 	update := BoardUpdate{}
-	err = g.PerformMove(g.MoveFromString("e1c1"), &update, b)
+	err = g.PerformMove(g.MoveFromString("e1c1"), &update)
 	assert.True(t, IsNil(err))
 
 	hash1 := zobrist.HashForBoardPosition(&g.Board, g.Player, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget)
 	assert.Equal(t, hash1, g.ZobristHash())
 
-	err = g.UndoUpdate(&update, b)
+	err = g.UndoUpdate(&update)
 	assert.True(t, IsNil(err))
 
 	hash2 := zobrist.HashForBoardPosition(&g.Board, g.Player, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget)
@@ -72,19 +68,18 @@ func TestZobristHashSimple(t *testing.T) {
 
 	g, err := GamestateFromFenString(s)
 	assert.True(t, IsNil(err))
-	b := g.CreateBitboards()
 
 	hash0 := zobrist.HashForBoardPosition(&g.Board, g.Player, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget)
 	assert.Equal(t, hash0, g.ZobristHash())
 
 	update := BoardUpdate{}
-	err = g.PerformMove(g.MoveFromString("h1h2"), &update, b)
+	err = g.PerformMove(g.MoveFromString("h1h2"), &update)
 	assert.True(t, IsNil(err))
 
 	hash1 := zobrist.HashForBoardPosition(&g.Board, g.Player, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget)
 	assert.Equal(t, hash1, g.ZobristHash())
 
-	err = g.UndoUpdate(&update, b)
+	err = g.UndoUpdate(&update)
 	assert.True(t, IsNil(err))
 
 	hash2 := zobrist.HashForBoardPosition(&g.Board, g.Player, &g.PlayerAndCastlingSideAllowed, g.EnPassantTarget)

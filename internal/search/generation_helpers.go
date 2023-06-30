@@ -84,17 +84,17 @@ func generateJumpMovesByLookup(
 
 var GetMovesBuffer, ReleaseMovesBuffer, StatsMoveBuffer = CreatePool(func() []Move { return make([]Move, 0, 256) }, func(t *[]Move) { *t = (*t)[:0] })
 
-func GeneratePseudoMoves(f func(move Move), b *Bitboards, g *GameState) {
-	GeneratePseudoMovesInternal(f, b, g, false /* onlyCaptures */, false /* allPossiblePromotions */, false /*skipCastling*/)
+func GeneratePseudoMoves(f func(move Move), g *GameState) {
+	GeneratePseudoMovesInternal(f, g, false /* onlyCaptures */, false /* allPossiblePromotions */, false /*skipCastling*/)
 }
-func GeneratePseudoMovesWithAllPromotions(f func(move Move), b *Bitboards, g *GameState) {
-	GeneratePseudoMovesInternal(f, b, g, false /* onlyCaptures */, true /* allPossiblePromotions */, false /*skipCastling*/)
+func GeneratePseudoMovesWithAllPromotions(f func(move Move), g *GameState) {
+	GeneratePseudoMovesInternal(f, g, false /* onlyCaptures */, true /* allPossiblePromotions */, false /*skipCastling*/)
 }
-func GeneratePseudoMovesSkippingCastling(f func(move Move), b *Bitboards, g *GameState) {
-	GeneratePseudoMovesInternal(f, b, g, false /* onlyCaptures */, true /* allPossiblePromotions */, true /*skipCastling*/)
+func GeneratePseudoMovesSkippingCastling(f func(move Move), g *GameState) {
+	GeneratePseudoMovesInternal(f, g, false /* onlyCaptures */, true /* allPossiblePromotions */, true /*skipCastling*/)
 }
-func GeneratePseudoCaptures(f func(move Move), b *Bitboards, g *GameState) {
-	GeneratePseudoMovesInternal(f, b, g, true /* onlyCaptures */, false /* allPossiblePromotions */, true /* skipCastling */)
+func GeneratePseudoCaptures(f func(move Move), g *GameState) {
+	GeneratePseudoMovesInternal(f, g, true /* onlyCaptures */, false /* allPossiblePromotions */, true /* skipCastling */)
 }
 
 var possiblePromotions = []PieceType{Queen, Rook, Bishop, Knight}
@@ -127,8 +127,10 @@ func appendPawnMovesAndPossiblePromotions(f func(move Move), moveType MoveType, 
 	}
 }
 
-func GeneratePseudoMovesInternal(f func(move Move), b *Bitboards, g *GameState, onlyCaptures bool, allPossiblePromotions bool, skipCastling bool) {
+func GeneratePseudoMovesInternal(f func(move Move), g *GameState, onlyCaptures bool, allPossiblePromotions bool, skipCastling bool) {
 	player := g.Player
+	b := g.Bitboards
+
 	playerBoards := b.Players[player]
 	enemyBoards := &b.Players[player.Other()]
 
@@ -344,7 +346,7 @@ func DangerBoard(b *Bitboards, player Player) Bitboard {
 	return result
 }
 
-func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) Error {
+func GenerateLegalMoves(g *GameState, legalMovesOutput *[]Move) Error {
 	var returnError Error
 
 	player := g.Player
@@ -354,20 +356,20 @@ func GenerateLegalMoves(b *Bitboards, g *GameState, legalMovesOutput *[]Move) Er
 		}
 
 		update := BoardUpdate{}
-		returnError = g.PerformMove(move, &update, b)
+		returnError = g.PerformMove(move, &update)
 		if !IsNil(returnError) {
 			return
 		}
 
-		if !KingIsInCheck(b, player) {
+		if !KingIsInCheck(g.Bitboards, player) {
 			*legalMovesOutput = append(*legalMovesOutput, move)
 		}
 
-		returnError = g.UndoUpdate(&update, b)
+		returnError = g.UndoUpdate(&update)
 		if !IsNil(returnError) {
 			return
 		}
-	}, b, g)
+	}, g)
 
 	return returnError
 }

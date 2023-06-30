@@ -13,9 +13,6 @@ func TestVariationMovePrioritizer(t *testing.T) {
 	g, err := game.GamestateFromFenString(fen)
 	assert.True(t, IsNil(err), err)
 
-	b := g.CreateBitboards()
-	assert.True(t, IsNil(err), err)
-
 	variations := [][]SearchMove{
 		{
 			{Move: MoveFromString("e2e4", QuietMove)},
@@ -37,29 +34,29 @@ func TestVariationMovePrioritizer(t *testing.T) {
 
 	{
 		undo1 := BoardUpdate{}
-		err = g.PerformMove(MoveFromString("e2e4", QuietMove), &undo1, b)
+		err = g.PerformMove(MoveFromString("e2e4", QuietMove), &undo1)
 		assert.True(t, err.IsNil())
 		assert.Equal(t, "VariationMovePrioritizer[e7e5, g1f3]", gen.String())
 
 		undo2 := BoardUpdate{}
-		err = g.PerformMove(MoveFromString("e7e5", QuietMove), &undo2, b)
+		err = g.PerformMove(MoveFromString("e7e5", QuietMove), &undo2)
 		assert.True(t, err.IsNil())
 		assert.Equal(t, "VariationMovePrioritizer[g1f3]", gen.String())
 
 		undo3 := BoardUpdate{}
-		err = g.PerformMove(MoveFromString("g1f3", QuietMove), &undo3, b)
+		err = g.PerformMove(MoveFromString("g1f3", QuietMove), &undo3)
 		assert.True(t, err.IsNil())
 		assert.Equal(t, "VariationMovePrioritizer[empty]", gen.String())
 
-		err = g.UndoUpdate(&undo3, b)
+		err = g.UndoUpdate(&undo3)
 		assert.True(t, err.IsNil())
 		assert.Equal(t, "VariationMovePrioritizer[g1f3]", gen.String())
 
-		err = g.UndoUpdate(&undo2, b)
+		err = g.UndoUpdate(&undo2)
 		assert.True(t, err.IsNil())
 		assert.Equal(t, "VariationMovePrioritizer[e7e5, g1f3]", gen.String())
 
-		err = g.UndoUpdate(&undo1, b)
+		err = g.UndoUpdate(&undo1)
 		assert.True(t, err.IsNil())
 	}
 
@@ -67,20 +64,20 @@ func TestVariationMovePrioritizer(t *testing.T) {
 
 	{
 		undo1 := BoardUpdate{}
-		err = g.PerformMove(MoveFromString("d2d4", QuietMove), &undo1, b)
+		err = g.PerformMove(MoveFromString("d2d4", QuietMove), &undo1)
 		assert.True(t, err.IsNil())
 		assert.Equal(t, "VariationMovePrioritizer[d7d5]", gen.String())
 
 		undo2 := BoardUpdate{}
-		err = g.PerformMove(MoveFromString("e7e6", QuietMove), &undo2, b)
+		err = g.PerformMove(MoveFromString("e7e6", QuietMove), &undo2)
 		assert.True(t, err.IsNil())
 		assert.Equal(t, "VariationMovePrioritizer[empty]", gen.String())
 
-		err = g.UndoUpdate(&undo2, b)
+		err = g.UndoUpdate(&undo2)
 		assert.True(t, err.IsNil())
 		assert.Equal(t, "VariationMovePrioritizer[d7d5]", gen.String())
 
-		err = g.UndoUpdate(&undo1, b)
+		err = g.UndoUpdate(&undo1)
 		assert.True(t, err.IsNil())
 	}
 

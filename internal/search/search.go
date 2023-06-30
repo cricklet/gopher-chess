@@ -3,7 +3,6 @@ package search
 import (
 	"fmt"
 
-	. "github.com/cricklet/chessgo/internal/bitboards"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
@@ -68,18 +67,18 @@ maximize(board, depth) -> principle-variation, score
 minimize(board, depth) -> principle-variation, score
 */
 
-func performMoveAndReturnLegality(g *GameState, b *Bitboards, move Move) (func() Error, bool, Error) {
+func performMoveAndReturnLegality(g *GameState, move Move) (func() Error, bool, Error) {
 	var update BoardUpdate
-	err := g.PerformMove(move, &update, b)
+	err := g.PerformMove(move, &update)
 	if !err.IsNil() {
 		return func() Error { return NilError }, false, err
 	}
 
 	undo := func() Error {
-		return g.UndoUpdate(&update, b)
+		return g.UndoUpdate(&update)
 	}
 
-	if !KingIsInCheck(b, g.Enemy()) {
+	if !KingIsInCheck(g.Bitboards, g.Enemy()) {
 		return undo, true, NilError
 	}
 
@@ -132,7 +131,6 @@ type SearchHelper struct {
 	MoveSorter   MoveSorter
 	Evaluator    Evaluator
 	GameState    *GameState
-	Bitboards    *Bitboards
 	OutOfTime    *bool
 	InQuiescence bool
 	Logger
@@ -149,7 +147,7 @@ func (helper *SearchHelper) String() string {
 }
 
 func (helper *SearchHelper) inCheck() bool {
-	return KingIsInCheck(helper.Bitboards, helper.GameState.Player)
+	return KingIsInCheck(helper.GameState.Bitboards, helper.GameState.Player)
 }
 
 var LABEL_COL int = 7
@@ -234,7 +232,7 @@ func (helper *SearchHelper) PrintlnVariation(logger Logger,
 
 func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, depthRemaining int, past []SearchMove) ([]SearchMove, int, Error) {
 	if helper.OutOfTime != nil && *helper.OutOfTime {
-		return nil, Evaluate(helper.Bitboards, helper.GameState.Player), NilError
+		return nil, Evaluate(helper.GameState.Bitboards, helper.GameState.Player), NilError
 	}
 
 	if depthRemaining <= 0 {
@@ -293,7 +291,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 
 		helper.PrintlnVariation(helper.Debug, past, Some(searchMove), nil, "???", Empty[int]())
 
-		undo, legal, err := performMoveAndReturnLegality(helper.GameState, helper.Bitboards, move)
+		undo, legal, err := performMoveAndReturnLegality(helper.GameState, move)
 		if err.HasError() {
 			return nil, alpha, err
 		}
@@ -391,7 +389,7 @@ func (helper *SearchHelper) SearchUpToDepth(
 			return nextVariations, OutOfTime, NilError
 		}
 
-		undo, legal, err := performMoveAndReturnLegality(helper.GameState, helper.Bitboards, move)
+		undo, legal, err := performMoveAndReturnLegality(helper.GameState, move)
 		if err.HasError() {
 			return nextVariations, Failed, err
 		}
@@ -577,7 +575,7 @@ type WithSearch struct {
 }
 
 func (o WithSearch) apply(helper *SearchHelper) Optional[func()] {
-	unregister, gen := NewSearchTreeMoveGenerator(o.search, helper.GameState, helper.Bitboards)
+	unregister, gen := NewSearchTreeMoveGenerator(o.search, helper.GameState)
 	helper.MoveGen = gen
 	return Some(unregister)
 }
@@ -591,12 +589,11 @@ func (o WithTimer) apply(helper *SearchHelper) Optional[func()] {
 	return Empty[func()]()
 }
 
-func NewSearchHelper(game *GameState, b *Bitboards, opts ...SearchOption) (func(), *SearchHelper) {
+func NewSearchHelper(game *GameState, opts ...SearchOption) (func(), *SearchHelper) {
 	unregisterCallbacks := []func(){}
 
 	helper := SearchHelper{
 		GameState:               game,
-		Bitboards:               b,
 		OutOfTime:               nil,
 		Logger:                  &SilentLogger,
 		Debug:                   &SilentLogger,
@@ -624,7 +621,6 @@ func NewSearchHelper(game *GameState, b *Bitboards, opts ...SearchOption) (func(
 	if helper.MoveGen == nil {
 		defaultMoveGenerator := DefaultMoveGenerator{
 			GameState: game,
-			Bitboards: b,
 		}
 		helper.MoveGen = &defaultMoveGenerator
 	}
@@ -642,9 +638,7 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 		return []Move{}, 0, err
 	}
 
-	bitboards := game.CreateBitboards()
-
-	unregister, helper := NewSearchHelper(game, bitboards, opts...)
+	unregister, helper := NewSearchHelper(game, opts...)
 	defer unregister()
 
 	pv, score, _, err := helper.Search()

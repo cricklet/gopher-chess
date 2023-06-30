@@ -276,8 +276,7 @@ func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 		game, err := game.GamestateFromFenString(fen)
 		assert.True(t, IsNil(err), err)
 
-		bitboards := game.CreateBitboards()
-		expectedScore := Evaluate(bitboards, White, 0)
+		expectedScore := Evaluate(game.Bitboards, White, 0)
 		assert.Greater(t, expectedScore, 0)
 	}
 
@@ -358,9 +357,8 @@ func TestCheckMateDetection(t *testing.T) {
 
 	game, err := game.GamestateFromFenString(fen)
 	assert.True(t, IsNil(err), err)
-	bitboards := game.CreateBitboards()
 
-	isCheckMate := PlayerIsInCheck(game, bitboards)
+	isCheckMate := PlayerIsInCheck(game)
 	assert.True(t, isCheckMate)
 }
 
@@ -532,8 +530,7 @@ func timeSearch(t *testing.T, fen string, label string, opts ...SearchOption) ti
 		t.Fatal(err)
 	}
 
-	bitboards := game.CreateBitboards()
-	unregister, helper := NewSearchHelper(game, bitboards, opts...)
+	unregister, helper := NewSearchHelper(game, opts...)
 	defer unregister()
 
 	unregisterCounter, counter := NewMoveCounter(helper.GameState)

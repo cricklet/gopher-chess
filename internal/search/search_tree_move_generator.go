@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cricklet/chessgo/internal/bitboards"
 	"github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
@@ -60,19 +59,17 @@ func SearchTreeFromLines(
 type SearchTreeMoveGenerator struct {
 	SearchTree
 	*game.GameState
-	*bitboards.Bitboards
 
 	current *SearchTree
 	history []*SearchTree
 }
 
 func NewSearchTreeMoveGenerator(
-	tree SearchTree, g *game.GameState, b *bitboards.Bitboards,
+	tree SearchTree, g *game.GameState,
 ) (func(), *SearchTreeMoveGenerator) {
 	gen := &SearchTreeMoveGenerator{
 		SearchTree: tree,
 		GameState:  g,
-		Bitboards:  b,
 	}
 	gen.current = &gen.SearchTree
 
@@ -110,11 +107,11 @@ func (gen *SearchTreeMoveGenerator) generateMoves(mode MoveGenerationMode) (func
 		result = SomeLegalMoves
 		GeneratePseudoCaptures(func(m Move) {
 			*moves = append(*moves, m)
-		}, gen.Bitboards, gen.GameState)
+		}, gen.GameState)
 	} else {
 		GeneratePseudoMoves(func(m Move) {
 			*moves = append(*moves, m)
-		}, gen.Bitboards, gen.GameState)
+		}, gen.GameState)
 	}
 
 	if gen.current != nil && gen.current.continueSearching {
