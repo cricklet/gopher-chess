@@ -9,10 +9,6 @@ import (
 type DefaultMoveGenerator struct {
 	*game.GameState
 	*bitboards.Bitboards
-
-	sortedVariations [][]SearchMove
-	currentVariation []SearchMove
-	inVariation      bool
 }
 
 var _ MoveGen = (*DefaultMoveGenerator)(nil)

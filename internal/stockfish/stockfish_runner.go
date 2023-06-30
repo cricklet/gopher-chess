@@ -393,3 +393,25 @@ func (runner *StockfishRunner) Search() (Optional[string], Optional[int], int, E
 
 	return reader.bestMove, reader.bestPVScore, reader.depth, NilError
 }
+
+func (runner *StockfishRunner) Eval() (int, Error) {
+	eval := 0.0
+	err := runner.binary.RunSync("eval", func(line string) (LoopResult, Error) {
+		var err Error
+
+		// parse "Final evaluation       +0.31 (white side) [with scaled NNUE, hybrid, ...]"
+		if strings.Contains(line, "Final evaluation") {
+			evalStr := strings.TrimSpace(strings.TrimPrefix(line, "Final evaluation"))
+			evalStr = strings.Split(evalStr, " ")[0]
+			eval, err = WrapReturn(strconv.ParseFloat(evalStr, 64))
+			if !IsNil(err) {
+				return LoopBreak, err
+			}
+
+			return LoopBreak, NilError
+		}
+		return LoopContinue, NilError
+	}, Empty[time.Duration]())
+
+	return int(eval*100 + 0.5), err
+}

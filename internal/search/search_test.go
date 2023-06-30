@@ -540,7 +540,7 @@ func timeSearch(t *testing.T, fen string, label string, opts ...SearchOption) ti
 	defer unregisterCounter()
 
 	start := time.Now()
-	_, _, err = helper.Search()
+	_, _, _, err = helper.Search()
 	elapsed := time.Since(start)
 
 	fmt.Println(label, elapsed.Milliseconds(), "ms", counter.NumMoves(), "moves")

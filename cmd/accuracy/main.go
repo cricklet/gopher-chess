@@ -246,7 +246,6 @@ func checkRunner(runner Runner, testEpds []accuracy.EpdResult, logger Logger) {
 			panic(err)
 		}
 
-		// NEXT calculate accuracy via https://lichess.org/page/accuracy
 		runnerScore := epdResult.StockfishScores[move]
 		bestScore := epdResult.StockfishScores[epdResult.StockfishMove]
 

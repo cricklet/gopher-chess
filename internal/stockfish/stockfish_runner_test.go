@@ -39,7 +39,7 @@ func TestStockfish(t *testing.T) {
 			assert.True(t, IsNil(err))
 		}
 
-		move, _, err := r.Search()
+		move, _, _, err := r.Search()
 		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 	}
@@ -73,4 +73,30 @@ func TestInfoMissingPv(t *testing.T) {
 	assert.True(t, err.IsNil(), err)
 	assert.Equal(t, "b7e4", move.Value())
 	assert.Equal(t, score, 133)
+}
+
+func checkEval(t *testing.T, fen string) int {
+	stock, err := NewStockfishRunner(
+		WithLogger(&SilentLogger),
+	)
+	defer stock.Close()
+	assert.True(t, IsNil(err))
+
+	err = stock.SetupPosition(Position{
+		Fen:   fen,
+		Moves: []string{},
+	})
+	assert.True(t, IsNil(err))
+
+	score, err := stock.Eval()
+	assert.True(t, IsNil(err))
+	return score
+}
+
+func TestEval(t *testing.T) {
+	eval1 := checkEval(t, "5rk1/1ppb3p/p1pb4/8/3P1p1r/2P3NP/PP1BQ1P1/5RK1 b - -")
+	eval2 := checkEval(t, "5rk1/1ppb3p/p1pb4/8/3P1p1r/2P3NP/PP1BQ1P1/5RK1 w - -")
+
+	// stockfish always returns white eval
+	assert.Equal(t, eval1, eval2)
 }

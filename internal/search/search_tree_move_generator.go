@@ -100,17 +100,6 @@ func (gen *SearchTreeMoveGenerator) AfterUndo() {
 	gen.current, gen.history = PopPtr(gen.history)
 }
 
-func (gen *SearchTreeMoveGenerator) updatePrincipleVariations(variations []Pair[int, []SearchMove]) {
-}
-
-func (gen *SearchTreeMoveGenerator) searchingAllLegalMoves() bool {
-	if gen.current.continueSearching {
-		return true
-	} else {
-		return false
-	}
-}
-
 func (gen *SearchTreeMoveGenerator) generateMoves(mode MoveGenerationMode) (func(), MoveGenerationResult, *[]Move, Error) {
 	moves := GetMovesBuffer()
 	cleanup := func() { ReleaseMovesBuffer(moves) }

@@ -109,7 +109,7 @@ func (gen *VariationMovePrioritizer) String() string {
 		}
 	}
 
-	return fmt.Sprintf("VariationMovePrioritizer[empty]")
+	return "VariationMovePrioritizer[empty]"
 }
 
 func (gen *VariationMovePrioritizer) sortMoves(moves *[]Move) Error {
