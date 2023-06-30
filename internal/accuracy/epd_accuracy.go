@@ -187,17 +187,24 @@ func MovesFromEpd(prefix string, epd string, g *game.GameState, b *bitboards.Bit
 	return moves, NilError
 }
 
+type EpdCacheResult int
+
+const (
+	EpdCacheResultSuccess EpdCacheResult = iota
+	EpdCacheResultFailure
+	EpdCacheResultAmbiguous
+)
+
 type EpdResult struct {
 	Epd string `json:"epd"`
 
 	BestMoves  []string `json:"best_moves"`
 	AvoidMoves []string `json:"avoid_moves"`
 
-	StockfishScores           map[string]int `json:"stockfish_scores"`
-	StockfishMove             string         `json:"stockfish_move"`
-	StockfishSuccess          bool           `json:"stockfish_success"`
-	StockfishScoreUncertainty bool           `json:"stockfish_score_uncertainty"`
-	StockfishDepth            int            `json:"stockfish_depth"`
+	StockfishScores map[string]int `json:"stockfish_scores"`
+	StockfishMove   string         `json:"stockfish_move"`
+	StockfishResult EpdCacheResult `json:"stockfish_result"`
+	StockfishDepth  int            `json:"stockfish_depth"`
 }
 
 func calculateSuccess(move string, bestMoves []string, avoidMoves []string) bool {
@@ -409,7 +416,7 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 	if !calculateSuccess(move, parsed.bestMoves, parsed.avoidMoves) {
 		result.StockfishMove = move
 		result.StockfishScores = nil
-		result.StockfishSuccess = false
+		result.StockfishResult = EpdCacheResultFailure
 		result.StockfishDepth = depth
 		return result
 	}
@@ -420,7 +427,7 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 	moveToScore, err := CalculateScoreForEveryMove(
 		logger,
 		stock,
-		depth,
+		depth+3,
 		move,
 		parsed.fen,
 		parsed.game,
@@ -432,13 +439,16 @@ func CalculateEpdResult(stock *stockfish.StockfishRunner, logger *LiveLogger, ep
 
 	result.StockfishMove = move
 	result.StockfishScores = moveToScore
-	result.StockfishSuccess = true
 	result.StockfishDepth = depth
 
 	bestMove := MaxInMap(moveToScore)
 	bestMoveIsCertain := calculateSuccess(bestMove, parsed.bestMoves, parsed.avoidMoves)
 
-	result.StockfishScoreUncertainty = !bestMoveIsCertain
+	if bestMoveIsCertain {
+		result.StockfishResult = EpdCacheResultSuccess
+	} else {
+		result.StockfishResult = EpdCacheResultAmbiguous
+	}
 
 	return result
 }
@@ -465,23 +475,23 @@ func LoadEpd(path string) ([]string, Error) {
 	return results, NilError
 }
 
-func SearchEpd(runner Runner, epd string) (string, bool, Error) {
+func SearchEpd(runner Runner, epd string) (string, bool, int, Error) {
 	parsed, err := ParseEpd(epd)
 	if err.HasError() {
-		return "", false, err
+		return "", false, 0, err
 	}
 
 	err = runner.SetupPosition(Position{Fen: parsed.fen})
 	if err.HasError() {
-		return "", false, err
+		return "", false, 0, err
 	}
 
-	move, _, err := runner.Search()
+	move, _, depth, err := runner.Search()
 
 	if move.IsEmpty() {
-		return "", false, Errorf("no moves found")
+		return "", false, depth, Errorf("no moves found")
 	}
 
 	success := calculateSuccess(move.Value(), parsed.bestMoves, parsed.avoidMoves)
-	return move.Value(), success, NilError
+	return move.Value(), success, depth, NilError
 }

@@ -378,9 +378,9 @@ func (runner *StockfishRunner) SearchDepth(depth int) (Optional[string], Optiona
 	return reader.bestMove, reader.bestPVScore, NilError
 }
 
-func (runner *StockfishRunner) Search() (Optional[string], Optional[int], Error) {
+func (runner *StockfishRunner) Search() (Optional[string], Optional[int], int, Error) {
 	if runner.MultiPVEnabled {
-		return Empty[string](), Empty[int](), Errorf("cannot search with MultiPV enabled")
+		return Empty[string](), Empty[int](), 0, Errorf("cannot search with MultiPV enabled")
 	}
 
 	reader := &SearchReader{}
@@ -388,8 +388,8 @@ func (runner *StockfishRunner) Search() (Optional[string], Optional[int], Error)
 	err := runner.SearchDurationRaw(time.Second, reader.ReadLine)
 
 	if !IsNil(err) {
-		return Empty[string](), Empty[int](), err
+		return Empty[string](), Empty[int](), reader.depth, err
 	}
 
-	return reader.bestMove, reader.bestPVScore, NilError
+	return reader.bestMove, reader.bestPVScore, reader.depth, NilError
 }

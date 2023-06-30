@@ -564,7 +564,7 @@ func (helper *SearchHelper) SearchUpToDepth(
 	return nextVariations, Completed, NilError
 }
 
-func (helper *SearchHelper) Search() ([]Move, int, Error) {
+func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 	knownVariations := []Pair[int, []SearchMove]{}
 
 	depthIncrement := 1
@@ -577,8 +577,10 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 	cleanup, _, moves, err := helper.MoveGen.generateMoves(AllMoves)
 	defer cleanup()
 
+	searchedDepth := 0
+
 	if err.HasError() {
-		return nil, 0, err
+		return nil, 0, searchedDepth, err
 	}
 
 	doneEarly := false
@@ -590,7 +592,7 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 		nextVariations, searchResult, err := helper.SearchUpToDepth(depthRemaining, moves)
 
 		if err.HasError() {
-			return nil, 0, err
+			return nil, 0, searchedDepth, err
 		}
 
 		if searchResult == OutOfTime && len(knownVariations) > 0 {
@@ -623,18 +625,20 @@ func (helper *SearchHelper) Search() ([]Move, int, Error) {
 		knownVariations = nextVariations
 
 		if err.HasError() {
-			return nil, 0, err
+			return nil, 0, searchedDepth, err
 		}
+
+		searchedDepth = depthRemaining
 	}
 
 	if len(knownVariations) == 0 {
-		return nil, 0, NilError
+		return nil, 0, searchedDepth, NilError
 	}
 
 	bestMove := knownVariations[0]
 	return MapSlice(bestMove.Second, func(m SearchMove) Move {
 		return m.Move
-	}), bestMove.First, NilError
+	}), bestMove.First, searchedDepth, NilError
 }
 
 type SearchOption interface {
@@ -769,5 +773,6 @@ func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
 	unregister, helper := NewSearchHelper(game, bitboards, opts...)
 	defer unregister()
 
-	return helper.Search()
+	pv, score, _, err := helper.Search()
+	return pv, score, err
 }

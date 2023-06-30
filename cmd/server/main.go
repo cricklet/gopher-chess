@@ -216,7 +216,7 @@ func main() {
 				return false
 			}
 
-			bestMove, _, err := runner.Search()
+			bestMove, _, _, err := runner.Search()
 			if !IsNil(err) {
 				logger.Println("search: ", err)
 				return false
