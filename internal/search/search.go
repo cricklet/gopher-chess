@@ -137,6 +137,7 @@ type BasicEvaluator struct {
 var _ Evaluator = (*BasicEvaluator)(nil)
 
 func (e BasicEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error) {
+	// NEXT: maybe try stockfish NNUE evaluation so I can just focus on alpha beta
 	return nil, Evaluate(helper.Bitboards, player), NilError
 }
 
