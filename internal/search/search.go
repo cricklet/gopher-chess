@@ -506,9 +506,7 @@ func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 }
 
 type SearchOptions struct {
-	// NEXT: use this style of options for searching
-	// change interfaces of generator/evaluator etc so that dependencies
-	// must be passed in
+	// NEXT: use this style of options for searching. Consume these in the constructor.
 	Logger      Optional[Logger]
 	DebugLogger Optional[Logger]
 }
