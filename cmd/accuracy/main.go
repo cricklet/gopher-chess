@@ -157,9 +157,7 @@ func main() {
 		var runner Runner
 		if args[0] == "chessgo" {
 			// NEXT: make it easier to pass in options here
-			r := chessgo.NewChessGoRunner(
-				chessgo.WithLogger(&SilentLogger),
-			)
+			r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{})
 			runner = &r
 		} else if args[0] == "stockfish" {
 			r, err := stockfish.NewStockfishRunner(

@@ -144,7 +144,7 @@ func main() {
 			}
 		}
 
-		chessGoRunner := chessgo.NewChessGoRunner()
+		chessGoRunner := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{})
 
 		stockfishRunner, err := stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
 			&LogForwarding{

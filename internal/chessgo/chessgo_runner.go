@@ -23,20 +23,19 @@ type ChessGoRunner struct {
 
 var _ Runner = (*ChessGoRunner)(nil)
 
-type ChessGoOption func(*ChessGoRunner)
-
-func WithLogger(l Logger) ChessGoOption {
-	return func(r *ChessGoRunner) {
-		r.Logger = l
-	}
+type ChessGoOptions struct {
+	SearchOptions search.SearchOptions
+	Logger        Optional[Logger]
 }
 
-func NewChessGoRunner(opts ...ChessGoOption) ChessGoRunner {
+func NewChessGoRunner(opts ChessGoOptions) ChessGoRunner {
 	r := ChessGoRunner{
 		outOfTime: new(bool),
 	}
-	for _, opt := range opts {
-		opt(&r)
+	if opts.Logger.HasValue() {
+		r.Logger = opts.Logger.Value()
+	} else {
+		r.Logger = &SilentLogger
 	}
 	return r
 }
@@ -128,9 +127,6 @@ func (r *ChessGoRunner) PerformMoves(startPos string, moves []string) Error {
 }
 
 func (r *ChessGoRunner) SetupPosition(position Position) Error {
-	if r.Logger == nil {
-		r.Logger = &DefaultLogger
-	}
 	if !r.IsNew() {
 		r.Reset()
 	}

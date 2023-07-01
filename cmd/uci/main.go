@@ -27,12 +27,12 @@ func main() {
 		defer p.Stop()
 	}
 
-	runner := chessgo.NewChessGoRunner(
-		chessgo.WithLogger(FuncLogger(
+	runner := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{
+		Logger: Some(FuncLogger(
 			func(s string) {
 				fmt.Print(s)
 			})),
-	)
+	})
 
 	uciRunner := uci.NewUciRunner(runner)
 

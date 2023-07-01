@@ -121,7 +121,7 @@ func runGame(binaryPath string, opt1 string, opt2 string) (float32, []int, Error
 	}
 	defer player2.Close()
 
-	runner := chessgo.NewChessGoRunner()
+	runner := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{})
 	err = runner.SetupPosition(Position{
 		Fen:   fen,
 		Moves: []string{},
