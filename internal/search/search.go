@@ -507,87 +507,17 @@ func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 
 type SearchOptions struct {
 	// NEXT: use this style of options for searching. Consume these in the constructor.
-	Logger      Optional[Logger]
-	DebugLogger Optional[Logger]
+	Logger                    Optional[Logger]
+	DebugLogger               Optional[Logger]
+	WithoutQuiescence         bool
+	WithoutIterativeDeepening bool
+	WithoutCheckStandPat      bool
+	MaxDepth                  Optional[int]
+	SearchTree                Optional[SearchTree]
+	OutOfTime                 *bool
 }
 
-type SearchOption interface {
-	apply(helper *SearchHelper) Optional[func()]
-}
-
-type WithDebugLogging struct {
-}
-
-func (o WithDebugLogging) apply(helper *SearchHelper) Optional[func()] {
-	if helper.Logger == &SilentLogger {
-		helper.Logger = &DefaultLogger
-	}
-	helper.Debug = &DefaultLogger
-	return Empty[func()]()
-}
-
-type WithLogger struct {
-	Logger Logger
-}
-
-func (o WithLogger) apply(helper *SearchHelper) Optional[func()] {
-	helper.Logger = o.Logger
-	return Empty[func()]()
-}
-
-type WithoutQuiescence struct {
-}
-
-func (o WithoutQuiescence) apply(helper *SearchHelper) Optional[func()] {
-	helper.Evaluator = BasicEvaluator{}
-	return Empty[func()]()
-}
-
-type WithMaxDepth struct {
-	MaxDepth int
-}
-
-func (o WithMaxDepth) apply(helper *SearchHelper) Optional[func()] {
-	helper.IterativeDeepeningDepth = o.MaxDepth
-	return Empty[func()]()
-}
-
-type WithoutIterativeDeepening struct {
-}
-
-func (o WithoutIterativeDeepening) apply(helper *SearchHelper) Optional[func()] {
-	helper.WithoutIterativeDeepening = true
-	return Empty[func()]()
-}
-
-type WithoutCheckStandPat struct {
-}
-
-func (o WithoutCheckStandPat) apply(helper *SearchHelper) Optional[func()] {
-	helper.WithoutCheckStandPat = true
-	return Empty[func()]()
-}
-
-type WithSearch struct {
-	search SearchTree
-}
-
-func (o WithSearch) apply(helper *SearchHelper) Optional[func()] {
-	unregister, gen := NewSearchTreeMoveGenerator(o.search, helper.GameState)
-	helper.MoveGen = gen
-	return Some(unregister)
-}
-
-type WithTimer struct {
-	OutOfTime *bool
-}
-
-func (o WithTimer) apply(helper *SearchHelper) Optional[func()] {
-	helper.OutOfTime = o.OutOfTime
-	return Empty[func()]()
-}
-
-func NewSearchHelper(game *GameState, opts ...SearchOption) (func(), *SearchHelper) {
+func NewSearchHelper(game *GameState, options SearchOptions) (func(), *SearchHelper) {
 	unregisterCallbacks := []func(){}
 
 	helper := SearchHelper{
@@ -598,11 +528,41 @@ func NewSearchHelper(game *GameState, opts ...SearchOption) (func(), *SearchHelp
 		IterativeDeepeningDepth: 3,
 	}
 
-	for _, opt := range opts {
-		unregister := opt.apply(&helper)
-		if unregister.HasValue() {
-			unregisterCallbacks = append(unregisterCallbacks, unregister.Value())
+	if options.Logger.HasValue() {
+		helper.Logger = options.Logger.Value()
+	}
+
+	if options.DebugLogger.HasValue() {
+		if !options.Logger.HasValue() {
+			helper.Logger = options.DebugLogger.Value()
 		}
+		helper.Debug = options.DebugLogger.Value()
+	}
+
+	if options.WithoutQuiescence {
+		helper.Evaluator = BasicEvaluator{}
+	}
+
+	if options.MaxDepth.HasValue() {
+		helper.IterativeDeepeningDepth = options.MaxDepth.Value()
+	}
+
+	if options.WithoutIterativeDeepening {
+		helper.WithoutIterativeDeepening = true
+	}
+
+	if options.WithoutCheckStandPat {
+		helper.WithoutCheckStandPat = true
+	}
+
+	if options.SearchTree.HasValue() {
+		unregister, gen := NewSearchTreeMoveGenerator(options.SearchTree.Value(), game)
+		unregisterCallbacks = append(unregisterCallbacks, unregister)
+		helper.MoveGen = gen
+	}
+
+	if options.OutOfTime != nil {
+		helper.OutOfTime = options.OutOfTime
 	}
 
 	if helper.Evaluator == nil {
@@ -630,13 +590,13 @@ func NewSearchHelper(game *GameState, opts ...SearchOption) (func(), *SearchHelp
 	}, &helper
 }
 
-func Search(fen string, opts ...SearchOption) ([]Move, int, Error) {
+func Search(fen string, options SearchOptions) ([]Move, int, Error) {
 	game, err := GamestateFromFenString(fen)
 	if !err.IsNil() {
 		return []Move{}, 0, err
 	}
 
-	unregister, helper := NewSearchHelper(game, opts...)
+	unregister, helper := NewSearchHelper(game, options)
 	defer unregister()
 
 	pv, score, _, err := helper.Search()

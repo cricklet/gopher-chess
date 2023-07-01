@@ -144,11 +144,11 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	// We don't need to be careful about unregistering searcher because it
 	// has the same lifecycle as GameState above. eg, the garbage collector
 	// will clean up both at the same time
-	_, searcher := search.NewSearchHelper(r.g,
-		search.WithMaxDepth{MaxDepth: 10},
-		search.WithLogger{Logger: r.Logger},
-		search.WithTimer{OutOfTime: r.outOfTime},
-	)
+	_, searcher := search.NewSearchHelper(r.g, search.SearchOptions{
+		MaxDepth:  Some(10),
+		Logger:    Some(r.Logger),
+		OutOfTime: r.outOfTime,
+	})
 	r.s = searcher
 
 	r.StartFen = position.Fen
