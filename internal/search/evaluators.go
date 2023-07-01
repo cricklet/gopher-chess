@@ -71,7 +71,7 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		helper.MoveSorter = prevSorter
 	}()
 
-	quiescenceDepth := helper.IterativeDeepeningDepth * 8
+	quiescenceDepth := helper.MaxDepth.ValueOr(defaultMaxDepth) * 8
 	// quiescenceDepth := 10
 
 	moves, score, err := helper.alphaBeta(alpha, beta, currentDepth,

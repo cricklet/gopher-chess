@@ -134,10 +134,9 @@ type SearchHelper struct {
 	OutOfTime    *bool
 	InQuiescence bool
 	Logger
-	Debug                     Logger
-	IterativeDeepeningDepth   int
-	WithoutIterativeDeepening bool
-	WithoutCheckStandPat      bool
+	Debug Logger
+
+	SearchOptions
 
 	noCopy NoCopy
 }
@@ -435,7 +434,7 @@ func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 
 	startDepthRemaining := 1
 	if helper.WithoutIterativeDeepening {
-		startDepthRemaining = helper.IterativeDeepeningDepth
+		startDepthRemaining = helper.MaxDepth.ValueOr(defaultMaxDepth)
 	}
 
 	cleanup, _, moves, err := helper.MoveGen.generateMoves(AllMoves)
@@ -449,7 +448,7 @@ func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 
 	doneEarly := false
 
-	for depthRemaining := startDepthRemaining; !doneEarly && depthRemaining <= helper.IterativeDeepeningDepth; depthRemaining += depthIncrement {
+	for depthRemaining := startDepthRemaining; !doneEarly && depthRemaining <= helper.MaxDepth.ValueOr(defaultMaxDepth); depthRemaining += depthIncrement {
 		// The generator will prioritize trying the principle variations first
 		helper.MoveSorter.reset(knownVariations)
 
@@ -506,7 +505,6 @@ func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 }
 
 type SearchOptions struct {
-	// NEXT: use this style of options for searching. Consume these in the constructor.
 	Logger                    Optional[Logger]
 	DebugLogger               Optional[Logger]
 	WithoutQuiescence         bool
@@ -517,15 +515,18 @@ type SearchOptions struct {
 	OutOfTime                 *bool
 }
 
+var defaultMaxDepth = 3
+
 func NewSearchHelper(game *GameState, options SearchOptions) (func(), *SearchHelper) {
 	unregisterCallbacks := []func(){}
 
 	helper := SearchHelper{
-		GameState:               game,
-		OutOfTime:               nil,
-		Logger:                  &SilentLogger,
-		Debug:                   &SilentLogger,
-		IterativeDeepeningDepth: 3,
+		GameState: game,
+		OutOfTime: nil,
+		Logger:    &SilentLogger,
+		Debug:     &SilentLogger,
+
+		SearchOptions: options,
 	}
 
 	if options.Logger.HasValue() {
@@ -543,26 +544,10 @@ func NewSearchHelper(game *GameState, options SearchOptions) (func(), *SearchHel
 		helper.Evaluator = BasicEvaluator{}
 	}
 
-	if options.MaxDepth.HasValue() {
-		helper.IterativeDeepeningDepth = options.MaxDepth.Value()
-	}
-
-	if options.WithoutIterativeDeepening {
-		helper.WithoutIterativeDeepening = true
-	}
-
-	if options.WithoutCheckStandPat {
-		helper.WithoutCheckStandPat = true
-	}
-
 	if options.SearchTree.HasValue() {
 		unregister, gen := NewSearchTreeMoveGenerator(options.SearchTree.Value(), game)
 		unregisterCallbacks = append(unregisterCallbacks, unregister)
 		helper.MoveGen = gen
-	}
-
-	if options.OutOfTime != nil {
-		helper.OutOfTime = options.OutOfTime
 	}
 
 	if helper.Evaluator == nil {
