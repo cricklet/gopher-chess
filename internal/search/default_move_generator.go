@@ -6,12 +6,11 @@ import (
 )
 
 type DefaultMoveGenerator struct {
-	*game.GameState
 }
 
 var _ MoveGen = (*DefaultMoveGenerator)(nil)
 
-func (gen *DefaultMoveGenerator) generateMoves(mode MoveGenerationMode) (func(), MoveGenerationResult, *[]Move, Error) {
+func (gen *DefaultMoveGenerator) generateMoves(g *game.GameState, mode MoveGenerationMode) (func(), MoveGenerationResult, *[]Move, Error) {
 
 	moves := GetMovesBuffer()
 	cleanup := func() { ReleaseMovesBuffer(moves) }
@@ -22,11 +21,11 @@ func (gen *DefaultMoveGenerator) generateMoves(mode MoveGenerationMode) (func(),
 		result = SomeLegalMoves
 		GeneratePseudoCaptures(func(m Move) {
 			*moves = append(*moves, m)
-		}, gen.GameState)
+		}, g)
 	} else {
 		GeneratePseudoMoves(func(m Move) {
 			*moves = append(*moves, m)
-		}, gen.GameState)
+		}, g)
 	}
 
 	return cleanup, result, moves, NilError

@@ -154,9 +154,13 @@ func main() {
 
 		logger.Println("test epds:", len(testEpds))
 
+		// NEXT: pass ChessGoRunner a fully fledged SearchHelper object
+		// This way we can create the SearchHelper however we want (eg pass in a stockfish evaluator)
+		// To do this, SearchHelper will not be able to own a GameState pointer
+		// Also, it should create and maintain the OutOfTime pointer itself
+
 		var runner Runner
 		if args[0] == "chessgo" {
-			// NEXT: make it easier to pass in options here
 			r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{})
 			runner = &r
 		} else if args[0] == "stockfish" {

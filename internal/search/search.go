@@ -3,6 +3,7 @@ package search
 import (
 	"fmt"
 
+	"github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/game"
 	. "github.com/cricklet/chessgo/internal/helpers"
 )
@@ -100,7 +101,7 @@ const (
 )
 
 type MoveGen interface {
-	generateMoves(mode MoveGenerationMode) (func(), MoveGenerationResult, *[]Move, Error)
+	generateMoves(game *game.GameState, mode MoveGenerationMode) (func(), MoveGenerationResult, *[]Move, Error)
 }
 
 type MoveSorter interface {
@@ -272,7 +273,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 
 	foundMove := false
 
-	cleanup, result, moves, err := helper.MoveGen.generateMoves(mode)
+	cleanup, result, moves, err := helper.MoveGen.generateMoves(helper.GameState, mode)
 	defer cleanup()
 
 	if err.HasError() {
@@ -437,7 +438,7 @@ func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 		startDepthRemaining = helper.MaxDepth.ValueOr(defaultMaxDepth)
 	}
 
-	cleanup, _, moves, err := helper.MoveGen.generateMoves(AllMoves)
+	cleanup, _, moves, err := helper.MoveGen.generateMoves(helper.GameState, AllMoves)
 	defer cleanup()
 
 	searchedDepth := 0
@@ -505,14 +506,17 @@ func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 }
 
 type SearchOptions struct {
-	Logger                    Optional[Logger]
-	DebugLogger               Optional[Logger]
+	Logger      Optional[Logger]
+	DebugLogger Optional[Logger]
+	SearchTree  Optional[SearchTree]
+
 	WithoutQuiescence         bool
 	WithoutIterativeDeepening bool
 	WithoutCheckStandPat      bool
-	MaxDepth                  Optional[int]
-	SearchTree                Optional[SearchTree]
 	OutOfTime                 *bool
+	MaxDepth                  Optional[int]
+
+	// Add option
 }
 
 var defaultMaxDepth = 3
@@ -562,9 +566,7 @@ func NewSearchHelper(game *GameState, options SearchOptions) (func(), *SearchHel
 	}
 
 	if helper.MoveGen == nil {
-		defaultMoveGenerator := DefaultMoveGenerator{
-			GameState: game,
-		}
+		defaultMoveGenerator := DefaultMoveGenerator{}
 		helper.MoveGen = &defaultMoveGenerator
 	}
 

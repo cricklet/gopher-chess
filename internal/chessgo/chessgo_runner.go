@@ -24,8 +24,7 @@ type ChessGoRunner struct {
 var _ Runner = (*ChessGoRunner)(nil)
 
 type ChessGoOptions struct {
-	SearchOptions search.SearchOptions
-	Logger        Optional[Logger]
+	Logger Optional[Logger]
 }
 
 func NewChessGoRunner(opts ChessGoOptions) ChessGoRunner {

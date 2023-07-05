@@ -58,7 +58,6 @@ func SearchTreeFromLines(
 
 type SearchTreeMoveGenerator struct {
 	SearchTree
-	*game.GameState
 
 	current *SearchTree
 	history []*SearchTree
@@ -69,7 +68,6 @@ func NewSearchTreeMoveGenerator(
 ) (func(), *SearchTreeMoveGenerator) {
 	gen := &SearchTreeMoveGenerator{
 		SearchTree: tree,
-		GameState:  g,
 	}
 	gen.current = &gen.SearchTree
 
@@ -97,7 +95,7 @@ func (gen *SearchTreeMoveGenerator) AfterUndo() {
 	gen.current, gen.history = PopPtr(gen.history)
 }
 
-func (gen *SearchTreeMoveGenerator) generateMoves(mode MoveGenerationMode) (func(), MoveGenerationResult, *[]Move, Error) {
+func (gen *SearchTreeMoveGenerator) generateMoves(g *game.GameState, mode MoveGenerationMode) (func(), MoveGenerationResult, *[]Move, Error) {
 	moves := GetMovesBuffer()
 	cleanup := func() { ReleaseMovesBuffer(moves) }
 
@@ -107,11 +105,11 @@ func (gen *SearchTreeMoveGenerator) generateMoves(mode MoveGenerationMode) (func
 		result = SomeLegalMoves
 		GeneratePseudoCaptures(func(m Move) {
 			*moves = append(*moves, m)
-		}, gen.GameState)
+		}, g)
 	} else {
 		GeneratePseudoMoves(func(m Move) {
 			*moves = append(*moves, m)
-		}, gen.GameState)
+		}, g)
 	}
 
 	if gen.current != nil && gen.current.continueSearching {
