@@ -11,7 +11,9 @@ import (
 	"github.com/cricklet/chessgo/internal/accuracy"
 	. "github.com/cricklet/chessgo/internal/accuracy"
 	"github.com/cricklet/chessgo/internal/chessgo"
+	"github.com/cricklet/chessgo/internal/helpers"
 	. "github.com/cricklet/chessgo/internal/helpers"
+	"github.com/cricklet/chessgo/internal/search"
 	"github.com/cricklet/chessgo/internal/stockfish"
 )
 
@@ -161,7 +163,14 @@ func main() {
 
 		var runner Runner
 		if args[0] == "chessgo" {
-			r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{})
+			// r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{})
+			r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{
+				SearchConstructor: Some(search.SearchHelperFromOptions(search.SearchOptions{
+					// CreateEvaluator: Some(search.CreateStockfishEvaluator),
+					// Logger:          Some[helpers.Logger](logger),
+					Logger: Some[helpers.Logger](&helpers.SilentLogger),
+				})),
+			})
 			runner = &r
 		} else if args[0] == "stockfish" {
 			r, err := stockfish.NewStockfishRunner(

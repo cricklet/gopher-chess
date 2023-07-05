@@ -16,6 +16,10 @@ type StockfishEvaluator struct {
 
 var _ Evaluator = (*StockfishEvaluator)(nil)
 
+var CreateStockfishEvaluator EvaluatorConstructor = func(game *game.GameState) (func(), Evaluator) {
+	return func() {}, StockfishEvaluator{}
+}
+
 func (e StockfishEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error) {
 	var err Error
 	if e.stock == nil {
@@ -45,6 +49,10 @@ type BasicEvaluator struct {
 }
 
 var _ Evaluator = (*BasicEvaluator)(nil)
+
+var CreateBasicEvaluator EvaluatorConstructor = func(game *game.GameState) (func(), Evaluator) {
+	return func() {}, BasicEvaluator{}
+}
 
 func (e BasicEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error) {
 	return nil, Evaluate(helper.GameState.Bitboards, player), NilError

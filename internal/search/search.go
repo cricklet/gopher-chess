@@ -132,7 +132,7 @@ type SearchHelper struct {
 	MoveSorter   MoveSorter
 	Evaluator    Evaluator
 	GameState    *GameState
-	OutOfTime    *bool
+	OutOfTime    bool
 	InQuiescence bool
 	Logger
 	Debug Logger
@@ -231,7 +231,7 @@ func (helper *SearchHelper) PrintlnVariation(logger Logger,
 }
 
 func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, depthRemaining int, past []SearchMove) ([]SearchMove, int, Error) {
-	if helper.OutOfTime != nil && *helper.OutOfTime {
+	if helper.OutOfTime {
 		return nil, Evaluate(helper.GameState.Bitboards, helper.GameState.Player), NilError
 	}
 
@@ -385,7 +385,7 @@ func (helper *SearchHelper) SearchUpToDepth(
 	}
 
 	for _, move := range *moves {
-		if helper.OutOfTime != nil && *helper.OutOfTime {
+		if helper.OutOfTime {
 			return nextVariations, OutOfTime, NilError
 		}
 
@@ -505,15 +505,20 @@ func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 	}), bestMove.First, searchedDepth, NilError
 }
 
+type MoveGenConstructor func(*GameState) (func(), MoveGen)
+type MoveSorterConstructor func(*GameState) (func(), MoveSorter)
+type EvaluatorConstructor func(*GameState) (func(), Evaluator)
+
 type SearchOptions struct {
 	Logger      Optional[Logger]
 	DebugLogger Optional[Logger]
-	SearchTree  Optional[SearchTree]
 
-	WithoutQuiescence         bool
+	CreateMoveGen    Optional[MoveGenConstructor]
+	CreateMoveSorter Optional[MoveSorterConstructor]
+	CreateEvaluator  Optional[EvaluatorConstructor]
+
 	WithoutIterativeDeepening bool
 	WithoutCheckStandPat      bool
-	OutOfTime                 *bool
 	MaxDepth                  Optional[int]
 
 	// Add option
@@ -521,12 +526,19 @@ type SearchOptions struct {
 
 var defaultMaxDepth = 3
 
+type SearchHelperConstructor func(*GameState) (func(), *SearchHelper)
+
+func SearchHelperFromOptions(options SearchOptions) SearchHelperConstructor {
+	return func(game *game.GameState) (func(), *SearchHelper) {
+		return NewSearchHelper(game, options)
+	}
+}
+
 func NewSearchHelper(game *GameState, options SearchOptions) (func(), *SearchHelper) {
 	unregisterCallbacks := []func(){}
 
 	helper := SearchHelper{
 		GameState: game,
-		OutOfTime: nil,
 		Logger:    &SilentLogger,
 		Debug:     &SilentLogger,
 
@@ -544,30 +556,31 @@ func NewSearchHelper(game *GameState, options SearchOptions) (func(), *SearchHel
 		helper.Debug = options.DebugLogger.Value()
 	}
 
-	if options.WithoutQuiescence {
-		helper.Evaluator = BasicEvaluator{}
-	}
-
-	if options.SearchTree.HasValue() {
-		unregister, gen := NewSearchTreeMoveGenerator(options.SearchTree.Value(), game)
+	if options.CreateEvaluator.HasValue() {
+		unregister, evaluator := options.CreateEvaluator.Value()(game)
 		unregisterCallbacks = append(unregisterCallbacks, unregister)
-		helper.MoveGen = gen
-	}
-
-	if helper.Evaluator == nil {
+		helper.Evaluator = evaluator
+	} else {
 		helper.Evaluator = QuiescenceEvaluator{}
 	}
 
-	if helper.MoveSorter == nil {
-		unregisterSorter, sorter := NewVariationMovePrioritizer(game)
-		unregisterCallbacks = append(unregisterCallbacks, unregisterSorter)
-
-		helper.MoveSorter = sorter
-	}
-
-	if helper.MoveGen == nil {
+	if options.CreateMoveGen.HasValue() {
+		unregister, moveGen := options.CreateMoveGen.Value()(game)
+		unregisterCallbacks = append(unregisterCallbacks, unregister)
+		helper.MoveGen = moveGen
+	} else {
 		defaultMoveGenerator := DefaultMoveGenerator{}
 		helper.MoveGen = &defaultMoveGenerator
+	}
+
+	if options.CreateMoveSorter.HasValue() {
+		unregister, moveSorter := options.CreateMoveSorter.Value()(game)
+		unregisterCallbacks = append(unregisterCallbacks, unregister)
+		helper.MoveSorter = moveSorter
+	} else {
+		unregisterSorter, sorter := NewVariationMovePrioritizer(game)
+		unregisterCallbacks = append(unregisterCallbacks, unregisterSorter)
+		helper.MoveSorter = sorter
 	}
 
 	return func() {

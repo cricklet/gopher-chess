@@ -13,23 +13,25 @@ import (
 type ChessGoRunner struct {
 	Logger Logger
 
-	g         *GameState
-	s         *search.SearchHelper
-	outOfTime *bool
+	g *GameState
+	s *search.SearchHelper
 
 	StartFen string
 	history  []HistoryValue
+
+	options ChessGoOptions
 }
 
 var _ Runner = (*ChessGoRunner)(nil)
 
 type ChessGoOptions struct {
-	Logger Optional[Logger]
+	Logger            Optional[Logger]
+	SearchConstructor Optional[search.SearchHelperConstructor]
 }
 
 func NewChessGoRunner(opts ChessGoOptions) ChessGoRunner {
 	r := ChessGoRunner{
-		outOfTime: new(bool),
+		options: opts,
 	}
 	if opts.Logger.HasValue() {
 		r.Logger = opts.Logger.Value()
@@ -139,12 +141,14 @@ func (r *ChessGoRunner) SetupPosition(position Position) Error {
 	// We don't need to be careful about unregistering searcher because it
 	// has the same lifecycle as GameState above. eg, the garbage collector
 	// will clean up both at the same time
-	_, searcher := search.NewSearchHelper(r.g, search.SearchOptions{
-		MaxDepth:  Some(10),
-		Logger:    Some(r.Logger),
-		OutOfTime: r.outOfTime,
-	})
-	r.s = searcher
+	if r.options.SearchConstructor.HasValue() {
+		_, r.s = r.options.SearchConstructor.Value()(r.g)
+	} else {
+		_, r.s = search.NewSearchHelper(r.g, search.SearchOptions{
+			MaxDepth: Some(10),
+			Logger:   Some(r.Logger),
+		})
+	}
 
 	r.StartFen = position.Fen
 
@@ -226,11 +230,11 @@ func (r *ChessGoRunner) Board() BoardArray {
 func (r *ChessGoRunner) Search() (Optional[string], Optional[int], int, Error) {
 	var err Error
 
-	*r.outOfTime = false
+	r.s.OutOfTime = false
 
 	go func() {
 		time.Sleep(1000 * time.Millisecond)
-		*r.outOfTime = true
+		r.s.OutOfTime = true
 	}()
 
 	if r.s == nil {

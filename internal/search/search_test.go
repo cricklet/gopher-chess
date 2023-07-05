@@ -13,7 +13,7 @@ import (
 func TestShallowOpeningWithoutQuiescence(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(1), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(1), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	assert.Greater(t, score, 0)
@@ -25,7 +25,7 @@ func TestShallowOpeningWithoutQuiescence(t *testing.T) {
 func TestShallow2OpeningWithoutQuiescence(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(2), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(2), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, score, 0)
@@ -37,7 +37,7 @@ func TestShallow2OpeningWithoutQuiescence(t *testing.T) {
 func TestShallow3OpeningWithoutQuiescence(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	assert.Greater(t, score, 0)
@@ -51,7 +51,7 @@ func TestOpeningWithoutQuiescence(t *testing.T) {
 	expectedOpenings := map[string]bool{"e2e4": true, "d2d4": true, "g1f3": true, "b1c3": true}
 
 	{
-		result, score, err := Search(fen, SearchOptions{MaxDepth: Some(5), WithoutQuiescence: true})
+		result, score, err := Search(fen, SearchOptions{MaxDepth: Some(5), CreateEvaluator: Some(CreateBasicEvaluator)})
 		assert.True(t, IsNil(err), err)
 
 		fmt.Println("searching depth 5", score, result)
@@ -63,7 +63,7 @@ func TestOpeningWithoutQuiescence(t *testing.T) {
 		// Note that searching an even depth will cause us to play overly cautiously
 		// because we don't have quiescence turned on so we can't see that we are
 		// able to trade when an emeny captures a piece after us
-		result, score, err := Search(fen, SearchOptions{MaxDepth: Some(4), WithoutQuiescence: true})
+		result, score, err := Search(fen, SearchOptions{MaxDepth: Some(4), CreateEvaluator: Some(CreateBasicEvaluator)})
 		assert.True(t, IsNil(err), err)
 
 		fmt.Println("searching depth 4", score, result)
@@ -87,7 +87,7 @@ func TestOpeningSearchFromTree(t *testing.T) {
 	assert.Equal(t, searchMoves.String(), "SearchTree[e2e4: SearchTree[continue...], e2e3: SearchTree[continue...]]")
 
 	result, _, err := Search(fen,
-		SearchOptions{MaxDepth: Some(4), SearchTree: Some(searchMoves), WithoutQuiescence: true})
+		SearchOptions{MaxDepth: Some(4), CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, "e2e3", result[0].String())
@@ -107,7 +107,7 @@ func TestOpeningWithoutQuiescenceE2E4(t *testing.T) {
 		{
 			// with search depth 4, we will assume e2e4 is dangerous
 			result, score, err := Search(fen,
-				SearchOptions{MaxDepth: Some(4), SearchTree: Some(searchMoves), WithoutQuiescence: true})
+				SearchOptions{MaxDepth: Some(4), CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), CreateEvaluator: Some(CreateBasicEvaluator)})
 			assert.True(t, IsNil(err), err)
 
 			fmt.Println(score, result)
@@ -117,7 +117,7 @@ func TestOpeningWithoutQuiescenceE2E4(t *testing.T) {
 		{
 			// with search depth 5, we aren't worried about aggressive moves
 			result, score, err := Search(fen,
-				SearchOptions{MaxDepth: Some(5), SearchTree: Some(searchMoves), WithoutQuiescence: true})
+				SearchOptions{MaxDepth: Some(5), CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), CreateEvaluator: Some(CreateBasicEvaluator)})
 			assert.True(t, IsNil(err), err)
 
 			fmt.Println(score, result)
@@ -143,8 +143,8 @@ func TestOpeningWithoutQuiescenceWithoutIterationE2E4(t *testing.T) {
 		result, _, err := Search(fen,
 			SearchOptions{
 				WithoutIterativeDeepening: true,
-				WithoutQuiescence:         true,
-				MaxDepth:                  Some(4), SearchTree: Some(searchMoves)})
+				CreateEvaluator:           Some(CreateBasicEvaluator),
+				MaxDepth:                  Some(4), CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves))})
 		assert.True(t, IsNil(err), err)
 
 		assert.Equal(t, "e2e3", result[0].String())
@@ -155,8 +155,8 @@ func TestOpeningWithoutQuiescenceWithoutIterationE2E4(t *testing.T) {
 		result, _, err := Search(fen,
 			SearchOptions{
 				WithoutIterativeDeepening: true,
-				WithoutQuiescence:         true,
-				MaxDepth:                  Some(5), SearchTree: Some(searchMoves)})
+				CreateEvaluator:           Some(CreateBasicEvaluator),
+				MaxDepth:                  Some(5), CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves))})
 		assert.True(t, IsNil(err), err)
 
 		assert.Equal(t, "e2e4", result[0].String())
@@ -177,7 +177,7 @@ func TestOpeningWithQuiescenceE2E4(t *testing.T) {
 
 	// with search depth 4 and quiescence enabled, we should be aggressive
 	result, _, err := Search(fen, SearchOptions{
-		MaxDepth: Some(4), SearchTree: Some(searchMoves)})
+		MaxDepth: Some(4), CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves))})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, "e2e4", result[0].String())
@@ -197,7 +197,7 @@ func TestOpeningWithQuiescenceWithoutIterationE2E4(t *testing.T) {
 
 	// with search depth 4 and quiescence enabled, we should be aggressive
 	result, _, err := Search(fen, SearchOptions{
-		MaxDepth: Some(2), SearchTree: Some(searchMoves), WithoutIterativeDeepening: true})
+		MaxDepth: Some(2), CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), WithoutIterativeDeepening: true})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, "e2e4", result[0].String())
@@ -217,7 +217,7 @@ func TestOpeningCaptureWithoutQuiescence(t *testing.T) {
 	assert.True(t, IsNil(err))
 
 	// without quiescence, if we don't search far enough, we don't see trades
-	result, score, err := Search(fen, SearchOptions{SearchTree: Some(searchMoves), MaxDepth: Some(4), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), MaxDepth: Some(4), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 	fmt.Println(result, score)
 	assert.Less(t, score, 0)
@@ -225,7 +225,7 @@ func TestOpeningCaptureWithoutQuiescence(t *testing.T) {
 		"e2e4, f7f5, b1c3, f5e4",
 		ConcatStringify(result))
 
-	result, score, err = Search(fen, SearchOptions{SearchTree: Some(searchMoves), MaxDepth: Some(5), WithoutQuiescence: true})
+	result, score, err = Search(fen, SearchOptions{CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), MaxDepth: Some(5), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 	fmt.Println(result, score)
 	assert.Greater(t, score, 0)
@@ -250,7 +250,7 @@ func TestCorrectlyEvaluatesWhenNoCapturesAreFoundInQuiescence(t *testing.T) {
 	result, score, err := Search(fen,
 		SearchOptions{
 			MaxDepth:                  Some(5),
-			SearchTree:                Some(searchMoves),
+			CreateMoveGen:             Some(CreateSearchTreeMoveGenerator(searchMoves)),
 			WithoutIterativeDeepening: true,
 		},
 	)
@@ -285,7 +285,7 @@ func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 	}
 
 	// we should see the trades because of quiescence
-	result, score, err := Search(fen, SearchOptions{SearchTree: Some(searchMoves), MaxDepth: Some(4), WithoutCheckStandPat: true})
+	result, score, err := Search(fen, SearchOptions{CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), MaxDepth: Some(4), WithoutCheckStandPat: true})
 	assert.True(t, IsNil(err), err)
 
 	assert.Greater(t, score, 0)
@@ -293,7 +293,7 @@ func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 		"e2e4, f7f5, b1c3, f5e4, c3e4",
 		ConcatStringify(result))
 
-	result, score, err = Search(fen, SearchOptions{SearchTree: Some(searchMoves), MaxDepth: Some(5), WithoutCheckStandPat: true})
+	result, score, err = Search(fen, SearchOptions{CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), MaxDepth: Some(5), WithoutCheckStandPat: true})
 	assert.True(t, IsNil(err), err)
 
 	assert.Greater(t, score, 0)
@@ -305,7 +305,7 @@ func TestOpeningCaptureWithQuiescenceWithoutCheckStandPat(t *testing.T) {
 func TestOpeningResponse(t *testing.T) {
 	fen := "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(2), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(2), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(score, result)
@@ -317,7 +317,7 @@ func TestOpeningResponse(t *testing.T) {
 func TestPointlessSacrifice(t *testing.T) {
 	fen := "rnbqkbnr/ppp2ppp/8/3pp3/4P3/3P1N2/PPP2PPP/RNBQKB1R b KQkq - 5 3"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(score, result[0].String())
@@ -328,7 +328,7 @@ func TestPointlessSacrifice(t *testing.T) {
 func TestNoLegalMoves(t *testing.T) {
 	fen := "rn1qkb1r/ppp3pp/5n2/3ppb2/8/2NP1NP1/PPP2PBP/R1BQK2R b KQkq - 13 7"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	fmt.Println(score, result[0].String())
@@ -339,13 +339,13 @@ func TestNoLegalMoves(t *testing.T) {
 func TestCheckMateSearch(t *testing.T) {
 	{
 		fen := "kQK5/8/8/8/8/8/8/8 b KQkq - 13 7"
-		result, _, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+		result, _, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 		assert.True(t, IsNil(err), err)
 		assert.Equal(t, len(result), 0)
 	}
 	{
 		fen := "kQK5/8/8/8/8/8/8/8 w KQkq - 13 7"
-		_, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+		_, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 		assert.True(t, IsNil(err), err)
 		assert.True(t, IsMate(score))
 	}
@@ -354,7 +354,7 @@ func TestCheckMateSearch(t *testing.T) {
 func TestCheckMateDetection(t *testing.T) {
 	fen := "kQK5/8/8/8/8/8/8/8/8 b KQkq - 13 7"
 
-	result, _, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+	result, _, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	assert.Equal(t, len(result), 0)
@@ -371,7 +371,7 @@ func TestCheckMateInThree(t *testing.T) {
 
 	// searching 3 ahead doesn't see the checkmate because we aren't able
 	// to see that the enemy has no moves allowed
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 	assert.True(t, result != nil)
 
@@ -380,7 +380,7 @@ func TestCheckMateInThree(t *testing.T) {
 	assert.False(t, checkMateMoves[result[0].String()], result[0].String())
 
 	// instead search 4 ahead
-	result, score, err = Search(fen, SearchOptions{MaxDepth: Some(4), WithoutQuiescence: true})
+	result, score, err = Search(fen, SearchOptions{MaxDepth: Some(4), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 	assert.True(t, result != nil)
 
@@ -404,7 +404,7 @@ func TestCheckMateInFourSpecific(t *testing.T) {
 	)
 	assert.True(t, IsNil(err))
 
-	result, score, err := Search(fen, SearchOptions{SearchTree: Some(searchMoves), MaxDepth: Some(4), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), MaxDepth: Some(4), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err))
 
 	assert.True(t, IsMate(score))
@@ -430,8 +430,8 @@ func TestCheckMateInFourSpecificWithoutIteration(t *testing.T) {
 	)
 	assert.True(t, IsNil(err))
 
-	result, score, err := Search(fen, SearchOptions{SearchTree: Some(searchMoves), MaxDepth: Some(4),
-		WithoutIterativeDeepening: true, WithoutQuiescence: true,
+	result, score, err := Search(fen, SearchOptions{CreateMoveGen: Some(CreateSearchTreeMoveGenerator(searchMoves)), MaxDepth: Some(4),
+		WithoutIterativeDeepening: true, CreateEvaluator: Some(CreateBasicEvaluator),
 	},
 	)
 	assert.True(t, IsNil(err))
@@ -446,7 +446,7 @@ func TestCheckMateInFourSpecificWithoutIteration(t *testing.T) {
 func TestCheckMateInOne2(t *testing.T) {
 	fen := "5b2/3kp2p/4r3/1p6/4n3/p3P1p1/3p1r2/6K1 b - - 1 46"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 
 	assert.True(t, result != nil)
@@ -461,14 +461,14 @@ func TestCheckMateInOne2(t *testing.T) {
 func TestQuiescence(t *testing.T) {
 	fen := "r1bqk2r/p1p2ppp/1pnp1n2/4p3/1bPPP3/2N3P1/PP2NPBP/R1BQK2R b KQkq d3 0 7"
 
-	_, _, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+	_, _, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 }
 
 func TestCrash1(t *testing.T) {
 	fen := "r1b1q3/2p2k2/pp3Q2/3pBn2/8/2N5/PP4PP/5R1K b - - 2 24"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(3), CreateEvaluator: Some(CreateBasicEvaluator)})
 
 	assert.True(t, result != nil)
 	assert.True(t, IsNil(err), err)
@@ -478,7 +478,7 @@ func TestCrash1(t *testing.T) {
 func TestCrash2(t *testing.T) {
 	fen := "4qk1r/3R3p/5p1p/2Q1p3/p6K/6PP/8/8 b - - 9 38"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(4), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(4), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 	assert.True(t, result != nil)
 	fmt.Println(score, result)
@@ -486,7 +486,7 @@ func TestCrash2(t *testing.T) {
 func TestCrash3(t *testing.T) {
 	fen := "rk1R1r2/pp4Q1/7p/4pN2/P1Pp4/3P4/2P3PP/R1n4K b - - 0 24"
 
-	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(4), WithoutQuiescence: true})
+	result, score, err := Search(fen, SearchOptions{MaxDepth: Some(4), CreateEvaluator: Some(CreateBasicEvaluator)})
 	assert.True(t, IsNil(err), err)
 	assert.True(t, result != nil)
 	fmt.Println(score, result)
@@ -563,8 +563,8 @@ func TestTimeStandPat(t *testing.T) {
 func TestTimeNoQuiescence(t *testing.T) {
 	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
 
-	nonIterative := timeSearch(t, fen, "depth 4 - non-iterative", SearchOptions{MaxDepth: Some(4), WithoutQuiescence: true, WithoutIterativeDeepening: true})
-	iterative := timeSearch(t, fen, "depth 4 - iterative", SearchOptions{MaxDepth: Some(4), WithoutQuiescence: true})
+	nonIterative := timeSearch(t, fen, "depth 4 - non-iterative", SearchOptions{MaxDepth: Some(4), CreateEvaluator: Some(CreateBasicEvaluator), WithoutIterativeDeepening: true})
+	iterative := timeSearch(t, fen, "depth 4 - iterative", SearchOptions{MaxDepth: Some(4), CreateEvaluator: Some(CreateBasicEvaluator)})
 
 	assert.Greater(t, nonIterative, iterative)
 }

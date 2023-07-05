@@ -63,6 +63,13 @@ type SearchTreeMoveGenerator struct {
 	history []*SearchTree
 }
 
+func CreateSearchTreeMoveGenerator(tree SearchTree) MoveGenConstructor {
+	return func(g *game.GameState) (func(), MoveGen) {
+		unregister, gen := NewSearchTreeMoveGenerator(tree, g)
+		return unregister, gen
+	}
+}
+
 func NewSearchTreeMoveGenerator(
 	tree SearchTree, g *game.GameState,
 ) (func(), *SearchTreeMoveGenerator) {
