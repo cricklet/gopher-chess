@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strconv"
+	"time"
 
 	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -216,7 +217,7 @@ func main() {
 				return false
 			}
 
-			bestMove, _, _, err := runner.Search()
+			bestMove, _, _, err := runner.Search(SearchParams{Duration: Some(time.Second)})
 			if !IsNil(err) {
 				logger.Println("search: ", err)
 				return false

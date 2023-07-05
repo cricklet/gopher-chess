@@ -227,15 +227,20 @@ func (r *ChessGoRunner) Board() BoardArray {
 	return r.g.Board
 }
 
-func (r *ChessGoRunner) Search() (Optional[string], Optional[int], int, Error) {
+func (r *ChessGoRunner) Search(searchParams SearchParams) (Optional[string], Optional[int], int, Error) {
 	var err Error
 
-	r.s.OutOfTime = false
-
-	go func() {
-		time.Sleep(1000 * time.Millisecond)
-		r.s.OutOfTime = true
-	}()
+	if searchParams.Duration.HasValue() {
+		r.s.OutOfTime = false
+		go func() {
+			time.Sleep(1000 * time.Millisecond)
+			r.s.OutOfTime = true
+		}()
+	} else if searchParams.Depth.HasValue() {
+		r.s.SetMaxDepth(searchParams.Depth.Value())
+	} else {
+		return Empty[string](), Empty[int](), 0, Errorf("no search params")
+	}
 
 	if r.s == nil {
 		return Empty[string](), Empty[int](), 0, Errorf("position not setup")

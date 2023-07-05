@@ -377,20 +377,31 @@ func (runner *StockfishRunner) SearchDepth(depth int) (Optional[string], Optiona
 	return reader.bestMove, reader.bestPVScore, NilError
 }
 
-func (runner *StockfishRunner) Search() (Optional[string], Optional[int], int, Error) {
-	if runner.MultiPVEnabled {
-		return Empty[string](), Empty[int](), 0, Errorf("cannot search with MultiPV enabled")
-	}
-
+func (runner *StockfishRunner) SearchTime(duration time.Duration) (Optional[string], Optional[int], int, Error) {
 	reader := &SearchReader{}
 
-	err := runner.SearchDurationRaw(time.Second, reader.ReadLine)
+	err := runner.SearchDurationRaw(duration, reader.ReadLine)
 
 	if !IsNil(err) {
 		return Empty[string](), Empty[int](), reader.depth, err
 	}
 
 	return reader.bestMove, reader.bestPVScore, reader.depth, NilError
+}
+
+func (runner *StockfishRunner) Search(searchParams SearchParams) (Optional[string], Optional[int], int, Error) {
+	if runner.MultiPVEnabled {
+		return Empty[string](), Empty[int](), 0, Errorf("cannot search with MultiPV enabled")
+	}
+
+	if searchParams.Duration.HasValue() {
+		return runner.SearchTime(searchParams.Duration.Value())
+	} else if searchParams.Depth.HasValue() {
+		move, score, err := runner.SearchDepth(searchParams.Depth.Value())
+		return move, score, searchParams.Depth.Value(), err
+	} else {
+		return Empty[string](), Empty[int](), 0, Errorf("no search params")
+	}
 }
 
 func (runner *StockfishRunner) Eval() (int, Error) {

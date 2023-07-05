@@ -555,22 +555,6 @@ func (u *BoardUpdate) Add(prevPiece Piece, index int, piece Piece) {
 	u.Num++
 }
 
-type Position struct {
-	Fen   string
-	Moves []string
-}
-
-type Runner interface {
-	PerformMoveFromString(s string) Error
-	SetupPosition(position Position) Error
-	PerformMoves(startPos string, moves []string) Error
-	MovesForSelection(s string) ([]string, Error)
-	Rewind(num int) Error
-	Reset()
-	Search() (Optional[string], Optional[int], int, Error)
-	IsNew() bool
-}
-
 var Inf int = 999999
 
 func InitialBounds() int {

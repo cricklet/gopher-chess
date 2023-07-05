@@ -38,7 +38,7 @@ func TestStockfish(t *testing.T) {
 			assert.True(t, IsNil(err))
 		}
 
-		move, _, _, err := r.Search()
+		move, _, _, err := r.Search(SearchParams{Duration: Some(time.Second)})
 		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 	}

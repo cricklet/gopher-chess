@@ -183,7 +183,11 @@ func main() {
 			runner = r
 		}
 
-		checkRunner(runner, testEpds, logger)
+		searchParams := SearchParams{
+			Depth: Some(3),
+		}
+
+		checkRunner(runner, testEpds, searchParams, logger)
 	}
 }
 
@@ -248,10 +252,9 @@ func updateCacheHelper(
 	}
 }
 
-func checkRunner(runner Runner, testEpds []accuracy.EpdResult, logger Logger) {
+func checkRunner(runner Runner, testEpds []accuracy.EpdResult, searchParams SearchParams, logger Logger) {
 	for i, epdResult := range testEpds {
-
-		move, _, depth, err := accuracy.SearchEpd(runner, epdResult.Epd)
+		move, _, depth, err := accuracy.SearchEpd(runner, epdResult.Epd, searchParams)
 		if err.HasError() {
 			panic(err)
 		}

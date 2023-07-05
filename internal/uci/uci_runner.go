@@ -3,6 +3,7 @@ package uci
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cricklet/chessgo/internal/chessgo"
 	. "github.com/cricklet/chessgo/internal/helpers"
@@ -75,7 +76,7 @@ func (u *uciRunner) HandleInput(input string) ([]string, Error) {
 			}
 		}
 	} else if strings.HasPrefix(input, "go") {
-		move, _, _, err := u.Runner.Search()
+		move, _, _, err := u.Runner.Search(SearchParams{Duration: Some(time.Second)})
 		if !IsNil(err) {
 			return result, err
 		}

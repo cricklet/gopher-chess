@@ -468,7 +468,7 @@ func LoadEpd(path string) ([]string, Error) {
 	return results, NilError
 }
 
-func SearchEpd(runner Runner, epd string) (string, bool, int, Error) {
+func SearchEpd(runner Runner, epd string, searchParams SearchParams) (string, bool, int, Error) {
 	parsed, err := ParseEpd(epd)
 	if err.HasError() {
 		return "", false, 0, err
@@ -479,7 +479,7 @@ func SearchEpd(runner Runner, epd string) (string, bool, int, Error) {
 		return "", false, 0, err
 	}
 
-	move, _, depth, err := runner.Search()
+	move, _, depth, err := runner.Search(searchParams)
 
 	if move.IsEmpty() {
 		return "", false, depth, Errorf("no moves found")

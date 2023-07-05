@@ -524,6 +524,10 @@ type SearchOptions struct {
 	// Add option
 }
 
+func (helper *SearchHelper) SetMaxDepth(depth int) {
+	helper.MaxDepth = Some(depth)
+}
+
 var defaultMaxDepth = 3
 
 type SearchHelperConstructor func(*GameState) (func(), *SearchHelper)

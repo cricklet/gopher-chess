@@ -21,7 +21,7 @@ func TestIndexBug2(t *testing.T) {
 
 	err = r.PerformMoveFromString("g2g4")
 	assert.True(t, IsNil(err))
-	move, _, _, err := r.Search()
+	move, _, _, err := r.Search(SearchParams{Duration: Some(time.Second)})
 	assert.True(t, IsNil(err))
 	assert.True(t, move.HasValue())
 }
@@ -36,7 +36,7 @@ func TestIndexBug3(t *testing.T) {
 
 	err = r.PerformMoveFromString("d2e3")
 	assert.True(t, IsNil(err))
-	move, _, _, err := r.Search()
+	move, _, _, err := r.Search(SearchParams{Duration: Some(time.Second)})
 	assert.True(t, IsNil(err))
 	assert.True(t, move.HasValue())
 }
@@ -116,7 +116,7 @@ func TestBattle(t *testing.T) {
 		var err Error
 		var move Optional[string]
 
-		move, _, _, err = chessgo.Search()
+		move, _, _, err = chessgo.Search(SearchParams{Duration: Some(time.Second)})
 		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 
@@ -127,7 +127,7 @@ func TestBattle(t *testing.T) {
 		err = stockfish.PerformMoveFromString(move.Value())
 		assert.True(t, IsNil(err))
 
-		move, _, _, err = stockfish.Search()
+		move, _, _, err = stockfish.Search(SearchParams{Duration: Some(time.Second)})
 		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 
@@ -164,7 +164,7 @@ func TestChessGoBattle(t *testing.T) {
 		var err Error
 		var move Optional[string]
 
-		move, _, _, err = chessgo1.Search()
+		move, _, _, err = chessgo1.Search(SearchParams{Duration: Some(time.Second)})
 		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 
@@ -175,7 +175,7 @@ func TestChessGoBattle(t *testing.T) {
 		err = chessgo2.PerformMoveFromString(move.Value())
 		assert.True(t, IsNil(err))
 
-		move, _, _, err = chessgo2.Search()
+		move, _, _, err = chessgo2.Search(SearchParams{Duration: Some(time.Second)})
 		assert.True(t, IsNil(err))
 		assert.True(t, move.HasValue())
 
