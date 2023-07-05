@@ -74,7 +74,7 @@ func TestInfoMissingPv(t *testing.T) {
 	assert.Equal(t, score, 133)
 }
 
-func checkEval(t *testing.T, fen string) int {
+func checkEval(t *testing.T, fen string, player Player) Evaluation {
 	stock, err := NewStockfishRunner(
 		WithLogger(&SilentLogger),
 	)
@@ -87,15 +87,23 @@ func checkEval(t *testing.T, fen string) int {
 	})
 	assert.True(t, IsNil(err))
 
-	score, err := stock.Eval()
-	assert.True(t, IsNil(err))
-	return score
+	eval, err := stock.Eval(player)
+	assert.True(t, IsNil(err), err)
+	return eval
 }
 
 func TestEval(t *testing.T) {
-	eval1 := checkEval(t, "5rk1/1ppb3p/p1pb4/8/3P1p1r/2P3NP/PP1BQ1P1/5RK1 b - -")
-	eval2 := checkEval(t, "5rk1/1ppb3p/p1pb4/8/3P1p1r/2P3NP/PP1BQ1P1/5RK1 w - -")
+	eval1 := checkEval(t, "5rk1/1ppb3p/p1pb4/8/3P1p1r/2P3NP/PP1BQ1P1/5RK1 b - -", Black)
+	eval2 := checkEval(t, "5rk1/1ppb3p/p1pb4/8/3P1p1r/2P3NP/PP1BQ1P1/5RK1 w - -", Black)
+	eval3 := checkEval(t, "5rk1/1ppb3p/p1pb4/8/3P1p1r/2P3NP/PP1BQ1P1/5RK1 w - -", White)
 
-	// stockfish always returns white eval
-	assert.Equal(t, eval1, eval2)
+	assert.Equal(t, eval1.PlayerScore, eval2.PlayerScore)
+	assert.Equal(t, eval1.PlayerScore, -eval3.PlayerScore)
+
+	assert.False(t, eval1.PlayerIsInDanger)
+	assert.False(t, eval2.PlayerIsInDanger)
+	assert.False(t, eval3.PlayerIsInDanger)
+
+	eval4 := checkEval(t, "r1R3k1/3n1ppp/1p6/3p1p2/3P1B2/4P2P/rR3PP1/6K1 b - -", Black)
+	assert.True(t, eval4.PlayerIsInDanger)
 }

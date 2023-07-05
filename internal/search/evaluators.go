@@ -37,12 +37,12 @@ func (e StockfishEvaluator) evaluate(helper *SearchHelper, player Player, alpha 
 		return nil, 0, err
 	}
 
-	eval, err := e.stock.Eval()
+	eval, err := e.stock.Eval(helper.GameState.Player)
 	if !IsNil(err) {
 		return nil, 0, err
 	}
 
-	return nil, eval, NilError
+	return nil, eval.PlayerScore, NilError
 }
 
 type BasicEvaluator struct {
@@ -86,94 +86,4 @@ func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha
 		pastMoves,
 	)
 	return moves, score, err
-
-	/*
-	   if helper.WithoutIterativeDeepeningInQuiescence {
-	   }
-
-	   principleVariations := []Pair[int, []SearchMove]{}
-	   mode := OnlyCaptures
-
-	   unregisterCounter, counter := NewMoveCounter(helper.GameState)
-	   defer unregisterCounter()
-
-	   lastCount := Empty[int]()
-
-	   cleanup, result, moves, err := helper.MoveGen.generateMoves(mode)
-	   defer cleanup()
-
-	   	if result != SomeLegalMoves {
-	   		return nil, alpha, Errorf("quiescence should only search captures")
-	   	}
-
-	   	if err.HasError() {
-	   		return nil, alpha, err
-	   	}
-
-	   // Loop through & perform first generated moves
-
-	   	for depthRemaining := quiescenceDepth; depthRemaining <= quiescenceDepth; depthRemaining += 1 {
-	   		if lastCount.HasValue() {
-	   			if counter.NumMoves() == lastCount.Value() {
-	   				break
-	   			}
-	   		}
-
-	   		err = helper.MoveSorter.sortMoves(moves)
-	   		if err.HasError() {
-	   			return nil, alpha, err
-	   		}
-
-	   		for _, move := range *moves {
-	   			undo, legal, err := performMoveAndReturnLegality(helper.GameState, helper.Bitboards, move)
-	   			if err.HasError() {
-	   				return nil, alpha, err
-	   			}
-
-	   			if legal {
-	   				// Traverse past the first generated move
-	   				variation, enemyScore, err := helper.alphaBeta(
-	   					alpha, beta,
-	   					currentDepth,
-	   					depthRemaining-1,
-	   					pastMoves,
-	   				)
-
-	   				if err.HasError() {
-	   					return nil, alpha, err
-	   				}
-
-	   				score := -enemyScore
-	   				principleVariations = append(principleVariations, Pair[int, []SearchMove]{
-	   					First: score, Second: append([]SearchMove{{move, false}}, variation...)})
-	   			}
-
-	   			err = undo()
-	   			if err.HasError() {
-	   				return nil, alpha, err
-	   			}
-	   		}
-
-	   		if err.HasError() {
-	   			return nil, 0, err
-	   		}
-
-	   		if len(principleVariations) == 0 {
-	   			return helper.Evaluator.evaluate(helper, player, alpha, beta, currentDepth, pastMoves)
-	   		}
-
-	   		SortMaxFirst(&principleVariations, func(t Pair[int, []SearchMove]) int {
-	   			return t.First
-	   		})
-
-	   		// Prioritize the newly discovered principle variations first
-	   		helper.MoveSorter.reset(principleVariations)
-
-	   		lastCount = Some(counter.NumMoves())
-	   		counter.Reset()
-	   	}
-
-	   bestMove := principleVariations[0]
-	   return bestMove.Second, bestMove.First, NilError
-	*/
 }

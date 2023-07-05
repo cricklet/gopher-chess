@@ -481,6 +481,10 @@ func SearchEpd(runner Runner, epd string, searchParams SearchParams) (string, bo
 
 	move, _, depth, err := runner.Search(searchParams)
 
+	if err.HasError() {
+		return "", false, depth, err
+	}
+
 	if move.IsEmpty() {
 		return "", false, depth, Errorf("no moves found")
 	}

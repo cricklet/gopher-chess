@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cricklet/chessgo/internal/accuracy"
 	. "github.com/cricklet/chessgo/internal/accuracy"
@@ -163,17 +164,17 @@ func main() {
 
 		var runner Runner
 		if args[0] == "chessgo" {
-			// r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{})
 			r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{
 				SearchConstructor: Some(search.SearchHelperFromOptions(search.SearchOptions{
+					// Logger: Some[helpers.Logger](logger),
 					// CreateEvaluator: Some(search.CreateStockfishEvaluator),
-					// Logger:          Some[helpers.Logger](logger),
 					Logger: Some[helpers.Logger](&helpers.SilentLogger),
 				})),
 			})
 			runner = &r
 		} else if args[0] == "stockfish" {
 			r, err := stockfish.NewStockfishRunner(
+				// stockfish.WithLogger(logger),
 				stockfish.WithLogger(&SilentLogger),
 			)
 			defer r.Close()
@@ -184,7 +185,8 @@ func main() {
 		}
 
 		searchParams := SearchParams{
-			Depth: Some(3),
+			// Depth: Some(MinInt(3, depth)),
+			Duration: Some(time.Millisecond * 500),
 		}
 
 		checkRunner(runner, testEpds, searchParams, logger)
@@ -253,6 +255,7 @@ func updateCacheHelper(
 }
 
 func checkRunner(runner Runner, testEpds []accuracy.EpdResult, searchParams SearchParams, logger Logger) {
+	accs := []float64{}
 	for i, epdResult := range testEpds {
 		move, _, depth, err := accuracy.SearchEpd(runner, epdResult.Epd, searchParams)
 		if err.HasError() {
@@ -263,10 +266,18 @@ func checkRunner(runner Runner, testEpds []accuracy.EpdResult, searchParams Sear
 		bestScore := epdResult.StockfishScores[epdResult.StockfishMove]
 
 		acc := accuracy.AccuracyForScores(runnerScore, bestScore)
+		accs = append(accs, acc)
 
 		prefix := fmt.Sprintf("%2d/%d depth cached %2v, ", i+1, len(testEpds), epdResult.StockfishDepth)
 		prefix += fmt.Sprintf("searched %v: %5.1f (%4v) %6v vs %6v", depth, acc, move, ScoreString(runnerScore), ScoreString(bestScore))
 
 		logger.Println(prefix, epdResult.Epd)
 	}
+
+	sum := 0.0
+	for _, acc := range accs {
+		sum += acc
+	}
+	avg := sum / float64(len(accs))
+	logger.Println("avg:", avg)
 }

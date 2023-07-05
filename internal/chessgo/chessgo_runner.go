@@ -233,7 +233,7 @@ func (r *ChessGoRunner) Search(searchParams SearchParams) (Optional[string], Opt
 	if searchParams.Duration.HasValue() {
 		r.s.OutOfTime = false
 		go func() {
-			time.Sleep(1000 * time.Millisecond)
+			time.Sleep(searchParams.Duration.Value())
 			r.s.OutOfTime = true
 		}()
 	} else if searchParams.Depth.HasValue() {

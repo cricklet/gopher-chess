@@ -346,7 +346,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 			}
 			// If no legal moves exist, we're in stalemate or checkmate
 			if helper.inCheck() {
-				alpha = MateNegative()
+				alpha = MateBlackWins()
 			} else {
 				alpha = 0
 			}
@@ -528,7 +528,7 @@ func (helper *SearchHelper) SetMaxDepth(depth int) {
 	helper.MaxDepth = Some(depth)
 }
 
-var defaultMaxDepth = 3
+var defaultMaxDepth = 10
 
 type SearchHelperConstructor func(*GameState) (func(), *SearchHelper)
 

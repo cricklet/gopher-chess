@@ -297,7 +297,7 @@ func (r *StockfishRunner) SearchDurationRaw(duration time.Duration, callback fun
 		return err
 	}
 
-	time.Sleep(time.Second)
+	time.Sleep(duration)
 	err = r.binary.RunSync(
 		"stop",
 		func(line string) (LoopResult, Error) {
@@ -308,7 +308,7 @@ func (r *StockfishRunner) SearchDurationRaw(duration time.Duration, callback fun
 
 			return result, NilError
 		},
-		Some(time.Second), // timeout for reading stdout
+		Some(time.Millisecond*100), // timeout for reading stdout
 	)
 
 	if !IsNil(err) {
@@ -404,18 +404,33 @@ func (runner *StockfishRunner) Search(searchParams SearchParams) (Optional[strin
 	}
 }
 
-func (runner *StockfishRunner) Eval() (int, Error) {
-	eval := 0.0
-	err := runner.binary.RunSync("eval", func(line string) (LoopResult, Error) {
-		var err Error
+func (runner *StockfishRunner) Eval(player Player) (Evaluation, Error) {
+	result := Evaluation{
+		Player: player,
+	}
 
+	err := runner.binary.RunSync("eval", func(line string) (LoopResult, Error) {
 		// parse "Final evaluation       +0.31 (white side) [with scaled NNUE, hybrid, ...]"
 		if strings.Contains(line, "Final evaluation") {
 			evalStr := strings.TrimSpace(strings.TrimPrefix(line, "Final evaluation"))
+
+			if strings.Contains(evalStr, "none (in check)") {
+				result.PlayerIsInDanger = true
+				return LoopBreak, NilError
+			}
+
 			evalStr = strings.Split(evalStr, " ")[0]
-			eval, err = WrapReturn(strconv.ParseFloat(evalStr, 64))
+
+			eval, err := WrapReturn(strconv.ParseFloat(evalStr, 64))
+
 			if !IsNil(err) {
 				return LoopBreak, err
+			}
+
+			if player == White {
+				result.PlayerScore = int(eval*100 + 0.5)
+			} else {
+				result.PlayerScore = -int(eval*100 + 0.5)
 			}
 
 			return LoopBreak, NilError
@@ -423,5 +438,5 @@ func (runner *StockfishRunner) Eval() (int, Error) {
 		return LoopContinue, NilError
 	}, Empty[time.Duration]())
 
-	return int(eval*100 + 0.5), err
+	return result, err
 }

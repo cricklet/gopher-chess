@@ -577,7 +577,11 @@ func IncrementMate(score int) (int, Error) {
 	}
 }
 
-func MateNegative() int {
+func MateWhiteWins() int {
+	return Inf
+}
+
+func MateBlackWins() int {
 	return -Inf
 }
 
@@ -604,4 +608,10 @@ func ScoreString(score int) string {
 		return fmt.Sprint("mate-", -(-Inf - score))
 	}
 	return fmt.Sprint(score)
+}
+
+type Evaluation struct {
+	PlayerScore      int
+	PlayerIsInDanger bool
+	Player           Player
 }

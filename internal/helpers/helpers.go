@@ -409,3 +409,38 @@ type NoCopy struct{}
 
 func (*NoCopy) Lock()   {}
 func (*NoCopy) Unlock() {}
+
+type Either[A, B any] struct {
+	Left  Optional[A]
+	Right Optional[B]
+}
+
+func (e Either[A, B]) String() string {
+	if e.Left.HasValue() {
+		return fmt.Sprintf("Left(%v)", e.Left.Value())
+	} else if e.Right.HasValue() {
+		return fmt.Sprintf("Right(%v)", e.Right.Value())
+	} else {
+		return "Empty"
+	}
+}
+
+func Left[A, B any](a A) Either[A, B] {
+	return Either[A, B]{Some(a), Empty[B]()}
+}
+
+func Right[A, B any](b B) Either[A, B] {
+	return Either[A, B]{Empty[A](), Some(b)}
+}
+
+func EmptyEither[A, B any]() Either[A, B] {
+	return Either[A, B]{Empty[A](), Empty[B]()}
+}
+
+func (e Either[A, B]) HasLeft() bool {
+	return e.Left.HasValue()
+}
+
+func (e Either[A, B]) HasRight() bool {
+	return e.Right.HasValue()
+}
