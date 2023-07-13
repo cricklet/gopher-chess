@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cricklet/chessgo/internal/chessgo"
@@ -133,13 +134,20 @@ func main() {
 			panic(err)
 		}
 
+		var mu sync.Mutex
+		var writeMessage = func(messageType int, data []byte) error {
+			mu.Lock()
+			defer mu.Unlock()
+			return c.WriteMessage(websocket.TextMessage, data)
+		}
+
 		var log = func(message string) {
 			log.Print("logging: ", message)
 			bytes, err := json.Marshal([]string{message})
 			if !IsNil(err) {
 				fmt.Fprintln(os.Stderr, fmt.Sprint("logging: json marshal: ", err))
 			}
-			err = c.WriteMessage(websocket.TextMessage, bytes)
+			err = writeMessage(websocket.TextMessage, bytes)
 			if !IsNil(err) {
 				fmt.Fprintln(os.Stderr, fmt.Sprint("logging: websocket: ", err))
 			}
@@ -195,7 +203,7 @@ func main() {
 			if !IsNil(err) {
 				logger.Println("update: json marshal: ", err)
 			}
-			err = c.WriteMessage(websocket.TextMessage, bytes)
+			err = writeMessage(websocket.TextMessage, bytes)
 			if !IsNil(err) {
 				logger.Println("websocket: ", err)
 			}
