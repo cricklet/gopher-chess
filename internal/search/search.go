@@ -241,7 +241,7 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 		return future, score, err
 	}
 
-	if helper.InQuiescence && !helper.WithoutCheckStandPat {
+	if !helper.WithoutCheckStandPat {
 		// if we decide not to not take (eg make a neutral move / stand-pat)
 		// and that's really good for us (eg other player will have prevented this path)
 		//   we can return early
@@ -253,6 +253,10 @@ func (helper *SearchHelper) alphaBeta(alpha int, beta int, currentDepth int, dep
 		_, standPat, err := BasicEvaluator{}.evaluate(helper, helper.GameState.Player, alpha, beta, currentDepth, past)
 		if err.HasError() {
 			return nil, alpha, err
+		}
+
+		if !helper.InQuiescence {
+			standPat = standPat - 50
 		}
 
 		if standPat >= beta {
