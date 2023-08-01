@@ -155,13 +155,24 @@ func main() {
 
 		chessGoRunner := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{})
 
-		stockfishRunner, err := stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
-			&LogForwarding{
-				writeCallback: func(message string) {
-					log(fmt.Sprintf("stockfish: %v", message))
-				},
-			},
-		))
+		var _stockfishRunner *stockfish.StockfishRunner
+
+		stockfishRunner := func() *stockfish.StockfishRunner {
+			if _stockfishRunner == nil {
+				var err Error
+				_stockfishRunner, err = stockfish.NewStockfishRunner(stockfish.WithElo(800), stockfish.WithLogger(
+					&LogForwarding{
+						writeCallback: func(message string) {
+							log(fmt.Sprintf("stockfish: %v", message))
+						},
+					},
+				))
+				if !IsNil(err) {
+					panic(err)
+				}
+			}
+			return _stockfishRunner
+		}
 
 		if !IsNil(err) {
 			panic(err)
@@ -171,7 +182,7 @@ func main() {
 			if playerTypes[p] == ChessGo {
 				return &chessGoRunner
 			} else if playerTypes[p] == Stockfish {
-				return stockfishRunner
+				return stockfishRunner()
 			}
 			return nil
 		}
@@ -265,12 +276,15 @@ func main() {
 				if !IsNil(err) {
 					logger.Println("chessgo setup: ", err)
 				}
-				err = stockfishRunner.SetupPosition(Position{
-					Fen:   *message.NewFen,
-					Moves: []string{},
-				})
-				if !IsNil(err) {
-					logger.Println("stockfish setup: ", err)
+
+				if playerTypes[0] == Stockfish && playerTypes[1] == Stockfish {
+					err = stockfishRunner().SetupPosition(Position{
+						Fen:   *message.NewFen,
+						Moves: []string{},
+					})
+					if !IsNil(err) {
+						logger.Println("stockfish setup: ", err)
+					}
 				}
 			} else if message.WhitePlayer != nil {
 				playerTypes[White] = PlayerTypeFromString(*message.WhitePlayer)
