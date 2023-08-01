@@ -431,7 +431,7 @@ func (helper *SearchHelper) SearchUpToDepth(
 func (helper *SearchHelper) Search() ([]Move, int, int, Error) {
 	knownVariations := []Pair[int, []SearchMove]{}
 
-	depthIncrement := 1
+	depthIncrement := 2
 
 	startDepthRemaining := 1
 	if helper.WithoutIterativeDeepening {
