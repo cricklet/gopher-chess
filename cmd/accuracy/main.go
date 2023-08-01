@@ -161,15 +161,12 @@ func main() {
 		if args[0] == "chessgo" {
 			r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{
 				SearchConstructor: Some(search.SearchHelperFromOptions(search.SearchOptions{
-					// Logger: Some[helpers.Logger](logger),
-					// CreateEvaluator: Some(search.CreateStockfishEvaluator),
 					Logger: Some[helpers.Logger](&helpers.SilentLogger),
 				})),
 			})
 			runner = &r
 		} else if args[0] == "stockfish" {
 			r, err := stockfish.NewStockfishRunner(
-				// stockfish.WithLogger(logger),
 				stockfish.WithLogger(&SilentLogger),
 			)
 			defer r.Close()
