@@ -93,7 +93,7 @@ func (t PlayerType) String() string {
 	case User:
 		return "user"
 	case ChessGo:
-		return "chessgo"
+		return "gopher"
 	case Stockfish:
 		return "stockfish"
 	case Unknown:
@@ -107,7 +107,7 @@ func PlayerTypeFromString(s string) PlayerType {
 	switch s {
 	case "user":
 		return User
-	case "chessgo":
+	case "gopher":
 		return ChessGo
 	case "stockfish":
 		return Stockfish
@@ -194,7 +194,7 @@ func main() {
 		}
 		chessGoRunner.Logger = &LogForwarding{
 			writeCallback: func(message string) {
-				log(fmt.Sprintf("chessgo: %v", message))
+				log(fmt.Sprintf("gopher: %v", message))
 			},
 		}
 
@@ -274,7 +274,7 @@ func main() {
 					Moves: []string{},
 				})
 				if !IsNil(err) {
-					logger.Println("chessgo setup: ", err)
+					logger.Println("gopher setup: ", err)
 				}
 
 				if playerTypes[0] == Stockfish && playerTypes[1] == Stockfish {

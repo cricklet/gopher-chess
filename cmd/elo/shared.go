@@ -86,7 +86,7 @@ func Search(player Player, binary *binary.BinaryRunner, fen string, moveHistory 
 	fenInput := fmt.Sprintf("position fen %v moves %v", fen, strings.Join(moveHistory, " "))
 	RunAsync(binary, fenInput)
 
-	if binary.CmdName() == "chessgo" {
+	if binary.CmdName() == "gopher" {
 		binaryFenOpt := FindInSlice(Run(binary, "fen", Some("position fen ")), func(v string) bool {
 			return strings.HasPrefix(v, "position fen ")
 		})

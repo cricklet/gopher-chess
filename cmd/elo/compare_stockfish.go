@@ -225,8 +225,8 @@ func playGameBinaries(
 	defer stockfish.Close()
 
 	var opponent *binary.BinaryRunner
-	chessgoLogger := FuncLogger(func(s string) { logger.Println("chessgo > " + Indent(s, "$ ")) })
-	opponent, err = binary.SetupBinaryRunner(binaryPath, "chessgo", binaryArgs, binary.WithLogger(chessgoLogger))
+	chessgoLogger := FuncLogger(func(s string) { logger.Println("gopher > " + Indent(s, "$ ")) })
+	opponent, err = binary.SetupBinaryRunner(binaryPath, "gopher", binaryArgs, binary.WithLogger(chessgoLogger))
 	if !IsNil(err) {
 		panic(err)
 	}

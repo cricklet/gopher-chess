@@ -131,7 +131,7 @@ func main() {
 			}
 		})
 
-	} else if args[0] == "chessgo" || args[0] == "stockfish" {
+	} else if args[0] == "gopher" || args[0] == "stockfish" {
 		if len(args) < 2 {
 			fmt.Println("usage: accuracy chessgo <depth>")
 			return
@@ -158,7 +158,7 @@ func main() {
 		logger.Println("test epds:", len(testEpds))
 
 		var runner Runner
-		if args[0] == "chessgo" {
+		if args[0] == "gopher" {
 			r := chessgo.NewChessGoRunner(chessgo.ChessGoOptions{
 				SearchConstructor: Some(search.SearchHelperFromOptions(search.SearchOptions{
 					Logger: Some[helpers.Logger](&helpers.SilentLogger),
