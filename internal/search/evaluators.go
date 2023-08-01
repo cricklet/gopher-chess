@@ -64,6 +64,13 @@ type QuiescenceEvaluator struct {
 var _ Evaluator = (*QuiescenceEvaluator)(nil)
 
 func (e QuiescenceEvaluator) evaluate(helper *SearchHelper, player Player, alpha int, beta int, currentDepth int, pastMoves []SearchMove) ([]SearchMove, int, Error) {
+	if len(pastMoves) > 0 {
+		lastMove := pastMoves[len(pastMoves)-1]
+		if !lastMove.MoveType.Captures() {
+			return nil, Evaluate(helper.GameState.Bitboards, player), NilError
+		}
+	}
+
 	prevInQuiescence := helper.InQuiescence
 	prevEvaluator := helper.Evaluator
 	prevSorter := helper.MoveSorter

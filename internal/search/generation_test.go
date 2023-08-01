@@ -127,7 +127,7 @@ func CountAndPerftForDepthWithProgress(t *testing.T, g *GameState, n int, expect
 
 	var progressBar *ProgressBar
 	if expectedCount > 0 {
-		p := CreateProgressBar(expectedCount, fmt.Sprint("depth ", n))
+		p := CreateProgressBar(expectedCount, fmt.Sprint("depth ", n, " expected ", expectedCount))
 		progressBar = &p
 	}
 

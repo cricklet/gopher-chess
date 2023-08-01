@@ -570,12 +570,17 @@ func TestTimeNoQuiescence(t *testing.T) {
 }
 
 func TestTimeQuiescence(t *testing.T) {
+	// before fixing running quiescence on quiet positions
+	// depth 2 - non-iterative, stand-pat 144 ms 137402 moves
+	// depth 2 - iterative, stand-pat 25 ms 19875 moves
+	// depth 2 - iterative, no-stand-pat 23164 ms 20077064 moves
+
 	fen := "r3k2r/1bq1bppp/pp2p3/2p1n3/P3PP2/2PBN3/1P1BQ1PP/R4RK1 b kq - 0 16"
 
 	nonIterativeStandPat := timeSearch(t, fen, "depth 2 - non-iterative, stand-pat", SearchOptions{MaxDepth: Some(2), WithoutIterativeDeepening: true})
 	iterativeStandPat := timeSearch(t, fen, "depth 2 - iterative, stand-pat", SearchOptions{MaxDepth: Some(2)})
 
-	assert.Greater(t, nonIterativeStandPat, 2*iterativeStandPat)
+	assert.Greater(t, nonIterativeStandPat, iterativeStandPat)
 
 	iterativeNonStandPat := timeSearch(t, fen, "depth 2 - iterative, no-stand-pat", SearchOptions{MaxDepth: Some(2), WithoutCheckStandPat: true})
 
